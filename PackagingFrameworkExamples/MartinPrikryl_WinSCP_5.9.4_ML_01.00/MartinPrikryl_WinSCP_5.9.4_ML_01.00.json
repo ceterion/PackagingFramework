@@ -1,0 +1,30 @@
+{
+  "Package": 
+    {
+      "PackageDate": "10.10.2017",
+      "PackageAuthor": "ceterion AG",
+      "PackageDescription": "WinSCP 5.9.4"
+    },
+  "Applications": [
+    {
+      "AppName": "WinSCP",
+      "AppCommandLineExecutable": "$ProgramFilesX86\\WinSCP\\WinSCP.exe",
+      "AppWorkingDirectory": "$ProgramFilesX86\\WinSCP",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFilesX86\\WinSCP\\WinSCP.exe",
+      "AppAccounts": [ ]
+    }
+  ],
+  "DetectionMethods": [ ],
+  "Dependencies":[ ],
+  "Parameters": {
+    "DisableAutoUpdate": true
+   }, 
+  "Notes": [
+    "This package req. WinSCP-5.9.4-Setup.exe that can be downloaded from https://winscp.net/"
+   ],
+  "ChangeLog":[
+    "Version 1.0 initial release"
+  ]    
+}

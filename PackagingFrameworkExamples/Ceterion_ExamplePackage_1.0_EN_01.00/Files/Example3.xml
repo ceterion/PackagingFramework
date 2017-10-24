@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Data version="2.0">
+  <Roles>
+    <Role Name="ManagementServer" Value="ManagementServer" />
+    <Role Name="ADServer" Value="ADServer" />
+    <Role Name="ADServer" Value="ADServer" />
+  </Roles>
+  <SQL>
+    <Instance Server="SQLServer" Instance="MSSQLSERVER" Version="SQL Server 2012">
+      <Variable Name="SQLAdmin" Value="Domain\SQlAdmin" />
+      <Variable Name="SQLUser" Value="domain\sqluser" />
+    </Instance>
+  </SQL>
+  <VMs>
+    <VM Type="ClientVM">
+      <VMName>ClientVM</VMName>
+    </VM>
+    <VM Type="DNSServerVM">
+      <VMName>DNSServer</VMName>
+    </VM>
+  </VMs>
+  <Course>
+    <Subject>History</Subject>
+    <Subject>Computers</Subject>
+  </Course>
+  <AllContacts>
+    <Contact>
+      <ContactType Type="Mobile" />
+      <Details Number="000000000" />
+    </Contact>
+    <Contact>
+      <ContactType Type="Landline" />
+      <Details Number="11111111111" />
+    </Contact>
+  </AllContacts>
+</Data>

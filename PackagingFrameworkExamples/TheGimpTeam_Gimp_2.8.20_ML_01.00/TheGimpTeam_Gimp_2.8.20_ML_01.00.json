@@ -1,0 +1,28 @@
+{
+  "Package": 
+    {
+      "PackageDate": "01.01.2017",
+      "PackageAuthor": "ceterion AG",
+      "PackageDescription": "Gimp 2.8.20"
+    },
+  "Applications": [
+    {
+      "AppName": "Gimp",
+      "AppCommandLineExecutable": "$ProgramFiles\\GIMP 2\\bin\\gimp-2.8.exe",
+      "AppWorkingDirectory": "$ProgramFiles\\GIMP 2\\bin",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFiles\\GIMP 2\\bin\\gimp-2.8.exe",
+      "AppAccounts": [ ]
+    }
+  ],
+  "DetectionMethods": [ ],
+  "Dependencies":[ ],
+  "Parameters": { },
+  "Notes": [ 
+    "This package req. gimp-2.8.20-setup.exe that can bw downloaded from https://www.gimp.org/"
+  ],
+  "ChangeLog":[
+    "Version 1.0 initial release"
+  ]    
+}

@@ -1,0 +1,18 @@
+{
+  "Package": 
+    {
+      "PackageDate": "10.1ß.2017",
+      "PackageAuthor": "ceterion AG",
+      "PackageDescription": "Microsoft .NET Framework 4.7"
+    },
+  
+  "DetectionMethods": [ ],
+  "Dependencies":[ ],
+  "Parameters": { },
+  "Notes": [ 
+    "This package req. the NDP47-KB3186497-x86-x64-AllOS-ENU.exe that can be downloaded from https://www.microsoft.com/de-de/download/details.aspx?id=55167"
+  ],
+  "ChangeLog":[
+      "Version 1.0 initial release"
+  ]    
+}

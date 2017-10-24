@@ -1,0 +1,1 @@
+"C:\Program Files (x86)\NSIS\makensisw.exe" ".\PackagingFrameworkSetup.nsi"

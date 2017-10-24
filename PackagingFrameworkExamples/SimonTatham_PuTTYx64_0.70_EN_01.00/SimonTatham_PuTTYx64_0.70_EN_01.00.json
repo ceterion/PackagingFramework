@@ -1,0 +1,58 @@
+{
+  "Package": 
+    {
+      "PackageDate": "19.09.2017",
+      "PackageAuthor": "Andreas Mariotti",
+      "PackageDescription": "PuTTY 0.70"
+    },
+  "Applications": [
+    {
+      "AppName": "PuTTY",
+      "AppCommandLineExecutable": "$ProgramFiles\\PuTTY\\putty.exe",
+      "AppWorkingDirectory": "$ProgramFiles\\PuTTY",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFiles\\PuTTY\\putty.exe",
+      "AppAccounts": [ ]
+    },
+
+    {
+      "AppName": "PuTTY Agent",
+      "AppCommandLineExecutable": "$ProgramFiles\\PuTTY\\pageant.exe",
+      "AppWorkingDirectory": "$ProgramFiles\\PuTTY",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFiles\\PuTTY\\pageant.exe",
+      "AppAccounts": [ ]
+    },
+
+    {
+      "AppName": "PuTTY Key Generator",
+      "AppCommandLineExecutable": "$ProgramFiles\\PuTTY\\puttygen.exe",
+      "AppWorkingDirectory": "$ProgramFiles\\PuTTY",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFiles\\PuTTY\\puttygen.exe",
+      "AppAccounts": [ ]
+    },
+
+    {
+      "AppName": "PuTTY FTP",
+      "AppCommandLineExecutable": "$ProgramFiles\\PuTTY\\psftp.exe",
+      "AppWorkingDirectory": "$ProgramFiles\\PuTTY",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFiles\\PuTTY\\psftp.exe",
+      "AppAccounts": [ ]
+    }
+
+  ],
+  "DetectionMethods": [ ],
+  "Dependencies":[ ],
+  "Notes": [ 
+    "This package req. putty-64bit-0.70-installer.msi that can be downloaded from http://www.putty.org/"
+  ],
+  "ChangeLog":[
+    "Version 1.0 initial release"
+  ]    
+}
