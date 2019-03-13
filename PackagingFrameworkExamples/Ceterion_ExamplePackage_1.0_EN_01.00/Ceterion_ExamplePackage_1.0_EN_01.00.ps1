@@ -1,8 +1,8 @@
-﻿[CmdletBinding()] Param ([Parameter(Mandatory=$false)] [ValidateSet('Install','Uninstall')] [string]$DeploymentType='Install', [Parameter(Mandatory=$false)] [ValidateSet('Interactive','Silent','NonInteractive')] [string]$DeployMode='Interactive')
+﻿[CmdletBinding()] Param ([Parameter(Mandatory=$false)] [ValidateSet('Install','Uninstall')] [string]$DeploymentType='Install', [Parameter(Mandatory=$false)] [ValidateSet('Interactive','Silent','NonInteractive')] [string]$DeployMode='Interactive', [Parameter(Mandatory=$false)] [string]$CustomParameter)
 Try {
     
-    # Import Packaging Framework modul and initialize it
-    if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}
+    # Import Packaging Framework module
+    Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}
 
     # Install
     If ($deploymentType -ieq 'Install') {
@@ -112,6 +112,11 @@ Try {
         Get-Parameter 'TestParam' -Variable 'TestParamMyCustomVarName'
         Get-Parameter 'PackageDescription' -Section 'Package' -Source Json -Variable 'TestParamPackageDescription'
         Get-Parameter 'INST_LOG_DIR' -Section 'Install' -Source CloudShaper -Variable 'TestParamInstLogDir'
+        Get-Parameter 'TestParam3' -force
+
+        # Example how to add parameters via command line
+        # Powershell.exe -file .\<PackageName>.ps1 -CustomParameter "AddLocal=ALL;TargetDir=""C:\Program Files\Test"";LicenseKey=12345-67890-ABCDEF"
+
 
         # List all TestParam variables from the example above
         Get-Variable TestParam* -ValueOnly | out-string | Write-Log
@@ -209,8 +214,34 @@ Try {
         Show-DialogBox -Title 'Installed Complete' -Text 'Installation has completed. Please click OK and restart your computer.' -Icon 'Information'
         $Result = Show-DialogBox -Title 'Installation Notice' -Text 'Installation will take approximately 30 minutes. Do you wish to proceed?' -Buttons 'OKCancel' -DefaultButton 'Second' -Icon 'Exclamation' -Timeout 600
         Write-Log "Result = $Result"
-    
+
+        # Display a custom ballon tip
+        Show-BalloonTip -BalloonTipText 'My custom ballon tip' -BalloonTipTitle 'My Package'
+
+
     #endregion GUI
+
+    #region PackageWithGUI
+
+        # Show welcome dialog, close apps, allow defer, checl diskspace, etc.
+        Show-InstallationWelcome -CloseApps 'notepad' -CloseAppsCountdown 10 -AllowDefer -DeferTimes 3 -CheckDiskSpace -RequiredDiskSpace 10000 -ForceCloseAppsCountdown 20 -PromptToSave -PersistPrompt 
+    
+        # Show progess disalog
+        Show-InstallationProgress -StatusMessage "Installation in Progress..."
+    
+        # Installation
+        # < PLACE YOUR INSTALL CODE HERE> 
+
+        # Close progress dialog
+        Close-InstallationProgress
+
+        # Show complete message
+        Show-InstallationPrompt -Message 'Installation Completely' -ButtonRightText 'OK' -Icon Information 
+
+        # Show restart prompt (but only when reboot is pending)
+        if ((Get-PendingReboot).IsSystemRebootPending){ Show-InstallationRestartPrompt } 
+    
+    #endregion PackagewithGUI
 
     #region Execute
 
@@ -250,10 +281,10 @@ Try {
         Start-MSI -Action 'Uninstall' -Path "$Files\Setup.msi"
 
         # Insall an MSI ans speify a custom name for the log file (without folder and .log extension!)
-        Start-MSI -Action 'Install' -Path "$Files\Setup.msi" -LogName "MyCustomLogName"
+        Start-MSI -Action 'Install' -Path "$Files\Setup.msi" -LogName "MyCustomLogName" 
 
         # Installs an MSI, applying a transform and overriding the default MSI toolkit parameter. Hint: Don't specify the "Files" or "Source" folder for the MST!
-        Start-MSI -Action 'Install' -Path "$Files\Setup.msi" -Transform 'Example.mst' -Parameters '/QB'
+        Start-MSI -Action 'Install' -Path "$Files\Setup.msi" -Transform 'Example.mst' -AddParameters 'KEY=123'
 
         # Uninstalls an MSI using a product code
         Start-MSI -Action 'Uninstall' -Path '{3A39516D-74D5-4789-AE45-B80F1EE1723C}'
