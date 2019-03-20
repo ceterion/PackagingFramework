@@ -1,0 +1,144 @@
+ceterion Packaging Framework - Change Log
+Date: 20th March 2019
+
+Version 1.0.0.0 
+###############
+
+Initial Release
+
+Version 1.0.1.0
+###############
+
+Show-InstallationWelcome
+- New cmdlet that shows a welcome scree with some customizable text 
+
+Show-InstallationProgress 
+- New cmdlet that shows a progress screen while the installation is in progress
+
+Close-InstallationProgress
+- New cmdlet that close the progress screen after a installation is finished or failed
+
+Show-InstallationPrompt
+- New cmdlet that shows a dialog that prompts the user to start or defer the installation
+
+Show-InstallationRestartPrompt
+- New cmdlet that shows a dialog to initiate or defer a required reboot
+
+Install-MultipelPackages
+- Improved, package execution changed from Start-Process with wait to a separate Wait-Process. This change solves the issue with some 3. party setups like Paint.NET, VSCode, etc.
+- Improved, parameter username & domain is now optional, if not specified $env:userdomain and $env:username is used as default
+
+New-Package
+- Improved, the included template package was changed to support command line parameters. Header of the template package and all example packages where changed to support the new optional command line parameter
+
+Start-NSISWrapper
+- Improved, now supports packages with empty files folder, supports relative path, improved error handling and support for command line parameters inside the wrapped package
+
+Test-IsGroupMember
+- New Test-IsGroupMember cmdlet to check group membership
+
+Set-AutoAdminLogon
+- Improved, works now with the more secure LsaStorePrivateData encrypted password instead of a cleartext password
+
+Update-FolderPermissions
+- Improved, has now a new ReplaceAll parameter
+- Improved, has now a new PermissionSet parameter
+
+Update-FilePermissions 
+- Improved, has now a new ReplaceAll parameter
+- Improved, has now a new PermissionSet parameter
+- Improved, has now wildcard support in -filename parameter
+
+Update-RegistryPermissions 
+- Improved, has now a new ReplaceAll parameter
+- Improved, has now a new PermissionSet parameter
+
+Set-DisableLogging
+- New Set-DisableLogging cmdlt to toggle the logfile on and off, e.g. to hide passwords in logs
+
+Test-Package
+- Improved, has now a "Check Files Exists" feature
+- Improved, has now patterns to detect errors from the optional NSIS, DSM and Wise converter
+- Improved, the CSV delimiter also supports semicolon, added package folder link column
+
+New-Package 
+- Improved, has now the new options -SkipNameCheck and -Overwrite parameter
+
+Copy-File
+- Improved, has now a version check feature via the optional parameter -VersionCheck
+
+Invoke-InstallOrRemoveAssembly
+- New Invoke-InstallOrRemoveAssembly cmdlet to install or uninstall assemblies
+
+Set-IniValue
+- Improved, ini file is now automatically created if file not exists
+
+General Changes
+- New runtime variables for shell folders like My Music, My Pictures, My Video, etc....
+- The frameworks manifest file now enforces the usage of PowerShell 5.1
+- Set variables $PackageName & $PackageFileName only if not already set. This change was necessary for the XenDesktop package and it’s invoke script block to let the package run in SCCM with a different user than SYSTEM
+- Added support for optional package command line parameter. The cmdlet Initialize-Script was extended to get the command line parameters, the cmdlet Get-Parameter has a new -force option control overwrite and inheritance of parameters
+ 
+Version 1.0.2.0
+###############
+
+Exit-Script
+- Improved, now discards package specific variables like PackageName, LogName, AppName, etc. to avoid issues with old variable content when executing multiple packages inside a single Powershell instance
+- Improved, added $Global:DisableLogging = $true at the end of Exit-Script cmdlet to avoid log file issues when framework cmdlets are used  manually an existing PS session after a package was executed
+- Improved start menu publishing feature, now support environment variable expansion in the file path
+
+Update-FrameworkInPackages
+- Improved error handling
+
+Install-DeployPackageService
+- New Install-DeployPackageService cmdlet, successor of Install-MultiplePackages. 
+
+The new features and changes compared to Install-MultiplePackages are:  
+- Implemented as schedule task that is installed permanently
+- The cmdlet itself has three different modes (Install, Execute, Uninstall)
+- Has a new post install feature, new packages in existing CSV are detected an installed 
+- Works without storing username & passwords in configuration files
+- New reporting feature to report installed packages on a network share
+- Improved logfile and error handling
+
+Start-NSISWrapper 
+- Improved,, has now an optional -NoCompile parameter (if you want only to wrap but not to compile)
+- Improved, works now also with space chars in package names and folders
+- Improved, has now a "Please run Initialize-Script" hint
+
+General Changes
+- New SuppressNamingSchemeErrors configuration parameter to suppress naming scheme warning at package execution
+- New SuppressPackageJsonErrors configuration parameter to suppress errors when <PackageName>.json dose not exists, with this feature the <PackageName>.json becomes optional
+- Improved OS variables, the variables $IsWin.., $IsAtLeast... and $IsAtMost... is now separated by Client OS vs Server OS
+- Improved Example Package with some examples for the new cmdlets
+- New variable $OSReleaseID to detect Windows 10 Release IDs like 1507, 1511,1607, 1703, 1709, 1803, 1809, etc.
+- Windows Server 2019 support, new variable $IsWin2019, $IsAtLeastWin2019 and $IsAtMostWin2019
+- Improved package template, a "Remove-Module PackagingFramework" added in front of "Import-Module..." line inside the package template and all example packages to avoid issues when running multiple packages in a single PowerShell instance
+
+Version 1.0.3.0
+###############
+
+Update-Ownership
+- New Update-Ownership cmdlet to take ownership on files, folders or registry keys
+
+Update-FolderPermissions
+- The improvements are a new parameter PermissionType to handle Allow vs Deny permissions, a new parameter AppliesTo to handle InheritanceFlags und PropagationFlags.
+- Parameter "Delete", in this case the Permission parameter is no longer necessary.
+
+Update-FilePermissions 
+- The improvements are a new parameter PermissionType to handle Allow vs Deny permissions, a new parameter AppliesTo to handle InheritanceFlags und PropagationFlags.
+- Parameter "Delete", in this case the Permission parameter is no longer necessary.
+
+Update-RegistryPermissions 
+- The improvements are a new parameter PermissionType to handle Allow vs Deny permissions, a new parameter AppliesTo to handle InheritanceFlags und PropagationFlags.
+
+Install-DeployPackageService
+- Improved Install-DeployPackageService cmdlet, now with additional delay in the Schedule Tasks trigger to avoid domain logon issues after a reboot
+
+
+Version 1.0.n.0
+###############
+
+Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
+
+
