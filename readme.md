@@ -10,7 +10,7 @@ and new features.
 The modification includes a conversion from a simple included script into an PowerShell module and it's
 extended with some additional functions and variables we missed in the original implementation.
 
-In addition we provide extensions with improved functionallity which are available on request. 
+In addition we provide extensions with improved functionality which are available on request. 
 
 This extra toolset includes actually the following features:
 
