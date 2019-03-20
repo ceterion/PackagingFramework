@@ -14,13 +14,13 @@ In addition we provide extensions with improved functionality which are availabl
 
 This extra toolset includes actually the following features:
 
-- enteo/NetInstall/DSM/avanti/HEAT/Fronrange Migration Extension as PowerShell Module to migrate proprietary Packages to PowerShell
-- Wise Script Migration Extionsion as PowerShell Module to migrate proprietary Packages to PowerShell
-- NSIS Script Migration Extension as PowerShell Module to migrate proprietary Packages to PowerShell
+- enteo/NetInstall/DSM/avanti/HEAT/Frontrange Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
+- Wise Script Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
+- NSIS Script Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
 - SCCM Toolset (e.g. to build collections, parameter inheritance,..)
 - Sample Application Package Templates (est. 270+ Applications)
 - Sample OS Configuration Package Templates (est. 100+ Package Templates)
-- Sample Citrix Configuration Package Templates (different Versions e.g. Provisioning Server, XenApp, XenDesktop -  always up2date)
+- Sample Citrix Configuration Package Templates (different versions e.g. Provisioning Server, XenApp, XenDesktop -  always up2date)
 
 Please feel free to check these sways for additional information:
 
