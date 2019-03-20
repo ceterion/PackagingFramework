@@ -24,6 +24,9 @@ Show-InstallationPrompt
 Show-InstallationRestartPrompt
 - New cmdlet that shows a dialog to initiate or defer a required reboot
 
+Show-BalloonTip
+- New cmdlet that shows a balloon tip
+
 Install-MultipelPackages
 - Improved, package execution changed from Start-Process with wait to a separate Wait-Process. This change solves the issue with some 3. party setups like Paint.NET, VSCode, etc.
 - Improved, parameter username & domain is now optional, if not specified $env:userdomain and $env:username is used as default
