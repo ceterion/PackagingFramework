@@ -971,7 +971,8 @@ Function ConvertFrom-HashTableToObjectCollection {
 		return $Objects
 		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
 	}
-}#endregion Function Convertfrom-HashTableToObjectCollection
+}
+#endregion Function Convertfrom-HashTableToObjectCollection
 
 #region Function ConvertFrom-IniFiletoObjectCollection
 Function ConvertFrom-IniFiletoObjectCollection {
@@ -4647,7 +4648,6 @@ Function Initialize-Script {
 #endregion Function Initialize-Script
 
 #region Function Install-DeployPackageService
-
 Function Install-DeployPackageService {
 <#
 .SYNOPSIS
@@ -4799,17 +4799,18 @@ Function Install-DeployPackageService {
                 {
                     Write-Host "Create Scheduled Task [DeployPackageService]"
                     $ScheduledTaskAction = New-ScheduledTaskAction -Execute "$env:WinDir\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NonInteractive -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""& {Install-DeployPackageService -ExecutePackage}""" -WorkingDirectory "$ServiceFolder" -ErrorAction Stop
-                    $ScheduledTaskTrigger = New-ScheduledTaskTrigger -AtStartup -ErrorAction Stop 
+                    $ScheduledTaskTrigger = New-ScheduledTaskTrigger -AtStartup -ErrorAction Stop
+                    $ScheduledTaskTrigger.Delay = 'PT1M' # 1 minite startup delay, to give some time for domain authentication before starting the task with a domain user
                     $ScheduledTaskSettingsSet = New-ScheduledTaskSettingsSet -ErrorAction Stop
                     $ScheduledTask = New-ScheduledTask -Action $ScheduledTaskAction  -Trigger $ScheduledTaskTrigger -Settings $ScheduledTaskSettingsSet
                     if (($ServiceUser) -and ( $ServicePassword)){
-                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -Password $ServicePassword -ErrorAction Stop 
+                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -Password $ServicePassword -ErrorAction Stop  -Force
                     }
                     elseif ($ServiceUser){
-                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -ErrorAction Stop 
+                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -ErrorAction Stop -Force
                     }
                     else {
-                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -ErrorAction Stop 
+                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -ErrorAction Stop -Force
                     }
 
                 } else
@@ -15093,6 +15094,11 @@ Function Update-FolderPermission {
 	The "Delete" action delete all permissions of the Trustee	
 .PARAMETER Action
 	The action to perform. Options: Add, Remove, Replace, ReplaceAll, Delete
+.PARAMETER PermissionType
+    Allow or deny the permission for the trustee. Options: Allow, Deny (Default: Allow)
+.PARAMETER AppliesTo
+    Setting for inheritance options. (Default: ThisFolderSubfoldersAndFiles)
+    Options: ThisFolderOnly,ThisFolderSubfoldersAndFiles,ThisFolderSubfolders,ThisFolderAndFiles,SubfoldersAndFilesOnly,SubfoldersOnly,FilesOnly
 .PARAMETER Path
 	Path to the target folder.
 .PARAMETER Trustee
@@ -15107,7 +15113,8 @@ Function Update-FolderPermission {
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $false.
 .EXAMPLE
-	Update-FolderPermission -Action "Add" -Path "C:\temp" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadAndExecute"
+	Update-FolderPermission -Action "Add" -PermissionType "Allow" -AppliesTo 'ThisFolderSubfoldersAndFiles' -Path "C:\temp" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadAndExecute"
+    Update-FolderPermission -Action "Add" -PermissionType "Deny" -Path "C:\temp" -Trustee "[Domainname]\[Groupname]" -Permissions "Modify"
 	Update-FolderPermission -Action "Replace" -Path "C:\temp" -Trustee "[Domainname]\[Groupname]" -Permissions "Read,Write"
 	Update-FolderPermission -Action "ReplaceAll" -Path "C:\temp" -Trustee "[Domainname]\[Groupname]" -Permissions "Read,Write"
 	Update-FolderPermission -Action "ReplaceAll" -Path "C:\temp" -PermissionSets @{'[Domainname]\[Groupname]'='Read,Write';'[Domainname]\[Username]'='FullControl'}
@@ -15123,6 +15130,12 @@ Function Update-FolderPermission {
 		[Parameter(Mandatory=$true)]
 		[ValidateSet('Add','Remove','Replace','ReplaceAll','Delete')]
 		[string]$Action,
+        [Parameter(Mandatory=$false)]
+		[ValidateSet('Allow','Deny')]
+		[string]$PermissionType = 'Allow',
+        [Parameter(Mandatory=$false)]
+		[ValidateSet('ThisFolderOnly','ThisFolderSubfoldersAndFiles','ThisFolderSubfolders','ThisFolderAndFiles','SubfoldersAndFilesOnly','SubfoldersOnly','FilesOnly')]
+		[string]$AppliesTo = 'ThisFolderSubfoldersAndFiles',
 		[Parameter(Mandatory=$true)]
 		[ValidateNotNullorEmpty()]
    		[string]$Path,
@@ -15152,7 +15165,11 @@ Function Update-FolderPermission {
 			# Change input format because backward compatibility
 			$ParamSetName = $PsCmdLet.ParameterSetName
 			if ($ParamSetName -eq 'Single') { 
-				[Hashtable]$PermissionSets = @{"$Trustee" = "$Permissions"}
+                If ($Action -ine 'Delete') {
+				    [Hashtable]$PermissionSets = @{"$Trustee" = "$Permissions"}
+                } Else { 
+                    [Hashtable]$PermissionSets = @{"$Trustee" = "FullControl"}
+                }
 			}
 		
 			# Check if target path exist
@@ -15165,6 +15182,40 @@ Function Update-FolderPermission {
 				Return
 			} Else { $FolderExists = $true }
 			
+            # Set inherationflag and propagationflag settings
+            If ($AppliesTo -ieq "ThisFolderOnly") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"None"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+            }
+            ElseIf ($AppliesTo -ieq "ThisFolderSubfoldersAndFiles") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+            }
+            ElseIf ($AppliesTo -ieq "ThisFolderSubfolders") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+            }
+            ElseIf ($AppliesTo -ieq "ThisFolderAndFiles") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+            }
+            ElseIf ($AppliesTo -ieq "SubfoldersAndFilesOnly") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"InheritOnly"
+            }
+            ElseIf ($AppliesTo -ieq "SubfoldersOnly") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"InheritOnly"
+            }
+            ElseIf ($AppliesTo -ieq "FilesOnly") {
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"InheritOnly"
+            } Else {
+				$InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+                Write-Log -Message "`"Applies to`" parameter not found. Try default configuration [ThisFolderSubfoldersAndFiles]" -Severity 2 -Source ${CmdletName}
+            }
+
 			$runcount = 0
 			$PermissionSetsCount = $PermissionSets.Count
 			ForEach ($PermissionSet in $PermissionSets.getenumerator()) {
@@ -15190,7 +15241,7 @@ Function Update-FolderPermission {
 				}
 			
 				# Check correct permission syntax
-				If ($Action -ieq "Delete") { $Permissions = "Read" }
+				#If ($Action -ieq "Delete") { $Permissions = "Read" }
 				$AccessControl = [System.Security.AccessControl.FileSystemRights]
 				$BuildInPerms = $AccessControl.DeclaredFields | Select Name
 				$SplitPermissions = $Permissions.Split(",")
@@ -15222,11 +15273,11 @@ Function Update-FolderPermission {
 					$currentPermissions = ($currentPermissions.FileSystemRights -join ", " | Out-String)
 					
 					# Define ACL parameters
-					If ($Action -ieq "Delete") { $Permissions = "Read" }
+					#If ($Action -ieq "Delete") { $Permissions = "Read" }
 					$AccessPermissions = [System.Security.AccessControl.FileSystemRights]"$Permissions"
-					$InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
-					$PropagationFlag = [System.Security.AccessControl.PropagationFlags]::None
-					$PermissionType = [System.Security.AccessControl.AccessControlType]::Allow
+					#$InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+					#$PropagationFlag = [System.Security.AccessControl.PropagationFlags]::None
+					$PermissionType = [System.Security.AccessControl.AccessControlType]::$PermissionType
 					$Trustee = New-Object System.Security.Principal.NTAccount("$NTAccountName")
 					If ($Action -eq "Replace") {
 						$AccessModification = New-Object system.security.AccessControl.AccessControlModification
@@ -15311,6 +15362,8 @@ Function Update-FilePermission {
 	The "Delete" action delete all permissions of the Trustee	
 .PARAMETER Action
 	The action to perform. Options: Add, Replace, ReplaceAll, Remove, Delete
+.PARAMETER PermissionType
+    Allow or deny the permission for the trustee. Options: Allow, Deny (Default: Allow)
 .PARAMETER Path
 	Path to the target folder.
 .PARAMETER Filename
@@ -15327,7 +15380,8 @@ Function Update-FilePermission {
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $false.
 .EXAMPLE
-	Update-FilePermission -Action "Add" -Path "C:\temp" -Filename "1.txt" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadAndExecute"
+	Update-FilePermission -Action "Add" -PermissionType "Allow" -Path "C:\temp" -Filename "1.txt" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadAndExecute"
+    Update-FilePermission -Action "Add" -PermissionType "Deny" -Path "C:\temp" -Filename "1.txt" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadAndExecute"
 	Update-FilePermission -Action "Replace" -Path "C:\temp" -Filename "1.txt" -Trustee "[Domainname]\[Groupname]" -Permissions "Read,Write"
 	Update-FilePermission -Action "ReplaceAll" -Path "C:\temp" -Filename "1.txt" -Trustee "[Domainname]\[Groupname]" -Permissions "Read,Write"
 	Update-FilePermission -Action "ReplaceAll" -Path "C:\temp" -Filename "1.txt" -PermissionSets @{'[Domainname]\[Groupname]'='Read,Write';'[Domainname]\[Username]'='FullControl'}
@@ -15343,6 +15397,9 @@ Function Update-FilePermission {
 		[Parameter(Mandatory=$true)]
 		[ValidateSet('Add','Remove','Replace','ReplaceAll','Delete')]
 		[string]$Action,
+        [Parameter(Mandatory=$false)]
+		[ValidateSet('Allow','Deny')]
+		[string]$PermissionType= 'Allow',
 		[Parameter(Mandatory=$true)]
 		[ValidateNotNullorEmpty()]
    		[string]$Path,
@@ -15374,7 +15431,11 @@ Function Update-FilePermission {
 			# Change input format because backward compatibility
 			$ParamSetName = $PsCmdLet.ParameterSetName
 			if ($ParamSetName -eq 'Single') { 
-				[Hashtable]$PermissionSets = @{"$Trustee" = "$Permissions"}
+				If ($Action -ine 'Delete') {
+					[Hashtable]$PermissionSets = @{"$Trustee" = "$Permissions"}
+				} Else { 
+                    [Hashtable]$PermissionSets = @{"$Trustee" = "Read"}
+                }
 			}
 			
 			# Check if target path exist
@@ -15446,7 +15507,7 @@ Function Update-FilePermission {
 					# Define ACL parameters
 					If ($Action -ieq "Delete") { $Permissions = "Read" }
 					$AccessPermissions = [System.Security.AccessControl.FileSystemRights]"$Permissions"
-					$PermissionType = [System.Security.AccessControl.AccessControlType]::Allow
+					$PermissionType = [System.Security.AccessControl.AccessControlType]::$PermissionType
 					$Trustee = New-Object System.Security.Principal.NTAccount("$NTAccountName")
 					If ($Action -eq "Replace") {
 						$AccessModification = New-Object system.security.AccessControl.AccessControlModification
@@ -15581,6 +15642,112 @@ Function Update-FrameworkInPackages {
 	}
 }
 #endregion Function Update-FrameworkInPackages
+
+#region Function Update-Ownership
+Function Update-Ownership {
+<#
+.SYNOPSIS
+	Update Ownership
+.DESCRIPTION
+	Update ownership of files, folders or registry keys
+.PARAMETER Path
+	Path to the file, folder or registry key for changing the ownership
+.EXAMPLE
+	Update-Ownership -Path "C:\Temp" -Trustee "[DOMAIN]\[Accountname]"
+.EXAMPLE
+	Update-Ownership -Path "C:\Temp" -Trustee "[DOMAIN]\[Groupname]"
+.EXAMPLE
+	Update-Ownership -Path "HKEY_LOCAL_MACHINE\Test" -Trustee "[DOMAIN]\[Groupname]"
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+    [Cmdletbinding()]
+    param
+    ( 
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
+        [ValidateNotNullorEmpty()]
+        [String[]]$Path,
+        [Parameter(Mandatory=$True)]
+		[ValidateNotNullorEmpty()]
+		[string]$Trustee,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullOrEmpty()]
+		[boolean]$ContinueOnError = $false
+    )
+
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+                
+        # Check input value is a registry key
+		If ($Path.StartsWith('HK'))	{
+            If ($Path.GetType().Name -eq 'DirectoryInfo') {
+                $isFolder = $true
+            } ElseIf ($Path.GetType().Name -eq 'FileInfo') {
+                $isFile = $true
+            } Else {
+			    $isRegkey = $true
+			}
+		}
+
+		If ($isRegkey) {
+			$RegKey = Convert-RegistryPath -Key "$Path"
+			Write-Log -Message "Convert registry key [$Key] to [$RegKey]" -Severity 1 -Source ${CmdletName}
+			$Path = $RegKey
+		}      
+
+
+        # Check if target path exist
+		If (-not (Test-Path -Path $Path)) {
+			[boolean]$ExitLoggingFunction = $true
+			#  If directory not exist, write message to console
+			If (-not $ContinueOnError) { 
+				Write-Log -Message "Target file not found: [$Path]" -Severity 1 -Source ${CmdletName} 
+			}
+			Return
+		} Else { $PathExists = $true }
+		
+        # Check and Convert trustee
+		Try {
+			$NTAccountName = New-Object System.Security.Principal.NTAccount($Trustee)
+			$AccountSID = $NTAccountName.Translate([System.Security.Principal.SecurityIdentifier])
+		}
+		Catch [System.Management.Automation.MethodInvocationException] {
+			Try {
+				$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
+				$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
+				}
+			Catch [System.Management.Automation.MethodInvocationException] {
+				Write-Log -Message "Trustee not found: [$trustee]" -Severity 3 -Source ${CmdletName}
+				$TrusteeExists = $false
+				Return
+			}
+		}
+        $Trustee = New-Object System.Security.Principal.NTAccount("$NTAccountName")
+		Try {
+                
+            If ($PathExists -eq $True) {
+                $ACL = Get-ACL -Path "$Path"
+            	$ACL.SetOwner([System.Security.Principal.NTAccount]"$Trustee")
+            	Set-Acl -Path "$Path" -AclObject $ACL
+                Write-Log -Message "Ownership of [$Path] successfully taken for [$trustee]." -Severity 1 -Source ${CmdletName}
+            }
+        }
+		Catch {
+                Write-Log -Message "Failed to take ownership of [$Path]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+				Throw "Failed to take ownership of [$Path].: $($_.Exception.Message)"
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Update-Ownership
 
 #region Function Update-PrinterPermission
 Function Update-PrinterPermission
@@ -15775,6 +15942,11 @@ Function Update-RegistryPermission {
 	The "Delete" action delete all permissions of the Trustee	
 .PARAMETER Action
 	The action to perform. Options: Add, Replace, ReplaceAll, Remove, Delete
+.PARAMETER PermissionType
+    Allow or deny the permission for the trustee. Options: Allow, Deny (Default: Allow)
+.PARAMETER AppliesTo
+    Setting for inheritance options. (Default: ThisKeyAndSubkeys)
+    Options: ThisKeyOnly,ThisKeyAndSubkeys,SubkeysOnly
 .PARAMETER Key
 	Path to the target folder.
 .PARAMETER Trustee
@@ -15789,7 +15961,7 @@ Function Update-RegistryPermission {
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $false.
 .EXAMPLE
-	Update-RegistryPermission -Action "Add" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "Read"
+	Update-RegistryPermission -Action "Add" -PermissionType "Allow" -AppliesTo "ThisKeyAndSubkeys" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "Read"
 	Update-RegistryPermission -Action "Replace" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "FullControl"
 	Update-RegistryPermission -Action "ReplaceAll" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "FullControl"
 	Update-RegistryPermission -Action "ReplaceAll" -Key "HKEY_CURRENT_USER\Test\Test1" -PermissionSets @{'[Domainname]\[Groupname]'='ReadKey,WriteKey';'[Domainname]\[Username]'='FullControl'}
@@ -15805,6 +15977,12 @@ Function Update-RegistryPermission {
 		[Parameter(Mandatory=$true)]
 		[ValidateSet('Add','Remove','Replace','ReplaceAll','Delete')]
 		[string]$Action,
+        [Parameter(Mandatory=$false)]
+		[ValidateSet('Allow','Deny')]
+		[string]$PermissionType = 'Allow',
+        [Parameter(Mandatory=$false)]
+		[ValidateSet('ThisKeyOnly','ThisKeyAndSubkeys','SubkeysOnly')]
+		[string]$AppliesTo = 'ThisKeyAndSubkeys',
 		[Parameter(Mandatory=$true)]
 		[ValidateNotNullorEmpty()]
    		[string]$Key,
@@ -15831,10 +16009,14 @@ Function Update-RegistryPermission {
 		Try {
 		
 			# Change input format because backward compatibility
-			$ParamSetName = $PsCmdLet.ParameterSetName
-			if ($ParamSetName -eq 'Single') { 
-				[Hashtable]$PermissionSets = @{"$Trustee" = "$Permissions"}
-			}
+            $ParamSetName = $PsCmdLet.ParameterSetName
+            If ($ParamSetName -eq 'Single') { 
+                If ($Action -ine 'Delete') {
+		            [Hashtable]$PermissionSets = @{"$Trustee" = "$Permissions"}
+	            } Else { 
+                    [Hashtable]$PermissionSets = @{"$Trustee" = "ReadKey"}
+                }
+            }
 			
 			# Check input value is a registry key
 			If ($Key.StartsWith('HK'))	{ 
@@ -15856,6 +16038,28 @@ Function Update-RegistryPermission {
 				}
 				Else { $RegkeyExists = $true }
 			}
+
+            # Set inherationflag and propagationflag settings
+            If ($AppliesTo -ieq "ThisKeyOnly") {
+				Write-Host "ThisKeyOnly"
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"None"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+            }
+            ElseIf ($AppliesTo -ieq "ThisKeyAndSubkeys") {
+				Write-Host "ThisKeyAndSubkeys"
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+            }
+            ElseIf ($AppliesTo -ieq "SubkeysOnly") {
+				Write-Host "SubkeysOnly"
+                $InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"InheritOnly"
+            } Else {
+				Write-Host "Fallback"
+				$InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
+                $PropagationFlag = [System.Security.AccessControl.PropagationFlags]::"None"
+                Write-Log -Message "`"Applies to`" parameter not found. Try default configuration [ThisKeyAndSubkeys]" -Severity 2 -Source ${CmdletName}
+            }
 			
 			$runcount = 0
 			$PermissionSetsCount = $PermissionSets.Count
@@ -15920,9 +16124,9 @@ Function Update-RegistryPermission {
 					# Define ACL parameters
 					If ($Action -ieq "Delete") { $Permissions = "ReadKey" }
 					$AccessPermissions = [System.Security.AccessControl.RegistryRights]"$Permissions"
-					$InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::"ContainerInherit" -bor [System.Security.AccessControl.InheritanceFlags]::"ObjectInherit"
-					$PropagationFlag = [System.Security.AccessControl.PropagationFlags]::None
-					$PermissionType = [System.Security.AccessControl.AccessControlType]::Allow
+					#$InheritanceFlag = [System.Security.AccessControl.InheritanceFlags]::$InheritanceFlag
+					#$PropagationFlag = [System.Security.AccessControl.PropagationFlags]::$PropagationFlag
+					$PermissionType = [System.Security.AccessControl.AccessControlType]::$PermissionType
 					$Trustee = New-Object System.Security.Principal.NTAccount("$NTAccountName")
 					If ($Action -eq "Replace") {
 						$AccessModification = New-Object system.security.AccessControl.AccessControlModification
@@ -16369,4 +16573,4 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log

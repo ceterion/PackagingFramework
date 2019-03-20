@@ -1,13 +1,26 @@
-# ceterion modular Packaging Framework
+# ceterion modular Packaging Framework 1.0.3.0
 
 ## Synopsis
 
 A PowerShell module based packaging framework.
 
-This packaging framework contains parts of the PowerShell App Deployment Toolkit (Version 3.6.9) project from
-[http://psappdeploytoolkit.com/](http://psappdeploytoolkit.com/) with some modifications and custom extensions.
+This packaging framework contains parts of the PowerShell App Deployment Toolkit (Version 3.7.0) project from
+[http://psappdeploytoolkit.com/](http://psappdeploytoolkit.com/) with modifications, fixes, custom extensions 
+and new features.
 The modification includes a conversion from a simple included script into an PowerShell module and it's
 extended with some additional functions and variables we missed in the original implementation.
+
+In addition we provide extensions with improved functionallity which are available on request. 
+
+This extra toolset includes actually the following features:
+
+- enteo/NetInstall/DSM/avanti Migration Extension as PowerShell Module to migrate proprietary Packages to PowerShell
+- Wise Script Migration Extionsion as PowerShell Module to migrate proprietary Packages to PowerShell
+- NSIS Script Migration Extension as PowerShell Module to migrate proprietary Packages to PowerShell
+- SCCM Toolset (e.g. to build collections, parameter inheritance,..)
+- Sample Application Package Templates (est. 270+ Applications)
+- Sample OS Configuration Package Templates (est. 100+ Package Templates)
+- Sample Citrix Configuration Package Templates (different Versions, always up2date)
 
 ## Installation
 
