@@ -138,6 +138,14 @@ Update-RegistryPermissions
 Install-DeployPackageService
 - Improved Install-DeployPackageService cmdlet, now with additional delay in the Schedule Tasks trigger to avoid domain logon issues after a reboot
 
+Version 1.0.4.0
+###############
+Start-IntuneWrapper
+- New Start-IntuneWrapper cmdlet to wrap a PowerShell based Packaging Framework package into an Intune package
+
+Install-DeployPackageService
+- Bugfix: Scheduled Task Trigger Delay only on Win10/W2k16 and newer, because it does not work on older OS versions
+- Bugfix: Deployment stops with error if package from CSV is not found on share
 
 Version 1.0.n.0
 ###############

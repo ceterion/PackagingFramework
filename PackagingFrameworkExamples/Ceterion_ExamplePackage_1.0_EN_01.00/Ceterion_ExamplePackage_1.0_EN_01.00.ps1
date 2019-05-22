@@ -1141,10 +1141,75 @@ Try {
         Write-Log "RESULT: $Result"
 
 
+        ### Update Framework in Packages ###
+
+        # Update all pakcages regarding the included Framework
+        Update-FrameworkInPackages -ModuleFolder "C:\Temp\Ceterion_Template_1.0_EN_01.00\" -PackagesFolder "C:\Temp\"
+
+
         ### NSIS wrapper ###
 
         # Warp PowerShell pacakge with NSIS (NSIS must be installed)
-        Start-NSISWrapper -Path Y:\Packages\OS\Ceterion_ExamplePackage_1.0_EN_01.00 
+        Start-NSISWrapper -Path "C:\Temp\FileZillaProject_FileZilla_3.28.0_DE_01.00"
+
+        # Find all packages in a folder structure and wrap all with NSIS
+        Get-ChildItem -Path "C:\Temp" -Filter "*.ps1" -Recurse -Depth 2 | ForEach-Object {
+            if ([io.path]::GetFileNameWithoutExtension(((Get-Item $_.FullName).Name)) -ieq (Split-Path -path (Get-Item $_.FullName).DirectoryName -Leaf) ){
+                Start-NSISWrapper -Path (Get-Item $_.FullName).DirectoryName
+            }
+        }
+
+
+        ### Intune wrapper ###
+        Start-IntuneWrapper -Path "C:\Temp\FileZillaProject_FileZilla_3.28.0_DE_01.00"
+
+        # Find all packages in a folder structure and wrap all for Intunes
+        Get-ChildItem -Path "C:\Temp" -Filter "*.ps1" -Recurse -Depth 2 | ForEach-Object {
+            if ([io.path]::GetFileNameWithoutExtension(((Get-Item $_.FullName).Name)) -ieq (Split-Path -path (Get-Item $_.FullName).DirectoryName -Leaf) ){
+                Start-IntuneWrapper -Path (Get-Item $_.FullName).DirectoryName
+            }
+        }
+
+
+        ### DSM, WISE and NSIS Converters (optional) ###
+   
+        # Convert Wise Package to PowerShell
+        Convert-WISEPackage -WISEPackageFolder 'C:\Convert' -PSPackageFolder 'C:\Converted' -Depth 2
+
+        # Convert NSIS Package to PowerShell
+        Convert-NSISPackage -NSISPackageFolder 'C:\Convert' -PSPackageFolder 'C:\Converted' -Depth 2
+
+        # Convert DSM Package (aka enteo NetInstall, Avanti, etc. ) to PowerShell
+        Convert-DSMPackage -DSMPackageFolder 'C:\Convert' -PSPackageFolder 'C:\Converted' -Depth 2
+
+
+        ### Other ###
+
+        # Move all compiled packages from the package sub folder to a tagret folder (incl. folders)
+        Get-ChildItem -Path "C:\Packages" -Filter "*.exe" -Recurse -Depth 2 | ForEach-Object {
+        if ([io.path]::GetFileNameWithoutExtension(((Get-Item $_.FullName).Name)) -ieq (Split-Path -path (Get-Item $_.FullName).DirectoryName -Leaf) ){
+            $DestinationRoot = "C:\Compiled"
+            $CategorySubFolder = $_.FullName.Split("\")[-3]
+            If (-not(Test-Path -path "$DestinationRoot\$CategorySubFolder")) {New-Folder "$DestinationRoot\$CategorySubFolder" }
+            Move-Item -Path $_.FullName -Destination "$DestinationRoot\$CategorySubFolder" -Verbose -force
+        }
+
+        # Set correct EOL and Encoding for all package PS1, NSI and JSON files
+        Get-ChildItem -Path "C:\Converted\*" -Include *.ps1,*.nsi,*.json -Recurse -Depth 2 | ForEach-Object {
+            if ([io.path]::GetFileNameWithoutExtension(((Get-Item $_.FullName).Name)) -ieq (Split-Path -path (Get-Item $_.FullName).DirectoryName -Leaf) ) {
+                if ($_.Name -ine "PackagingFramework.json") {
+                    Set-EOL -File $_.FullName -LineEnding 'win' -Encoding 'iso-8859-1'
+                }
+            }
+        }
+
+
+
+
+
+
+}
+
 
     #endregion PackagingTools
 

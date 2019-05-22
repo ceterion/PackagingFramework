@@ -4800,7 +4800,9 @@ Function Install-DeployPackageService {
                     Write-Host "Create Scheduled Task [DeployPackageService]"
                     $ScheduledTaskAction = New-ScheduledTaskAction -Execute "$env:WinDir\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NonInteractive -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""& {Install-DeployPackageService -ExecutePackage}""" -WorkingDirectory "$ServiceFolder" -ErrorAction Stop
                     $ScheduledTaskTrigger = New-ScheduledTaskTrigger -AtStartup -ErrorAction Stop
-                    $ScheduledTaskTrigger.Delay = 'PT1M' # 1 minite startup delay, to give some time for domain authentication before starting the task with a domain user
+                    if (($IsAtLeastWin10) -or ($IsAtLeastWin2016)) {
+                        $ScheduledTaskTrigger.Delay = 'PT1M' # 1 minite startup delay, to give some time for domain authentication before starting the task with a domain user, works only on new OS versions
+                    }
                     $ScheduledTaskSettingsSet = New-ScheduledTaskSettingsSet -ErrorAction Stop
                     $ScheduledTask = New-ScheduledTask -Action $ScheduledTaskAction  -Trigger $ScheduledTaskTrigger -Settings $ScheduledTaskSettingsSet
                     if (($ServiceUser) -and ( $ServicePassword)){
@@ -5020,7 +5022,7 @@ Function Install-DeployPackageService {
                             # Check package existance
                             if (-not (Test-path -path $PackageFileName -PathType Leaf)) {
                                 Write-Log -Message "Package [$PackageFileName] not found!" -Severity 3
-                                Return
+                                Exit-Script 1
                             }
                             
                             # Build ArgumentList (add default DeploymentType=Install and DeployMode=Silent and add custom command line from CSV)
@@ -7012,7 +7014,7 @@ Function New-Package {
         {
             
             # Check if script is initialize
-            if (-not($ModuleConfigFile)) {  Throw "Please run Initialize-Script before you run this command" }
+            if (-not($ModuleConfigFile)) { Initialize-Script }
 
             # Check package name against naming scheme, abort if not valid
             if ($SkipNameCheck -eq $false){
@@ -12575,6 +12577,107 @@ Function Show-WelcomePrompt {
 }
 #endregion
 
+#region Function Start-IntuneWrapper
+Function Start-IntuneWrapper {
+<#
+.SYNOPSIS
+	Intune Wrapper for Packaging Framework packges
+.DESCRIPTION
+	Wraps a PowerShell based Packaging Framework package into an Intune package
+    Req. installed IntuneWinAppUtil somewhere in the PATH
+    IntuneWinAppUtilcan be found at https://github.com/Microsoft/Microsoft-Win32-Content-Prep-Tool
+.PARAMETER Path
+    Path to a single package folder (absolut or relativ)
+.PARAMETER CheckModuleFolder
+	Optional check for module files in package folder
+.EXAMPLE
+    # Wrap a single package:
+	Start-IntuneWrapperWrapper -Path C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00
+.EXAMPLE
+    # Wrap multiple packages in a folder structure:
+    Get-ChildItem -Path "C:\Packages" -Filter "*.ps1" -Recurse -Depth 2 | ForEach-Object {
+        if ([io.path]::GetFileNameWithoutExtension(((Get-Item $_.FullName).Name)) -ieq (Split-Path -path (Get-Item $_.FullName).DirectoryName -Leaf) ){
+            Start-IntuneWrapper -Path (Get-Item $_.FullName).DirectoryName
+        }
+    }
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		#  Get the current date
+		[Parameter(Mandatory = $True)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path,
+		[Parameter(Mandatory=$false)]
+		[switch]$CheckModuleFolder
+	)
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+
+        # Make sure Initialize-Script was exectuded before
+        if (-not($ModuleConfigFile)) { Initialize-Script }
+        
+        # Get IntuneWinAppUtil.exe for module folder or PATH, abort if not found
+        Write-log "DEBUG: $((Get-Module -Name PackagingFramework).ModuleBase)\IntuneWinAppUtil.exe"
+        if (Test-Path -Path "$((Get-Module -Name PackagingFramework).ModuleBase)\IntuneWinAppUtil.exe") {
+            $IntuneWinAppUtil = "$((Get-Module -Name PackagingFramework).ModuleBase)\IntuneWinAppUtil.exe"
+        } else {
+            $IntuneWinAppUtil = where.exe IntuneWinAppUtil.exe
+            if (-not($IntuneWinAppUtil)) {Write-Log "IntuneWinAppUtil.exe not found, please place it in your module folder [$((Get-Module -Name PackagingFramework).ModuleBase)] or in any other folder that is part of your PATH variable. IntuneWinAppUtil.exe can be found at https://github.com/Microsoft/Microsoft-Win32-Content-Prep-Tool" -Severity 3 ; Throw "IntuneWinAppUtil.exe not found" }
+        }
+
+    }
+	Process {
+		Try {
+
+            # Handle path param if relativ path is used instead of absolute 
+            if ($Path.StartsWith('.\')){
+                $Path = "$($(Get-Location).path)\$($Path.TrimStart('.\'))"
+                Write-Log "Changed relative path to absolute path [$Path]" -Source ${CmdletName}
+            }
+
+            # Check package path 
+            If (!(Test-Path -Path $Path)) { Write-Log "Path [$path] not found!" -Source ${CmdletName} -Severity 2 ; Throw "Path [$path] not found!" }
+
+            # Check PackageFramework folder in packge (if optional parameter CheckModuleFolder is used)
+            If ($CheckModuleFolder -eq $true) { If (!(Test-Path -Path "$Path\PackagingFramework")) { Write-Log "Module Folder [$path\PackagingFramework] not found!" -Source ${CmdletName} -Severity 2} }
+            
+            # Get package name from folder name
+            $PackageName = Split-Path $Path -Leaf
+            
+            # Compile with IntuneWinAppUtil
+            Write-Log "Start wrapping [$Path\$PackageName] for intune" -Source ${CmdletName} 
+
+            # Remove previousliy intunes package if exist
+            if (Test-Path "$Path\$PackageName`.intunewin") { Remove-File -path "$Path\$PackageName`.intunewin" }
+            
+            # Note: we use Start-Process instead of Start-Program, becaus it does not work for IntuneWinAppUtil, don't know why
+            Write-log "Start [$IntuneWinAppUtil] with arguments [-c `"$Path`" -s `"$Path\$PackageName.ps1`" -o `"$path`"]" -Source "Start-Process"
+            $Return = Start-Process -FilePath $IntuneWinAppUtil -ArgumentList "-c `"$Path`" -s `"$Path\$PackageName.ps1`" -o `"$path`"" -Wait -PassThru
+            Write-log "IntuneWinAppUtil completed with exit code [$($Return.ExitCode)]"
+
+            If(Test-Path -path "$Path\$PackageName.intunewin") { Write-Log "Intune wrapping of [$Path] complete" -Source ${CmdletName} } else { Write-Log "Intune compile failed" -Source ${CmdletName} -Severity 3 }
+
+		}
+		Catch {
+                Write-Log -Message "Failed to wrap package. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			If (-not $ContinueOnError) {
+				Throw "Failed to wrap package.: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Start-IntuneWrapper
+
 #region Function Start-Program
 Function Start-Program {
 <#
@@ -13232,7 +13335,7 @@ Function Start-NSISWrapper {
 .SYNOPSIS
 	NSIS Wrapper for Packaging Framework packges
 .DESCRIPTION
-	Wrapps a PowerShell based Packaging Framework package into an NSIS based setup executable
+	Wraps a PowerShell based Packaging Framework package into an NSIS based setup executable
     Req. installed NSIS compiler
 .PARAMETER Path
     Path to the package folder
@@ -13241,7 +13344,15 @@ Function Start-NSISWrapper {
 .PARAMETER NoCompile
 	Wrap only, don't compile
 .EXAMPLE
+    # Wrap a single package:
 	Start-NSISWrapper C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00
+.EXAMPLE
+    # Wrap multiple packages in a folder structure:
+    Get-ChildItem -Path "C:\Packages" -Filter "*.ps1" -Recurse -Depth 2 | ForEach-Object {
+        if ([io.path]::GetFileNameWithoutExtension(((Get-Item $_.FullName).Name)) -ieq (Split-Path -path (Get-Item $_.FullName).DirectoryName -Leaf) ){
+            Start-NSISWrapper -Path (Get-Item $_.FullName).DirectoryName
+        }
+    }
 .NOTES
 	Created by ceterion AG
 .LINK
@@ -13267,7 +13378,7 @@ Function Start-NSISWrapper {
 	Process {
 		Try {
 
-            if (-not($ModuleConfigFile)) {  Throw "Please run Initialize-Script before you run this command" }
+            if (-not($ModuleConfigFile)) { Initialize-Script }
 
             Write-Log "Start wrapping [$Path]" -Source ${CmdletName}
 
@@ -14023,7 +14134,7 @@ Function Test-Package {
 		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
 
         # Check if script is initialize
-        if (-not($ModuleConfigFile)) {  Throw "Please run Initialize-Script before you run this command" }
+        if (-not($ModuleConfigFile)) { Initialize-Script }
 
         # Check if path exists
         if(-not(Test-path -path $path -PathType Container)) {  Throw "Path $path doesn't exists" }
@@ -14393,7 +14504,7 @@ Function Test-PackageName {
 	Process {
 
         # Check if script is initialize
-        if (-not($ModuleConfigFile)) {  Throw "Please run Initialize-Script before you run this command" }
+        if (-not($ModuleConfigFile)) { Initialize-Script }
 
         Write-Log "Performing name scheme check on [$Name]" -Source ${CmdletName}
         foreach($NamingScheme in $ModuleConfigFile.PackageNamingScheme)
@@ -16573,4 +16684,4 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
