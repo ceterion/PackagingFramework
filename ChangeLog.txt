@@ -1,5 +1,5 @@
 ceterion Packaging Framework - Change Log
-Date: 20th March 2019
+Date: 2nd Febrary 2020
 
 Version 1.0.0.0 
 ###############
@@ -146,6 +146,18 @@ Start-IntuneWrapper
 Install-DeployPackageService
 - Bugfix: Scheduled Task Trigger Delay only on Win10/W2k16 and newer, because it does not work on older OS versions
 - Bugfix: Deployment stops with error if package from CSV is not found on share
+
+Version 1.0.5.0
+###############
+
+Remove-IniKey 
+- New Remove-IniKey cmdlet to remove keys from INI files
+
+Remove-IniSection
+- New Remove-IniSection cmdlet to remove whole sections from INI files
+
+Invoke-Encryption
+- Bugfix: Unnecessary file exist check removed for GeneratKey mode 
 
 Version 1.0.n.0
 ###############

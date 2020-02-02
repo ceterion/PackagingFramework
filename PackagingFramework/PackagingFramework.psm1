@@ -5717,14 +5717,15 @@ Function Invoke-Encryption {
 		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
         
         # Check key
-        If ($KeyFile) {
-            If (!(Test-Path -Path $KeyFile -PathType Leaf)) {Throw "Key File [$KeyFile] not found"}
-        }
-        If (!($KeyFile)) {
-            $KeyExists = (Get-ItemProperty -ErrorAction SilentlyContinue -Path "Registry::HKEY_CURRENT_USER\Software\$PackagingFrameworkName" -name 'Key').Key
-            If (!($KeyExists)) {Throw "Key not found in registry"} 
-        }
-        
+        If (-not($Action -ieq "GenerateKey")){
+            If ($KeyFile) {
+                If (!(Test-Path -Path $KeyFile -PathType Leaf)) {Throw "Key File [$KeyFile] not found"}
+            }
+            If (!($KeyFile)) {
+                $KeyExists = (Get-ItemProperty -ErrorAction SilentlyContinue -Path "Registry::HKEY_CURRENT_USER\Software\$PackagingFrameworkName" -name 'Key').Key
+                If (!($KeyExists)) {Throw "Key not found in registry"} 
+            }
+        }        
 	}
 	Process {
 		Try {
@@ -7927,6 +7928,161 @@ namespace FontResource
 	}
 }
 #endregion Function Remove-Font
+
+#region Function Remove-IniValue
+Function Remove-IniKey {
+<#
+.SYNOPSIS
+	Opens an INI file and remove the key of the specified section.
+.DESCRIPTION
+	Opens an INI file and remove the key of the specified section.
+.PARAMETER FilePath
+	Path to the INI file.
+.PARAMETER Section
+	Section within the INI file.
+.PARAMETER Key
+	Key within the section of the INI file.
+.PARAMETER SuppressLog
+	Disable log file output
+.PARAMETER ContinueOnError
+	Continue if an error is encountered. Default is: $true.
+.EXAMPLE
+	Remove-IniValue -FilePath "$ProgramFilesX86\IBM\Notes\notes.ini" -Section 'Notes' -Key 'KeyFileName'
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$FilePath,
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$Section,
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$Key,
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[switch]$SuppressLog,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$ContinueOnError = $true
+	)
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		If (!$SuppressLog){
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+        }
+	}
+	Process {
+		Try {
+			If (!$SuppressLog){
+                Write-Log -Message "Remove INI Key: [Section = $Section] [Key = $Key]." -Source ${CmdletName}
+            }
+			
+			If (-not (Test-Path -LiteralPath $FilePath -PathType 'Leaf')) { Throw "File [$filePath] could not be found." }
+			
+			$IniKey = [PackagingFramework.IniFile]::RemoveIniKey($Section, $Key, $FilePath)
+			If (!$SuppressLog){
+                Write-Log -Message "INI Key Value: [Section = $Section] [Key = $Key]." -Source ${CmdletName}
+            }
+			
+			Write-Output -InputObject $IniKey
+		}
+		Catch {
+			Write-Log -Message "Failed to remove INI file key value. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			If (-not $ContinueOnError) {
+				Throw "Failed to remove INI file key value: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		If (!$SuppressLog){
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+        }
+	}
+}
+#endregion
+
+#region Function Remove-IniSection
+Function Remove-IniSection {
+<#
+.SYNOPSIS
+	Opens an INI file and remove the whole section.
+.DESCRIPTION
+	Opens an INI file and remove the whole section.
+.PARAMETER FilePath
+	Path to the INI file.
+.PARAMETER Section
+	Section within the INI file.
+.PARAMETER SuppressLog
+	Disable log file output
+.PARAMETER ContinueOnError
+	Continue if an error is encountered. Default is: $true.
+.EXAMPLE
+	Remove-IniSection -FilePath "$ProgramFilesX86\IBM\Notes\notes.ini" -Section 'Notes'
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$FilePath,
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$Section,
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[switch]$SuppressLog,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$ContinueOnError = $true
+	)
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		If (!$SuppressLog){
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+        }
+	}
+	Process {
+		Try {
+			If (!$SuppressLog){
+                Write-Log -Message "Remove INI section: [Section = $Section]." -Source ${CmdletName}
+            }
+			
+			If (-not (Test-Path -LiteralPath $FilePath -PathType 'Leaf')) { Throw "File [$filePath] could not be found." }
+			
+			$IniSection = [PackagingFramework.IniFile]::RemoveIniSection($Section, $FilePath)
+			If (!$SuppressLog){
+                Write-Log -Message "INI section: [Section = $Section]." -Source ${CmdletName}
+            }
+			
+			Write-Output -InputObject $IniSection
+		}
+		Catch {
+			Write-Log -Message "Failed to remove INI file key value. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			If (-not $ContinueOnError) {
+				Throw "Failed to remove INI file key value: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		If (!$SuppressLog){
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+        }
+	}
+}
+#endregion
 
 #region Function Remove-Path
 Function Remove-Path {
@@ -16684,4 +16840,4 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log

@@ -111,6 +111,20 @@ namespace PackagingFramework
 		{
 			WritePrivateProfileString(section, key, value, filepath);
 		}
+		
+		// added by Christian Zabel
+		public static void RemoveIniKey(string section, string key, string filepath)
+        {
+			WritePrivateProfileString(section, key, null, filepath);
+        }
+		
+		// added by Christian Zabel
+		public static void RemoveIniSection(string section, string filepath)
+        {
+            WritePrivateProfileString(section, null, null, filepath);
+        }
+
+
 	}
 	
 	public class UiAutomation
