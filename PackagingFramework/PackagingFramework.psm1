@@ -7049,7 +7049,7 @@ Function New-Package {
 Try {
 
     # Import Packaging Framework module
-    Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}}
+    `$Global:DeploymentType=`$Script:DeploymentType ; `$Global:DeployMode=`$Script:DeployMode ; `$Global:CustomParameter=`$Script:CustomParameter ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}}
 
     # Install
     If (`$deploymentType -ieq 'Install') {
@@ -9443,7 +9443,21 @@ Function Set-DisableLogging {
 	}
 	Process {
 		Try {
-            [string]$Global:DisableLogging = $mode
+            If ($mode -eq $true)
+            {
+                Write-Log -Message "File logging disabled" -Severity 1 -Source ${CmdletName}
+                $Global:DisableLogging = $true
+                $Script:DisableLogging = $true
+                $Local:DisableLogging = $true
+            }
+            Else
+            {
+                 $Global:DisableLogging = $false
+                 $Script:DisableLogging = $false
+                 $Local:DisableLogging = $false
+                 Write-Log -Message "File logging enabled" -Severity 1 -Source ${CmdletName}
+            }
+
 		}
 		Catch {
                 Write-Log -Message "Failed to set Disable Logging variable. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
@@ -11244,7 +11258,7 @@ Function Show-InstallationPrompt {
 		
 		## Picture Banner
 		$pictureBanner.DataBindings.DefaultDataSourceUpdateMode = 0
-		$pictureBanner.ImageLocation = $Scritp:LogoBanner
+		$pictureBanner.ImageLocation = $Script:LogoBanner
 		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
 		$System_Drawing_Point.X = 0
 		$System_Drawing_Point.Y = 0

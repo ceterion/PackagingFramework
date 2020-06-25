@@ -1,5 +1,6 @@
 ceterion Packaging Framework - Change Log
-Date: 2nd Febrary 2020
+Date: 22 June 2020
+Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
 
 Version 1.0.0.0 
 ###############
@@ -159,9 +160,17 @@ Remove-IniSection
 Invoke-Encryption
 - Bugfix: Unnecessary file exist check removed for GeneratKey mode 
 
-Version 1.0.n.0
+Version 1.0.6.0
 ###############
 
-Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
+General Changes
+- The "Import Packaging Framework module" section in the package template and the example packages has now additional logic to make the package command line parameters 
+  DeploymentType, DeployMode and CustomParameter global, to avoid issues cause by different powershell hosts (for example Powershell.exe vs. Powershell_ISE.exe)
+
+Show-InstallationPrompt
+- Bugfix: Logo Banner Image Location parameter typo
+
+Set-DisableLogging
+- Bugfix: Mode parameter scope issue fixed and logging improved
 
 
