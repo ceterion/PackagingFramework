@@ -3,7 +3,8 @@
     {
       "PackageDate": "10.10.2017",
       "PackageAuthor": "ceterion AG",
-      "PackageDescription": "7-Zip x64 16.04"
+      "PackageDescription": "7-Zip x64 16.04",
+      "PackageDisplayName": "7-Zip"
     },
   "Applications": [
     {

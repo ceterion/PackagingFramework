@@ -3,7 +3,8 @@
     {
       "PackageDate": "01.01.2017",
       "PackageAuthor": "ceterion AG",
-      "PackageDescription": "Gimp 2.8.20"
+      "PackageDescription": "Gimp 2.8.20",
+      "PackageDisplayName": "Gimp"      
     },
   "Applications": [
     {

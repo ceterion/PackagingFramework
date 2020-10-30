@@ -173,4 +173,15 @@ Show-InstallationPrompt
 Set-DisableLogging
 - Bugfix: Mode parameter scope issue fixed and logging improved
 
+Version 1.0.7.0
+###############
+
+General Changes
+- The welcome, progress and finish dialog and the balloon tips can now show a custom and more user-friendly display package name. 
+  To use this feature, you can specify the "PackageDisplayName" JSON parameter. If this parameter is missing the "PackageDescription" JSON parameter is used, 
+  and if this is parameter ia also missing the "PackageName" runtime variable is used as fallback
+- The final balloon tip notification after the package is terminated shows now the correct title instead of "Microsoft.Explorer.Notification.{guid}"
+
+
+
 

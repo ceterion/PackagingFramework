@@ -1808,17 +1808,17 @@ Function Exit-Script {
 		}
 		
 		Write-Log -Message "$installName $DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
-		If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText }
+		If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 	}
 	ElseIf (-not $installSuccess) {
 		Write-Log -Message "$installName $DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
 		If (($exitCode -eq $Script:configInstallationUIExitCode) -or ($exitCode -eq $Script:configInstallationDeferExitCode)) {
             [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextFastRetry"
-			If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText }
+			If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 		}
 		Else {
             [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextError"
-			If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText }
+			If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 		}
 	}
 	
@@ -1844,6 +1844,7 @@ Function Exit-Script {
     Remove-Variable -Name Files -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name InstallPhase -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name InstallTitle -ErrorAction SilentlyContinue -Scope Global
+    Remove-Variable -Name InstallName -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name LogDir -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name LogName -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name ModuleConfigFile -ErrorAction SilentlyContinue -Scope Global
@@ -1854,6 +1855,9 @@ Function Exit-Script {
     Remove-Variable -Name PackageConfigFile -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name PackageFileName -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name PackageName -ErrorAction SilentlyContinue -Scope Global
+    Remove-Variable -Name PackageAuthor -ErrorAction SilentlyContinue -Scope Global 
+    Remove-Variable -Name PackageDescription -ErrorAction SilentlyContinue -Scope Global
+    Remove-Variable -Name PackageDisplayName -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name PackagingFrameworkModuleVer -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global
@@ -4291,9 +4295,13 @@ Function Initialize-Script {
 	    If (-not $AppRevision) { [string]$AppRevision = '01.00' }
 	    If (-not $AppArch) { [string]$AppArch = '' }
     }
-    If ($ReferredInstallTitle) { [string]$installTitle = $ReferredInstallTitle }
-    If (-not $installTitle) {
-	    [string]$installTitle = ("$AppVendor $AppName $AppVersion").Trim()
+    If ($ReferredInstallTitle) { [string]$Global:installTitle = $ReferredInstallTitle }
+    If ((-not $installTitle) -or ($installTitle -eq 'PackagingFramework')) {
+        If (($AppVendor) -and ($AppName) -and ($AppVersion)) {
+	        [string]$Global:installTitle = ("$AppVendor $AppName $AppVersion").Trim()
+        } elseif ($AppName) {
+            [string]$Global:installTitle = ("$AppName").Trim()
+        }
     }
     
     ## Sanitize the application details, as they can cause issues in the script
@@ -4541,11 +4549,19 @@ Function Initialize-Script {
         If (Test-Path -Path $JSONFile) {
             If ($Global:PSVersionInfo.Major -ge 5){ [psobject]$Global:PackageConfigFile = get-content $JSONFile | ConvertFrom-Json }
             else { [psobject]$Global:PackageConfigFile = get-content $JSONFile -Raw | ConvertFrom-Json } # ps versions older than 5 need the -raw paraemter
-            [string]$PackageDate = $PackageConfigFile.Package.PackageDate
-            [string]$PackageAuthor = $PackageConfigFile.Package.PackageAuthor
-            [string]$PackageDescription = $PackageConfigFile.Package.PackageDescription
-            [string]$InstallName = $Global:PackageName
-            [string]$InstallTitle = $Global:PackageName
+            [string]$Global:PackageDate = $PackageConfigFile.Package.PackageDate
+            [string]$Global:PackageAuthor = $PackageConfigFile.Package.PackageAuthor
+            [string]$Global:PackageDescription = $PackageConfigFile.Package.PackageDescription
+            [string]$Global:PackageDisplayName = $PackageConfigFile.Package.PackageDisplayName
+            
+            # User PackageName as PackageDescription if empty
+            if (-not $Global:PackageDescription) {$Global:PackageDescription = $Global=$PackageName}
+            # User PackageDescription as PackageDisplayName if empty
+            if (-not $Global:PackageDisplayName) {$Global:PackageDisplayName = $Global=$PackageDescription}
+            # Use PackageDescription for InstallName (this is shwon in dalogs & balloontips)
+            [string]$Global:InstallName = $Global:PackageDescription
+            # Use PackageDisplayName for InstallTitle (this is shwon in dalogs & balloontips)
+            [string]$Global:InstallTitle = $Global:PackageDisplayName
         }
 
         # Make a local copy of the JSON file in the package log folder (e.g. used later for Citrix publishing)
@@ -10638,6 +10654,7 @@ Function Show-BalloonTip {
 			
 			## Display the balloon tip notification
 			$script:NotifyIcon.ShowBalloonTip($BalloonTipTime)
+
 		}
 	}
 	End {

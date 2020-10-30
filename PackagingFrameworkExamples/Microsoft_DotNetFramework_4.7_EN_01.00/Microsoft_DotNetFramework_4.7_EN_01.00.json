@@ -3,7 +3,8 @@
     {
       "PackageDate": "10.1ß.2017",
       "PackageAuthor": "ceterion AG",
-      "PackageDescription": "Microsoft .NET Framework 4.7"
+      "PackageDescription": "Microsoft .NET Framework 4.7",
+      "PackageDisplayName": ".Net Framework"
     },
   
   "DetectionMethods": [ ],
