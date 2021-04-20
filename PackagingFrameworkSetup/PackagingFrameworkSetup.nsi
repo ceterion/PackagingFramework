@@ -13,11 +13,11 @@ Icon "PackagingFrameworkSetup.ico"
 UninstallIcon "PackagingFrameworkSetup.ico"
 
 # File properties
-VIProductVersion "1.0.7.0"
+VIProductVersion "1.0.8.0"
 VIAddVersionKey "ProductName" "ceterion Packaging Framework"
 VIAddVersionKey "Comments" "Packaging Framework Setup"
 VIAddVersionKey "FileDescription" "ceterion Packaging Framework Setup"
-VIAddVersionKey "ProductVersion" "1.0.7.0"
+VIAddVersionKey "ProductVersion" "1.0.8.0"
 VIAddVersionKey "LegalCopyright" "ceterion AG"
 VIAddVersionKey "CompanyName" "ceterion AG"
 
@@ -35,7 +35,7 @@ VIAddVersionKey "CompanyName" "ceterion AG"
 
 # Pages
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "PackagingFrameworkSetupLicense.txt"   # we need a new license text first!
+!insertmacro MUI_PAGE_LICENSE "PackagingFrameworkSetupLicense.txt"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -69,7 +69,7 @@ Section "PowerShell Module" Section1
   
   # Create Add/remove software entry
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayName" "ceterion Packaging Framework"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayVersion" "1.0.7.0"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayVersion" "1.0.8.0"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayIcon" "$\"$INSTDIR\PackagingFramework\PackagingFramework.ico$\""
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "UninstallString" "$\"$INSTDIR\PackagingFramework\uninstall.exe$\""
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "URLInfoAbout" "http://www.ceterion.com"

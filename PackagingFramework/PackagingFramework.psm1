@@ -1319,7 +1319,7 @@ Function Copy-File {
 .PARAMETER VersionCheck
 	Checks file version and overwrite existing files only when source file is a newer version. Only valid for files with version information, not valid for folders or with wildcards 
 .PARAMETER ContinueOnError
-	Continue if an error is encountered. Default is: $true.
+	Continue if an error is encountered. Default is: $false.
 .EXAMPLE
 	Copy-File -Path "$Files\MyApp.ini" -Destination "$Windir\MyApp.ini"
 .EXAMPLE
@@ -1345,7 +1345,7 @@ Function Copy-File {
 		[Parameter(Mandatory=$false)]
         [switch]$VersionCheck = $false,
 		[Parameter(Mandatory=$false)]
-		[boolean]$ContinueOnError = $true
+		[boolean]$ContinueOnError = $false
 	)
 	
 	Begin {

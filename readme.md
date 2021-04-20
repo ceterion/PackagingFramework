@@ -1,4 +1,4 @@
-# ceterion Packaging Framework 1.0.7.0
+# ceterion Packaging Framework 1.0.8.0
 
 ## Synopsis
 
@@ -17,6 +17,7 @@ This extra toolset includes actually the following features:
 - enteo/NetInstall/DSM/avanti/HEAT/Frontrange Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
 - Wise Script Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
 - NSIS Script Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
+- VMware Workspace ONE UEM Extension with package importer and other cmdlets to automate Workspace ONE tasks
 - SCCM Toolset (e.g. to build collections, parameter inheritance,..)
 - Sample Application Package Templates (est. 270+ Applications)
 - Sample OS Configuration Package Templates (est. 100+ Package Templates)
