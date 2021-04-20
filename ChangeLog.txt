@@ -1,5 +1,5 @@
 ceterion Packaging Framework - Change Log
-Date: 22 June 2020
+Date: 20 April 2021
 Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
 
 Version 1.0.0.0 
@@ -106,7 +106,7 @@ The new features and changes compared to Install-MultiplePackages are:
 - Improved logfile and error handling
 
 Start-NSISWrapper 
-- Improved,, has now an optional -NoCompile parameter (if you want only to wrap but not to compile)
+- Improved, has now an optional -NoCompile parameter (if you want only to wrap but not to compile)
 - Improved, works now also with space chars in package names and folders
 - Improved, has now a "Please run Initialize-Script" hint
 
@@ -179,9 +179,22 @@ Version 1.0.7.0
 General Changes
 - The welcome, progress and finish dialog and the balloon tips can now show a custom and more user-friendly display package name. 
   To use this feature, you can specify the "PackageDisplayName" JSON parameter. If this parameter is missing the "PackageDescription" JSON parameter is used, 
-  and if this is parameter ia also missing the "PackageName" runtime variable is used as fallback
+  and if this is parameter is missing the "PackageName" runtime variable is used as fallback
 - The final balloon tip notification after the package is terminated shows now the correct title instead of "Microsoft.Explorer.Notification.{guid}"
 
+Version 1.0.8.0 - 20th April 2021
+###############
 
+New:
+-----------
+General Changes
+- New optional extension for VMware Workspace ONE UEM support with the following cmdlets:
+   * New-WorkspaceOneUEMPackage  (Cmdlet to import packaging framework packages to VMware Workspace ONE UEM, supports upload, app defintion, detection methods, EXE and ZIP support, etc.)
+   * Get-WorkspaceOneUemGroup    (Cmdlet to enumerate groups and get details)
+   * Get-WorkspaceOneUemDevice   (Cmdlet to enumerate devices and get details)
+   * Get-WorkspaceOneUemApp      (Cmdlet to enumerate apps and get details)
 
-
+Changes:
+-----------
+Copy-File
+ - ContinueOnError parameter default changed from $true to $false to make sure an error is thrown if a copy job fails
