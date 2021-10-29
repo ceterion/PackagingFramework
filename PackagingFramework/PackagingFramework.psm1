@@ -3969,8 +3969,10 @@ Function Initialize-Script {
     [bool]$Global:IsWin81 = $false
     [bool]$Global:IsWin2012R2 = $false
     [bool]$Global:IsWin10 = $false
+    [bool]$Global:IsWin11 = $false
     [bool]$Global:IsWin2016 = $false
     [bool]$Global:IsWin2019 = $false
+    [bool]$Global:IsWin2022 = $false
     [bool]$Global:IsAtLeastWinVista = $false
     [bool]$Global:IsAtLeastWin2008 = $false
     [bool]$Global:IsAtLeastWin7 = $false
@@ -3980,8 +3982,10 @@ Function Initialize-Script {
     [bool]$Global:IsAtLeastWin81 = $false
     [bool]$Global:IsAtLeastWin2012R2 = $false
     [bool]$Global:IsAtLeastWin10 = $false
+    [bool]$Global:IsAtLeastWin11 = $false
     [bool]$Global:IsAtLeastWin2016 = $false
     [bool]$Global:IsAtLeastWin2019 = $false
+    [bool]$Global:IsAtLeastWin2022 = $false
     [bool]$Global:IsAtMostWinVista = $false
     [bool]$Global:IsAtMostWin2008 = $false
     [bool]$Global:IsAtMostWin7 = $false
@@ -3991,10 +3995,14 @@ Function Initialize-Script {
     [bool]$Global:IsAtMostWin81 = $false
     [bool]$Global:IsAtMostWin2012R2 = $false
     [bool]$Global:IsAtMostWin10 = $false
+    [bool]$Global:IsAtMostWin11 = $false
     [bool]$Global:IsAtMostWin2016 = $false
     [bool]$Global:IsAtMostWin2019 = $false
+    [bool]$Global:IsAtMostWin2022 = $false
 
     # Get Is<Version> variables
+    # Build Number Info at https://docs.microsoft.com/de-de/windows-server/get-started/windows-server-release-info
+    # an https://docs.microsoft.com/de-de/windows/release-health/release-information
     if ((([version]$Global:OSVersion).Major -eq 6) -and (([version]$Global:OSVersion).Minor -eq 0) -and ($Global:IsServerOS -eq $false)) {$Global:IsWinVista = $true} else {$Global:IsWinVista = $false}
     if ((([version]$Global:OSVersion).Major -eq 6) -and (([version]$Global:OSVersion).Minor -eq 0) -and ($Global:IsServerOS -eq $true)) {$Global:IsWin2008 = $true} else {$Global:IsWin2008 = $false}
     if ((([version]$Global:OSVersion).Major -eq 6) -and (([version]$Global:OSVersion).Minor -eq 1) -and ($Global:IsServerOS -eq $false)) {$Global:IsWin7 = $true} else {$Global:IsWin7 = $false}
@@ -4003,16 +4011,20 @@ Function Initialize-Script {
     if ((([version]$Global:OSVersion).Major -eq 6) -and (([version]$Global:OSVersion).Minor -eq 2) -and ($Global:IsServerOS -eq $true)) {$Global:IsWin2012 = $true} else {$Global:IsWin2012 = $false}
     if ((([version]$Global:OSVersion).Major -eq 6) -and (([version]$Global:OSVersion).Minor -eq 3) -and ($Global:IsServerOS -eq $false)) {$Global:IsWin81 = $true} else {$Global:IsWin81 = $false}
     if ((([version]$Global:OSVersion).Major -eq 6) -and (([version]$Global:OSVersion).Minor -eq 3) -and ($Global:IsServerOS -eq $true)) {$Global:IsWin2012R2 = $true} else {$Global:IsWin2012R2 = $false}
-    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and ($Global:IsServerOS -eq $false)) {$Global:IsWin10 = $true} else {$Global:IsWin10 = $false}
-    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and ($Global:IsServerOS -eq $true) -and ($Global:OSReleaseID -le '1803')) {$Global:IsWin2016 = $true} else {$Global:IsWin2016 = $false}
-    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and ($Global:IsServerOS -eq $true) -and ($Global:OSReleaseID -ge '1809')) {$Global:IsWin2019 = $true} else {$Global:IsWin2019 = $false}
+    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and (([version]$Global:OSVersion).Build -lt 22000) -and ($Global:IsServerOS -eq $false)) {$Global:IsWin10 = $true} else {$Global:IsWin10 = $false}
+    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and (([version]$Global:OSVersion).Build -ge 22000) -and ($Global:IsServerOS -eq $false)) {$Global:IsWin11 = $true} else {$Global:IsWin11 = $false}
+    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and (([version]$Global:OSVersion).Build -ge 14393) -and (([version]$Global:OSVersion).Build -lt 17763) -and ($Global:IsServerOS -eq $true)) {$Global:IsWin2016 = $true} else {$Global:IsWin2016 = $false}
+    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and (([version]$Global:OSVersion).Build -ge 17763) -and (([version]$Global:OSVersion).Build -le 19042) -and ($Global:IsServerOS -eq $true)) {$Global:IsWin2019 = $true} else {$Global:IsWin2019 = $false}
+    if ((([version]$Global:OSVersion).Major -eq 10) -and (([version]$Global:OSVersion).Minor -eq 0) -and (([version]$Global:OSVersion).Build -ge 20348) -and ($Global:IsServerOS -eq $true)) {$Global:IsWin2022 = $true} else {$Global:IsWin2022 = $false}
 
     # Get IsAtLeast<Version> variables
+    if ($IsWin11)    { $Global:IsAtLeastWinVista = $true; $Global:IsAtLeastWin7 = $true; $Global:IsAtLeastWin8 = $true; $Global:IsAtLeastWin81 = $true; $Global:IsAtLeastWin10 = $true; $Global:IsAtLeastWin11 = $true }
     if ($IsWin10)    { $Global:IsAtLeastWinVista = $true; $Global:IsAtLeastWin7 = $true; $Global:IsAtLeastWin8 = $true; $Global:IsAtLeastWin81 = $true; $Global:IsAtLeastWin10 = $true }
     if ($IsWin81)    { $Global:IsAtLeastWinVista = $true; $Global:IsAtLeastWin7 = $true; $Global:IsAtLeastWin8 = $true; $Global:IsAtLeastWin81 = $true }
     if ($IsWin8)     { $Global:IsAtLeastWinVista = $true; $Global:IsAtLeastWin7 = $true; $Global:IsAtLeastWin8 = $true }
     if ($IsWin7)     { $Global:IsAtLeastWinVista = $true; $Global:IsAtLeastWin7 = $true }
     if ($IsWinVista) { $Global:IsAtLeastWinVista = $true }
+    if ($IsWin2022)  { $Global:IsAtLeastWin2008 = $true; $Global:IsAtLeastWin2008R2 = $true; $Global:IsAtLeastWin2012 = $true; $Global:IsAtLeastWin2012R2 = $true; $Global:IsAtLeastWin2016 = $true; $Global:IsAtLeastWin2019 = $true; $Global:IsAtLeastWin2022 = $true}
     if ($IsWin2019)  { $Global:IsAtLeastWin2008 = $true; $Global:IsAtLeastWin2008R2 = $true; $Global:IsAtLeastWin2012 = $true; $Global:IsAtLeastWin2012R2 = $true; $Global:IsAtLeastWin2016 = $true; $Global:IsAtLeastWin2019 = $true }
     if ($IsWin2016)  { $Global:IsAtLeastWin2008 = $true; $Global:IsAtLeastWin2008R2 = $true; $Global:IsAtLeastWin2012 = $true; $Global:IsAtLeastWin2012R2 = $true; $Global:IsAtLeastWin2016 = $true }
     if ($IsWin2012R2) { $Global:IsAtLeastWin2008 = $true; $Global:IsAtLeastWin2008R2 = $true; $Global:IsAtLeastWin2012 = $true; $Global:IsAtLeastWin2012R2 = $true }
@@ -4021,17 +4033,26 @@ Function Initialize-Script {
     if ($IsWin2008)   { $Global:IsAtLeastWin2008 = $true }
 
     # Get IsAtMost<Version> variables
-    if ($IsWin10)    { $Global:IsAtMostWin10 = $true }
-    if ($IsWin81)    { $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true}
-    if ($IsWin8)     { $Global:IsAtMostWin8 = $true; $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true}
-    if ($IsWin7)     { $Global:IsAtMostWin7 = $true; $Global:IsAtMostWin8 = $true; $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true }
-    if ($IsWinVista) { $Global:IsAtMostWinVista = $true; $Global:IsAtMostWin7 = $true; $Global:IsAtMostWin8 = $true; $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true }
-    if ($IsWin2019)   { $Global:IsAtMostWin2019 = $true }
-    if ($IsWin2016)   { $Global:IsAtMostWin2016 = $true ; $Global:IsAtMostWin2019 = $true }
-    if ($IsWin2012R2) { $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true ; $Global:IsAtMostWin2019 = $true }
-    if ($IsWin2012)   { $Global:IsAtMostWin2012 = $true; $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true ; $Global:IsAtMostWin2019 = $true }
-    if ($IsWin2008R2) { $Global:IsAtMostWin2008R2 = $true; $Global:IsAtMostWin2012 = $true; $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true  ; $Global:IsAtMostWin2019 = $true }
-    if ($IsWin2008)   { $Global:IsAtMostWin2008 = $true; $Global:IsAtMostWin2008R2 = $true; $Global:IsAtMostWin2012 = $true; $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true  ; $Global:IsAtMostWin2019 = $true }
+    if ($IsWin11)    { $Global:IsAtMostWin11 = $true }
+    if ($IsWin10)    { $Global:IsAtMostWin10 = $true; $Global:IsAtMostWin11 = $true }
+    if ($IsWin81)    { $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true; $Global:IsAtMostWin11 = $true }
+    if ($IsWin8)     { $Global:IsAtMostWin8 = $true; $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true; $Global:IsAtMostWin11 = $true }
+    if ($IsWin7)     { $Global:IsAtMostWin7 = $true; $Global:IsAtMostWin8 = $true; $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true; $Global:IsAtMostWin11 = $true }
+    if ($IsWinVista) { $Global:IsAtMostWinVista = $true; $Global:IsAtMostWin7 = $true; $Global:IsAtMostWin8 = $true; $Global:IsAtMostWin81 = $true; $Global:IsAtMostWin10 = $true; $Global:IsAtMostWin11 = $true }
+    if ($IsWin2022)   { $Global:IsAtMostWin2022 = $true }    
+    if ($IsWin2019)   { $Global:IsAtMostWin2019 = $true; $Global:IsAtMostWin2022 = $true }
+    if ($IsWin2016)   { $Global:IsAtMostWin2016 = $true ; $Global:IsAtMostWin2019 = $true; $Global:IsAtMostWin2022 = $true }
+    if ($IsWin2012R2) { $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true ; $Global:IsAtMostWin2019 = $true; $Global:IsAtMostWin2022 = $true }
+    if ($IsWin2012)   { $Global:IsAtMostWin2012 = $true; $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true ; $Global:IsAtMostWin2019 = $true; $Global:IsAtMostWin2022 = $true }
+    if ($IsWin2008R2) { $Global:IsAtMostWin2008R2 = $true; $Global:IsAtMostWin2012 = $true; $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true  ; $Global:IsAtMostWin2019 = $true; $Global:IsAtMostWin2022 = $true }
+    if ($IsWin2008)   { $Global:IsAtMostWin2008 = $true; $Global:IsAtMostWin2008R2 = $true; $Global:IsAtMostWin2012 = $true; $Global:IsAtMostWin2012R2 = $true; $Global:IsAtMostWin2016 = $true  ; $Global:IsAtMostWin2019 = $true; $Global:IsAtMostWin2022 = $true }
+
+    # Get Firmware info (BIOS vs UEFI)
+    if ($env:FIRMWARE_TYPE -ieq 'UEFI') {$Global:IsFirmwareUEFI = $true} else {$Global:IsFirmwareUEFI = $false}
+    if ($env:FIRMWARE_TYPE -ieq 'BIOS') {$Global:IsFirmwareBIOS = $true} else {$Global:IsFirmwareBIOS = $false}
+
+    # Get TPM version
+    Try {$Global:TPMVersion = ((Get-WmiObject -Namespace 'root\cimv2\security\microsofttpm' -Query 'Select SpecVersion from win32_tpm').SpecVersion -split ',')[0]} Catch {$Global:TPMVersion = 'Unknown'}
 
     ## Variables: PowerShell And CLR (.NET) Versions
     [hashtable]$PSVersionHashTable = $PSVersionTable

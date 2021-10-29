@@ -182,7 +182,7 @@ General Changes
   and if this is parameter is missing the "PackageName" runtime variable is used as fallback
 - The final balloon tip notification after the package is terminated shows now the correct title instead of "Microsoft.Explorer.Notification.{guid}"
 
-Version 1.0.8.0 - 20th April 2021
+Version 1.0.8.0
 ###############
 
 New:
@@ -198,3 +198,15 @@ Changes:
 -----------
 Copy-File
  - ContinueOnError parameter default changed from $true to $false to make sure an error is thrown if a copy job fails
+
+Version 1.0.9.0
+###############
+
+New:
+- General Windows 11 and Windows Server 2022 support
+- New variable $IsWin11, $IsAtLeastWin11 and $IsAtMostWin11
+- New variable $IsWin2022, $IsAtLeastWin2022 and $IsAtMostWin2022
+- New variable $IsFirmwareUEFI and $IsFirmwareBIOS
+- New variable $TPMVersion
+
+
