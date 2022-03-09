@@ -19,7 +19,9 @@
   ],
   "DetectionMethods": [ ],
   "Dependencies":[ ],
+  "FirewallRules": [ ],
   "Parameters": { },
+  "Permissions": [ ],
   "Notes": [ 
     "This package req. gimp-2.8.20-setup.exe that can bw downloaded from https://www.gimp.org/"
   ],

@@ -32,6 +32,557 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 ##* FUNCTION LISTINGS (sorted from A - Z)
 ##*=============================================
 
+
+#region Function Add-AddRemovePrograms
+    Function Add-AddRemovePrograms {
+    <#
+    .SYNOPSIS
+	    Set a Add/Remove Programs registry entry
+    .DESCRIPTION
+	    Set a Add/Remove Programs registry entry
+    .PARAMETER Name
+        Specifies the internal name of the Add/Remove Program entry (this Name is use for the registry hive)
+    .PARAMETER DisplayName
+        Specifies the display name of the Add/Remove Program entry (if empty 'Name' is used)
+    .PARAMETER DisplayVersion
+        Specifies the version of the Add/Remove Program entry
+    .PARAMETER DisplayIcon
+        Specifies the path to a .ico file for the Add/Remove Program entry
+    .PARAMETER Publisher
+        Specifies the publisher / vendor of the Add/Remove Program entry
+    .PARAMETER InstallDate
+        Specifies the install date, leave empty for current date
+    .PARAMETER InstallLocation
+        Specifies the Install Location (file system path) of the Add/Remove Program entry
+    .PARAMETER UninstallString
+        Specifies the Uninstall String of the Add/Remove Program entry
+    .PARAMETER QuietUninstallString
+        Specifies the Quiet Uninstall String of the Add/Remove Program entry
+    .PARAMETER NoModify
+        Disables the 'Modify' button of the Add/Remove Program entry
+    .PARAMETER NoRepair
+        Disables the 'Repair' button of the Add/Remove Program entry
+    .PARAMETER NoRemove
+        Disables the 'Remove' button of the Add/Remove Program entry
+    .PARAMETER Target
+        Specifies that registry region to use. The acceptable values for this parameter are: Machine, User. Default is: Machine
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+	    Add-AddRemovePrograms -Name 'My custom app' -DisplayVersion '1.0.0.0' -Vendor 'Contoso Inc.'
+	    Set a Add/Remove Programs registry entry for a custom app
+    .EXAMPLE
+	    Add-AddRemovePrograms -Name 'My second custom app' -DisplayVersion '2.0.0.0' -Vendor 'Contoso Inc.' -NoModify -NoRepair -NoRemove
+	    Set a Add/Remove Programs registry entry for a custom app with some optional parameters
+    .EXAMPLE
+	    Add-AddRemovePrograms -Name 'My third custom app' -DisplayVersion '3.0.0.0' -Vendor 'Contoso Inc.' -UninstallString 'C:\MyApp\Uninstall.exe' - QuietUninstallString 'C:\MyApp\Uninstall.exe /Silent'
+        Set a Add/Remove Programs registry entry for a custom app with uninstall string
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+
+		    [Parameter(Mandatory=$true)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Name,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$DisplayName=$Name,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+            [Alias('Version')]
+		    [string]$DisplayVersion,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+            [Alias('Icon')]
+		    [string]$DisplayIcon,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Publisher,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$InstallDate=$(Get-Date -Format g),
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$InstallLocation,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$UninstallString,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$QuietUninstallString,
+
+		    [Parameter(Mandatory=$false)]
+		    [switch]$NoModify,
+
+		    [Parameter(Mandatory=$false)]
+		    [switch]$NoRepair,
+
+		    [Parameter(Mandatory=$false)]
+		    [switch]$NoRemove,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Machine','User')]
+		    [string]$Target='Machine',
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+            
+	    }
+	    Process {
+		    Try {
+
+                # Convert registry target path
+                if ( $target -ieq 'User' ) { $path = 'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall' }
+                else { $path = 'HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall' }
+
+                # Splatting Arguments as hastable
+                $HashArguments = @{}
+                if ($Name) { $HashArguments.Add('Name', $Name) }                
+                if ($DisplayName) { $HashArguments.Add('DisplayName', $DisplayName) }
+                if ($DisplayVersion) { $HashArguments.Add('DisplayVersion', $DisplayVersion) }
+                if ($DisplayIcon) { $HashArguments.Add('DisplayIcon', $DisplayIcon) }
+                if ($Publisher) { $HashArguments.Add('Publisher', $Publisher) }
+                if ($InstallDate) { $HashArguments.Add('InstallDate', $InstallDate) }
+                if ($InstallLocation) { $HashArguments.Add('InstallLocation', $InstallLocation) }
+                if ($UninstallString) { $HashArguments.Add('UninstallString', $UninstallString) }
+                if ($QuietUninstallString) { $HashArguments.Add('QuietUninstallString', $QuietUninstallString) }
+                if ($NoModify) { $HashArguments.Add('NoModify', $NoModify) }
+                if ($NoRepair) { $HashArguments.Add('NoRepair', $NoRepair) }
+                if ($NoRemove) { $HashArguments.Add('NoRemove', $NoRemove) }
+
+                # Convert hastable to flat string for log file reporting
+                if ($HashArguments) {
+                    [string]$HashArgumentsString = ($HashArguments.GetEnumerator() | % { "$($_.Key)=$($_.Value) |" })
+                    $HashArgumentsString = $HashArgumentsString.TrimEnd(' |')
+                }
+                Write-log -Message "Add Add/Remove Programs entry for [$Name] with [$HashArgumentsString]" -Severity 1 -Source ${CmdletName}
+
+                # Write registry entries
+                foreach ($item in $HashArguments.GetEnumerator())
+                {
+                    if  ( ($ITEM.name -ieq "NoModify") -or ($ITEM.name -ieq "NoRepair") -or ($ITEM.name -ieq "NoRemove") ) {
+                        Set-RegistryKey -Key "$Path\$Name" -Name $item.Name -Value 1 -Type DWord -ErrorAction Stop
+                    } else {
+                        Set-RegistryKey -Key "$Path\$Name" -Name $item.Name -Value $item.value -ErrorAction Stop
+                    }
+                }
+                Write-log -Message "Add Add/Remove Programs entry set successfuly" -Severity 1 -Source ${CmdletName}
+
+            }
+		    Catch {
+                    Write-Log -Message "Failed to add Add/Remove Programs entry. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to add Add/Remove Programs entry.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+    #endregion Function Add-AddRemovePrograms
+
+#region Function Add-FirewallRule
+    Function Add-FirewallRule {
+    <#
+    .SYNOPSIS
+	    Add a Windows Firewall rule
+    .DESCRIPTION
+	    Add a Windows Firewall rule
+        For detailed information about the parameters please refer to https://docs.microsoft.com/en-us/powershell/module/netsecurity/new-netfirewallrule
+    .PARAMETER Action
+        Specifies that matching firewall rules of the indicated action are created. This parameter specifies the action to take on traffic that matches this rule. The acceptable values for this parameter are: Allow or Block.    
+    .PARAMETER Authentication
+        Specifies that authentication is required on firewall rules. The acceptable values for this parameter are: NotRequired, Required, or NoEncap.
+    .PARAMETER Description
+        Specifies that matching firewall rules of the indicated description are created. Wildcard characters are accepted. This parameter provides information about the firewall rule. This parameter specifies the localized, user-facing description of the IPsec rule.
+    .PARAMETER Direction
+        Specifies that matching firewall rules of the indicated direction are created. This parameter specifies which direction of traffic to match with this rule. The acceptable values for this parameter are: Inbound or Outbound. The default value is Inbound.
+    .PARAMETER DisplayName
+        Specifies that only matching firewall rules of the indicated display name are created. Wildcard characters are accepted. Specifies the localized, user-facing name of the firewall rule being created. When creating a rule this parameter is required. This parameter value is locale-dependent. If the object is not modified, then this parameter value may change in certain circumstances. When writing scripts in multi-lingual environments, the Name parameter should be used instead, where the default value is a randomly assigned value. This parameter cannot be set to All.
+    .PARAMETER DynamicTarget
+        Specifies a dynamic transport. The cmdlet adds the dynamic transport that you specify as a condition that must be matched for the firewall rule to apply. The acceptable values for this parameter are: Any,ProximityApps,ProximitySharing,WifiDirectPrinting,WifiDirectDisplay,WifiDirectDevices,The default value is Any. Some types of dynamic transports, such as proximity sharing, abstract the network layer details. This means that you cannot use standard network layer conditions, such as protocols and ports, to identify the dynamic transports.
+    .PARAMETER EdgeTraversalPolicy
+        Specifies that matching firewall rules of the indicated edge traversal policy are created. This parameter specifies how this firewall rule will handle edge traversal cases. Valid only when the Direction parameter is set to Inbound. The acceptable values for this parameter are: Block, Allow, DeferToUser, or DeferToApp. This parameter specifies that traffic that traverses an edge device, such as a network address translation (NAT)-enabled router, between the local and remote computer matches this rule. If this parameter is set to DeferToUser or DeferToApp, then Windows allows the user or application to programmatically register with the firewall to receive inbound unsolicited application traffic from the edge device.
+    .PARAMETER Enabled
+        Specifies that matching firewall rules of the indicated state are created. This parameter specifies that the rule object is administratively enabled or administratively disabled. The acceptable values for this parameter are: True: Specifies the rule is currently enabled. False: Specifies the rule is currently disabled. Note, that the type of this parameter is not boolean, therefore $true and $false variables are not acceptable values here. Use "True" and "False" text strings instead. A disabled rule will not actively modify computer behavior, but the management construct still exists on the computer so it can be re-enabled.
+    .PARAMETER Encryption
+        Specifies that encryption in authentication is required on firewall rules. The authentication is done through a separate IPsec or main mode rule. The acceptable values for this parameter are: NotRequired, Required, or Dynamic.
+    .PARAMETER GPOSession
+        Specifies the network GPO from which to retrieve the rules to be created. This parameter is used in the same way as the PolicyStore parameter. When modifying GPOs in Windows PowerShell®, each change to a GPO requires the entire GPO to be loaded, modified, and saved back. On a busy Domain Controller (DC), this can be a slow and resource-heavy operation. A GPO Session loads a domain GPO onto the local computer and makes all changes in a batch, before saving it back. This reduces the load on the DC and speeds up the Windows PowerShell cmdlets. To load a GPO Session, use the Open-NetGPO cmdlet. To save a GPO Session, use the Save-NetGPO cmdlet.
+    .PARAMETER Group
+        Specifies that only matching firewall rules of the indicated group association are copied. Wildcard characters are accepted. This parameter specifies the source string for the DisplayGroup parameter. If the DisplayGroup parameter value is a localizable string, then this parameter contains an indirect string. Rule groups can be used to organize rules by influence and allows batch rule modifications. Using the Set-NetFirewallRule cmdlets, if the group name is specified for a set of rules or sets, then all of the rules or sets in that group receive the same set of modifications. It is a good practice to specify this parameter value with a universal and world-ready indirect @FirewallAPI name. The DisplayGroup parameter cannot be specified upon object creation using the New-NetFirewallRule cmdlet, but can be modified using dot-notation and the Set-NetFirewallRule cmdlet.
+    .PARAMETER IcmpType
+        Specifies the ICMP type codes. The key encoding is specified by running the Set-NetFirewallSetting cmdlet with the KeyEncoding parameter. The acceptable values for this parameter are: ICMP type code: 0-255. ICMP type code pairs: 3:4. Keyword: Any. A rule can be queried for this condition, modified by using the security filter object, or both. See the Get-NetFirewallPortFilter cmdlet for more information.
+    .PARAMETER InterfaceAlias
+        Specifies the alias of the interface that applies to the traffic. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallInterfaceFilter cmdlet for more information.
+    .PARAMETER InterfaceType
+        Specifies that only network connections made through the indicated interface types are subject to the requirements of this rule. This parameter specifies different authentication requirements for each of the three main network types. The acceptable values for this parameter are: Any, Wired, Wireless, or RemoteAccess. The default value is Any. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallInterfaceTypeFilter cmdlet for more information.
+    .PARAMETER LocalAddress
+        Specifies that network packets with matching IP addresses match this rule. This parameter value is the first end point of an IPsec rule and specifies the computers that are subject to the requirements of this rule. This parameter value is an IPv4 or IPv6 address, hostname, subnet, range, or the following keyword: Any. The acceptable formats for this parameter are: Single IPv4 Address: 1.2.3.4, Single IPv6 Address: fe80::1, IPv4 Subnet (by network bit count): 1.2.3.4/24, IPv6 Subnet (by network bit count): fe80::1/48, IPv4 Subnet (by network mask): 1.2.3.4/255.255.255.0, IPv4 Range: 1.2.3.4-1.2.3.7, IPv6 Range: fe80::1-fe80::9 Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallAddressFilter cmdlet for more information., 
+    .PARAMETER LocalOnlyMapping
+        Indicates that matching firewall rules of the indicated value are created. This parameter specifies the firewall rules for local only mapping, which describes whether a packet must pass through a local address on the way to the destination. Non-TCP traffic is session-less. Windows Firewall authorizes traffic per session, not per packet, for performance reasons. Generally, non-TCP sessions are inferred by checking the following fields: local address, remote address, protocol, local port, and remote port. If this parameter is set to True, then the remote address and port will be ignored when inferring remote sessions. Sessions will be grouped based on local address, protocol, and local port. This is similar to the LooseSourceMapping parameter, but performs better in cases where the traffic does not need to be filtered by remote address. This could improve performance on heavy server workloads where UDP requests come from dynamic client ports. For instance, Teredo relay servers.
+    .PARAMETER LocalPort
+        Specifies that network packets with matching IP local port numbers match this rule. The acceptable value is a port, range, or keyword and depends on the protocol.
+    .PARAMETER LocalUser
+        Specifies the principals to which network traffic this firewall rule applies. Principals for which the network traffic this firewall rule should apply. The principals, represented by security identifiers (SIDs) in the security descriptor definition language (SDDL) string, are services, users, application containers, or any SID to which network traffic is associated. This parameter specifies that only network packets that are authenticated as coming from or going to a principal identified in the list of accounts (SID) match this rule. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallSecurityFilter cmdlet for more information.
+    .PARAMETER LooseSourceMapping
+        Indicates that matching firewall rules of the indicated value are created. This parameter specifies the firewall rules for loose source mapping, which describes whether a packet can have a non-local source address when being forwarded to a destination. If this parameter is set to True, then the rule accepts packets incoming from a host other than the one the packets were sent to. This parameter applies only to UDP protocol traffic. The default value is False
+    .PARAMETER Name
+        Specifies that only matching firewall rules of the indicated name are created. Wildcard characters are accepted. This parameter acts just like a file name, in that only one rule with a given name may exist in a policy store at a time. During group policy processing and policy merge, rules that have the same name but come from multiple stores being merged, will overwrite one another so that only one exists. This overwriting behavior is desirable if the rules serve the same purpose. For instance, all of the firewall rules have specific names, so if an administrator can copy these rules to a GPO, and the rules will override the local versions on a local computer. GPOs can have precedence. So if an administrator has a different or more specific rule with the same name in a higher-precedence GPO, then it overrides other rules that exist. The default value is a randomly assigned value. When the defaults for main mode encryption need to overridden, specify the customized parameters and set this parameter, making it the new default setting for encryption.
+    .PARAMETER OverrideBlockRules
+        Indicates that matching network traffic that would otherwise be blocked are allowed. The network traffic must be authenticated by using a separate IPsec rule. If the Direction parameter is set to Inbound, then this parameter is valid only for rules that have one or more accounts listed in the RemoteUser parameter and optionally the RemoteMachine parameter. Network packets that match this rule and that are successfully authenticated against a computer account specified in the RemoteUser parameter and against a user account identified in the RemoteMachine parameter are permitted through the firewall. If this parameter is specified, then the Authentication parameter cannot be set to NotRequired. This parameter is equivalent to the override block rules checkbox in the Windows Firewall with Advanced Security MMC snap-in. For computers that are running Windows® 7 or nextref_server_7, this parameter is permitted on an outbound rule. Selecting this parameter on an outbound rule causes matching traffic to be permitted through this rule even if other matching rules would block the traffic. No accounts are required in the RemoteMachine or RemoteUser parameter for an outbound bypass rule, however, if authorized or excepted computers are listed in those groups the rules will be enforced. This parameter is not valid on outbound rules on computers that are running firstref_vista or earlier. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallSecurityFilter cmdlet for more information.
+    .PARAMETER Owner
+        Specifies that matching firewall rules of the indicated owner are created. This parameter specifies the owner of the firewall rule, represented as an SDDL string. All Windows Store applications that require network traffic create network isolation rules (normally through installing via the Store), where the user that installed the application is the owner. This parameter specifies that only network packets that are authenticated as coming from or going to an owner identified in the list of accounts (SID) match this rule.
+    .PARAMETER Package
+        Specifies the Windows Store application to which the firewall rule applies. This parameter is specified as a security identifier (SID). Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallApplicationFilter cmdlet for more information.
+    .PARAMETER Platform
+        Specifies which version of Windows the associated rule applies. The acceptable format for this parameter is a number in the Major.Minor format. The version number of 6.0 corresponds to Vista (nextref_vista), 6.1 corresponds to Win7 (Windows® 7 or firstref_longhorn), and 6.2 corresponds to Win8 (Windows® 8 or Windows Server 2012). If + is not specified, then only that version is associated. If + is specified, then that version and later versions are associated. Querying for rules with this parameter with the Get-NetFirewallRule cmdlet cannot be performed.
+    .PARAMETER PolicyStore
+        Specifies the policy store from which to retrieve the rules to be created. A policy store is a container for firewall and IPsec policy. 
+    .PARAMETER Profile
+        Specifies one or more profiles to which the rule is assigned. The rule is active on the local computer only when the specified profile is currently active. This relationship is many-to-many and can be indirectly modified by the user, by changing the Profiles field on instances of firewall rules. Only one profile is applied at a time. The acceptable values for this parameter are: Any, Domain, Private, Public, or NotApplicable. The default value is Any. Separate multiple entries with a comma and do not include any spaces. Use the keyword Any to configure the profile as Private, Public, Domain in the ConfigurableServiceStore.
+    .PARAMETER Program
+        Specifies the path and file name of the program for which the rule allows traffic. This is specified as the full path to an application file. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallApplicationFilter cmdlet for more information.
+    .PARAMETER Protocol
+        Specifies that network packets with matching IP addresses match this rule. This parameter specifies the protocol for an IPsec rule. The acceptable values for this parameter are: Protocols by number: 0-255. Protocols by name: TCP, UDP, ICMPv4, or ICMPv6. If a port number is identified by using numeric values (80, 443, 8080, etc.), then this parameter must be set to TCP or UDP. The values ICMPv4 and ICMPv6 create a rule that exempts ICMP network traffic from the IPsec requirements of another rule. The default value is Any. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallPortFilter cmdlet for more information.
+    .PARAMETER RemoteAddress
+        Specifies that network packets with matching IP addresses match this rule. This parameter value is an IPv4 or IPv6 address, subnet, range or keyword. The acceptable formats for this parameter are: Single IPv4 Address: 1.2.3.4, Single IPv6 Address: fe80::1, IPv4 Subnet (by network bit count): 1.2.3.4/24, IPv6 Subnet (by network bit count): fe80::1/48, IPv4 Subnet (by network mask): 1.2.3.4/255.255.255.0, IPv4 Range: 1.2.3.4-1.2.3.7, IPv6 Range: fe80::1-fe80::9, Keyword: Any, LocalSubnet, DNS, DHCP, WINS, DefaultGateway, Internet, Intranet, IntranetRemoteAccess, PlayToDevice. NOTE: Keywords can be restricted to IPv4 or IPv6 by appending a 4 or 6 (for example, keyword "LocalSubnet4" means that all local IPv4 addresses are matching this rule). Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallAddressFilter cmdlet for more information.
+    .PARAMETER RemoteDynamicKeywordAddresses
+        Specifies dynamic keyword addresses that match this rule.    
+    .PARAMETER RemoteMachine
+        Specifies that matching IPsec rules of the indicated computer accounts are created. This parameter specifies that only network packets that are authenticated as incoming from or outgoing to a computer identified in the list of computer accounts (SID) match this rule. This parameter value is specified as an SDDL string. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallSecurityFilter cmdlet for more information.
+    .PARAMETER RemotePort
+        Specifies that network packets with matching IP port numbers match this rule. This parameter value is the second end point of an IPsec rule. The acceptable value is a port, range, or keyword and depends on the protocol. If the protocol is TCP or UDP, then the acceptable values for this parameter are: Port range: 0-65535, Port number: 80, Keyword: Any, If the protocol is ICMPv4 or ICMPv6, then the acceptable values for this parameter are: An ICMP type, code pair: 0, 8, Type and code: 0-255, Keyword: Any. If a protocol is not specified, then the acceptable values for this parameter are: Any, RPC, RPC-EPMap, or IPHTTPS. IPHTTPS is only supported on Windows Server 2012. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallPortFilter cmdlet for more information.
+    .PARAMETER RemoteUser
+        Specifies that matching IPsec rules of the indicated user accounts are created. This parameter specifies that only network packets that are authenticated as incoming from or outgoing to a user identified in the list of user accounts match this rule. This parameter value is specified as an SDDL string. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallSecurityFilter cmdlet for more information.
+    .PARAMETER Service
+        Specifies the short name of a Windows Server 2012 service to which the firewall rule applies. If this parameter is not specified, then network traffic generated by any program or service matches this rule. Querying for rules with this parameter can only be performed using filter objects. See the Get-NetFirewallServiceFilter cmdlet for more information.
+    .PARAMETER Force
+        Always create a new rule even when a rule with the same DisplayName already exists
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+	    Add-FirewallRule -DisplayName 'My Application' -Program 'C:\Program Files\MyApp\MyApp.exe'
+	    Set a firewall rule for a program with defaults
+    .EXAMPLE
+	    Add-FirewallRule -DisplayName 'My Application' -Program 'C:\Program Files\MyApp\MyApp.exe' -Action Allow -Direction Inbound -RemoteAddress LocalSubnet
+	    Set a firewall rule for a program with some optional parameters like action, direction and remote address
+    .EXAMPLE
+        ForEach($FWRule in $PackageConfigFile.FirewallRules){ $FWHash = @{} ; ForEach ($Item in $FWRule.PSObject.Properties) { $FWHash.Add($Item.Name,$Item.Value) } ; Add-FirewallRule @FWHash -Force }
+        Example how to set firewall rules based on the 'FirewallRules' section of the package JSON file
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Allow','Block')]
+		    [string]$Action,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateSet('NotRequired','Required','NoEncap')]
+		    [string]$Authentication,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Description,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Inbound','Outbound')]
+		    [string]$Direction,
+
+		    [Parameter(Mandatory=$true)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$DisplayName,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Any','ProximityApps','ProximitySharing','WifiDirectPrinting','WifiDirectDisplay','WifiDirectDevices')]
+		    [string]$DynamicTarget,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateSet('Block','Allow','DeferToUser','DeferToApp')]
+		    [string]$EdgeTraversalPolicy,
+
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [boolean]$Enabled,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateSet('NotRequired','Required','Dynamic')]
+		    [string]$Encryption,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$GPOSession,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Group,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$IcmpType,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$InterfaceAlias,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateSet('Any','Wired','Wireless','RemoteAccess')]
+		    [string]$InterfaceType,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$LocalAddress,
+
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [boolean]$LocalOnlyMapping,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$LocalPort,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$LocalUser,
+
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [boolean]$LooseSourceMapping,
+
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [string]$Name,
+
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [boolean]$OverrideBlockRules,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Owner,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Package,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$Platform,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$PolicyStore,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Any','Domain','Private','Public','NotApplicable')]
+		    [string]$Profile,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Program,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Protocol,
+		
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$RemoteAddress,
+
+            [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$RemoteDynamicKeywordAddresses,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$RemoteMachine,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string[]]$RemotePort,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$RemoteUser,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Service,
+
+		    [Parameter(Mandatory=$false)]
+    	    [switch]$Force,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+
+                # Note: We use DisplayName and NOT Name as main identify because Name is a automaticaly generated GUID
+
+                # Log header
+                Write-Log -message "Start Add (or Set) a Windows Firewall rule [$DisplayName]" -Source ${CmdletName} 
+
+                # Splatting Arguments as hastable
+                $HashArguments = @{}
+                if ($Action) { $HashArguments.Add('Action', $Action) }
+                if ($Authentication) { $HashArguments.Add('Authentication', $Authentication) }
+                if ($Description) { $HashArguments.Add('Description', $Description) }
+                if ($Direction) { $HashArguments.Add('Direction', $Direction) }
+                if ($DisplayName) { $HashArguments.Add('DisplayName', $DisplayName) }
+                if ($DynamicTarget) { $HashArguments.Add('DynamicTarget', $DynamicTarget) }
+                if ($EdgeTraversalPolicy) { $HashArguments.Add('EdgeTraversalPolicy', $EdgeTraversalPolicy) }
+                if ($Enabled) { $HashArguments.Add('Enabled', $Enabled) }
+                if ($Encryption) { $HashArguments.Add('Encryption', $Encryption) }
+                if ($GPOSession) { $HashArguments.Add('GPOSession', $GPOSession) }
+                if ($Group) { $HashArguments.Add('Group', $Group) }
+                if ($IcmpType) { $HashArguments.Add('IcmpType', $IcmpType) }
+                if ($InterfaceAlias) { $HashArguments.Add('InterfaceAlias', $InterfaceAlias) }
+                if ($InterfaceType) { $HashArguments.Add('InterfaceType', $InterfaceType) }
+                if ($LocalAddress) { $HashArguments.Add('LocalAddress', $LocalAddress) }
+                if ($LocalOnlyMapping) { $HashArguments.Add('LocalOnlyMapping', $LocalOnlyMapping) }
+                if ($LocalPort) { $HashArguments.Add('LocalPort', $LocalPort) }
+                if ($LocalUser) { $HashArguments.Add('LocalUser', $LocalUser) }
+                if ($LooseSourceMapping) { $HashArguments.Add('LooseSourceMapping', $LooseSourceMapping) }
+                if ($Name) { $HashArguments.Add('Name', $Name) }
+                if ($OverrideBlockRules) { $HashArguments.Add('OverrideBlockRules', $OverrideBlockRules) }
+                if ($Owner) { $HashArguments.Add('Owner', $Owner) }
+                if ($Package) { $HashArguments.Add('Package', $Package) }
+                if ($Platform) { $HashArguments.Add('Platform', $Platform) }
+                if ($PolicyStore) { $HashArguments.Add('PolicyStore', $PolicyStore) }
+                if ($Profile) { $HashArguments.Add('Profile', $Profile) }
+                if ($Program) { $HashArguments.Add('Program', $Program) }
+                if ($Protocol) { $HashArguments.Add('Protocol', $Protocol) }
+                if ($RemoteAddress) { $HashArguments.Add('RemoteAddress', $RemoteAddress) }
+                if ($RemoteMachine) { $HashArguments.Add('RemoteMachine', $RemoteMachine) }
+                if ($RemotePort) { $HashArguments.Add('RemotePort', $RemotePort) }
+                if ($RemoteUser) { $HashArguments.Add('RemoteUser', $RemoteUser) }
+                if ($Service) { $HashArguments.Add('Service', $Service) }
+
+                # Convert hastable to flat string for log file reporting
+                if ($HashArguments) {
+                    [string]$HashArgumentsString = ($HashArguments.GetEnumerator() | % { "$($_.Key)=$($_.Value) |" })
+                    $HashArgumentsString = $HashArgumentsString.TrimEnd(' |')
+                }
+                
+                # Check if rule already exists (in this case we Set-NetFirewallRule instead of New-NetFirewallRule to update the existing rule)
+                if  ( (Get-NetFirewallRule -DisplayName $DisplayName -ErrorAction SilentlyContinue) -and (!$force) ) {
+                    # Update existing rule
+                    Write-log -Message "Windows Firewall rule [$DisplayName] found, start update with parameters [$HashArgumentsString]" -Severity 1 -Source ${CmdletName}
+                    $Result = Set-NetFirewallRule @HashArguments -ErrorAction Stop
+                    Write-log -Message "Windows Firewall rule updated successfuly" -Severity 1 -Source ${CmdletName}
+                } else {
+                    # Add new rule
+                    Write-log -Message "Add Windows Firewall rule [$DisplayName] with this parameters [$HashArgumentsString]" -Severity 1 -Source ${CmdletName}
+                    $Result = New-NetFirewallRule @HashArguments -ErrorAction Stop
+                    Write-log -Message "Windows Firewall rule added successfuly" -Severity 1 -Source ${CmdletName}                
+                }
+            }
+		    Catch {
+                    Write-Log -Message "Failed to add or set Windows Firewall parameter. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to add or set Windows Firewall parameter.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+    #endregion Function Add-FirewallRule
+
+#region Function Add-FirewallRuleFromJson
+    Function Add-FirewallRuleFromJson {
+    <#
+    .SYNOPSIS
+	    Add Windows firewall rules based on the package .json file
+    .DESCRIPTION
+	    Add Windows firewall rules based on the package .json file
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+        Add-FirewallRuleFromJson
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+        )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+
+                # Log header
+                if ($PackageConfigFile.FirewallRules) {
+                    Write-Log -Message "Start Add Firewall Rule From Json" -Source ${CmdletName} 
+                }
+
+                ForEach($FWRule in $PackageConfigFile.FirewallRules){ 
+                    $FWHash = @{}
+                    ForEach ($Item in $FWRule.PSObject.Properties) {
+                        # Expand environment variable and powershellvariables in value
+                        If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
+                        $FWHash.Add($Item.Name,$Item.Value) 
+                    }
+                    Add-FirewallRule @FWHash
+                }
+            }
+		    Catch {
+                Write-Log -Message "Failed to add firewall rules from json. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			If (-not $ContinueOnError) {
+				    Throw "Failed to add firewall rules from json.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+    #endregion Function Add-FirewallRuleFromJson
+
 #region Function Add-Font
 Function Add-Font {
 <#
@@ -518,6 +1069,162 @@ Function Add-Path {
 	}
 }
 #endregion Function Add-Path
+
+#region Function Add-PermissionFromJson
+Function Add-PermissionFromJson {
+<#
+.SYNOPSIS
+	Add file or folder permissions based on the package .json file
+.DESCRIPTION
+	Add file or folder permissions based on the package .json file
+.PARAMETER ContinueOnError
+	Continue if an error is encountered. Default: $false.
+.EXAMPLE
+    Add-PermissionFromJson
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[switch]$ContinueOnError
+    )
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            # Log header
+            if ($PackageConfigFile.Permissions) {
+                Write-Log -Message "Start Add Permission From Json" -Source ${CmdletName} 
+            }
+
+            # Process each permission section from json
+            ForEach($Permission in $PackageConfigFile.Permissions){ 
+                # Init hash tabels for params
+                $InheritanceHash = @{}
+                $PermissionHash = @{}
+
+                # Process each permission param from json in object syntax
+                if ($Permission -is [PSObject]) {
+                    Write-Log "Process permission in object syntax" -DebugMessage
+                    ForEach ($Item in $Permission.PSObject.Properties) {
+
+                        # Expand environment variable and powershell variables in value
+                        If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
+
+                        # Build hash tabels with params
+                        if ($Item.Name -ieq 'Action') {
+                            $InheritanceHash.Add($Item.Name,'Disable') 
+                            $PermissionHash.Add($Item.Name,$Item.Value) 
+                        }
+                        if ($Item.Name -ieq 'Path') {
+                            $InheritanceHash.Add($Item.Name,$Item.Value) 
+                            $PermissionHash.Add($Item.Name,$Item.Value) 
+                        }
+                        if ($Item.Name -ieq 'Filename') {
+                            $InheritanceHash.Add($Item.Name,$Item.Value) 
+                            $PermissionHash.Add($Item.Name,$Item.Value) 
+                        }
+                        if ($Item.Name -ieq 'Trustee') {
+                            $PermissionHash.Add($Item.Name,$Item.Value) 
+                        }
+                        if ($Item.Name -ieq 'Permissions') {
+                            $PermissionHash.Add($Item.Name,$Item.Value) 
+                        }
+                    }
+
+                    # Execute cmdlets with hash params
+                    Set-Inheritance @InheritanceHash
+                    if ($PermissionHash.Filename) {
+                        Update-FilePermission @PermissionHash
+                    } else {
+                        Update-FolderPermission @PermissionHash
+                    }
+
+                }
+
+                # Process each permission param from json in simple string syntax (Only file or folder or registry path)
+                if ($Permission -is [String]) {
+                    Write-Log "Process permission in string syntax" -DebugMessage
+                        
+                    # Expand environment variable and powershell variables in value
+                    If(![string]::IsNullOrEmpty($Permission)) { $Permission = Expand-Variable -InputString $Permission -VarType all}
+
+                    # Filesystem vs Registry
+                    if ( ($Permission.StartsWith('HKLM',"CurrentCultureIgnoreCase")) -or ($Permission.StartsWith('HKCU',"CurrentCultureIgnoreCase"))  -or ($Permission.StartsWith('HKEY',"CurrentCultureIgnoreCase")) ) {
+                        ### Registry ###
+                        
+                        # Default built-in values if only the path is specified
+                        $InheritanceHash.Add('Action','Disable') 
+                        $InheritanceHash.Add('Path',$Permission) 
+                        
+                        $PermissionHash.Add('Action','Add') 
+                        $PermissionHash.Add('Trustee','S-1-5-11') 
+                        $PermissionHash.Add('Permissions','WriteKey') 
+                        $PermissionHash.Add('Key',$Permission) 
+                        
+                        # Execute cmdlets with hash params
+                        Set-Inheritance @InheritanceHash
+                        Update-RegistryPermission @PermissionHash
+
+                    } else {
+                        ### Filesystem ###
+
+                        # Default built-in values if only the path is specified
+                        $InheritanceHash.Add('Action','Disable') 
+                        $PermissionHash.Add('Action','Add') 
+                        $PermissionHash.Add('Trustee','S-1-5-11') 
+                        $PermissionHash.Add('Permissions','Modify') 
+
+                        # Check if string is a folder path or a file path
+                        if (Test-Path -Path $Permission -PathType Container) {
+                            $InheritanceHash.Add('Path',$Permission) 
+                            $PermissionHash.Add('Path',$Permission) 
+                        } elseif (Test-Path -Path $Permission -PathType Leaf) {
+                            $InheritanceHash.Add('Path',$($Permission | Split-Path -Parent)) 
+                            $InheritanceHash.Add('Filename',$($Permission | Split-Path -Leaf)) 
+                            $PermissionHash.Add('Path',$($Permission | Split-Path -Parent)) 
+                            $PermissionHash.Add('Filename',$($Permission | Split-Path -Leaf)) 
+                        } else {
+                            Write-Log -Message "[$Permission] is not valid folder or file path.`n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+                            If (-not $ContinueOnError) {
+				                Throw "[$Permission] is not valid folder or file path.: $($_.Exception.Message)"
+			                }
+                        }
+
+                        # Execute cmdlets with hash params
+                        Set-Inheritance @InheritanceHash
+                        if ($PermissionHash.Filename) {
+                            Update-FilePermission @PermissionHash
+                        } else {
+                            Update-FolderPermission @PermissionHash
+                        }
+                    }
+                }
+            }
+        }
+		Catch {
+            Write-Log -Message "Failed to add permission from json. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    		If (-not $ContinueOnError) {
+				    Throw "Failed to add permission from json.: $($_.Exception.Message)"
+			    }
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+
+
+}
+#endregion Function Add-PermissionFromJson
 
 #region Function Close-InstallationProgress
 Function Close-InstallationProgress {
@@ -1751,41 +2458,6 @@ Function Exit-Script {
 		0 { $installSuccess = $true }
 		Default { $installSuccess = $false }
 	}
-	
-	
-    # Run auto publishing/unpublishing (if installation was sucessfull)
-	If ($installSuccess -eq $true)
-    {
-        # Publish
-        If ($deploymentType -ieq 'Install')
-        {
-            # AppConfig (Publishing, etc.)
-            Invoke-AppConfig -Action Install
-
-            # Add branding registry key
-            $Global:DisableLogging = $true
-            if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Installed" -Value 1 -Type DWord }
-            if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Date" -Value $(Get-Date -Format g) -Type String }
-            $Global:DisableLogging = $false
-        }
-
-        # Unpublish
-        If ($deploymentType -ieq 'Uninstall')
-        {
-            # AppConfig (Unpublishing, etc.)
-            Invoke-AppConfig -Action Uninstall
-
-            # Remove local cached Json file
-            Remove-File -path "$LogDir\$PackageName.json"
-
-            # Add branding registry key
-            $Global:DisableLogging = $true
-            if ($PackageName){ Remove-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Recurse }
-            $Global:DisableLogging = $false
-        }
-    }
-
-
 
     ## Determine if balloon notification should be shown
 	If ($DeployMode -ieq 'Silent') { [boolean]$Script:configShowBalloonNotifications = $false }
@@ -1909,13 +2581,13 @@ Function Expand-Variable {
 	}
 	Process {
 		Try {
+            Write-Log "Mode: $VarType Out: $InputString" -Source ${CmdletName} -DebugMessage $true		
             If ($VarType -ieq "all" -or $VarType -ieq "environment"  ) {
-                $InputString = [System.Environment]::ExpandEnvironmentVariables($InputString)
+                try { $InputString = [System.Environment]::ExpandEnvironmentVariables($InputString) } catch { Write-Log "Unable to expand environment variables in string [$InputString]" -Source ${CmdletName} -Severity 2 }
             }
             If ($VarType -ieq "all" -or $VarType -ieq "powershell"  ) {
-                $InputString = $ExecutionContext.InvokeCommand.ExpandString($InputString)
+                try { $InputString = $ExecutionContext.InvokeCommand.ExpandString($InputString) } catch { Write-Log "Unable to expand powershell variables in string [$InputString]" -Source ${CmdletName} -Severity 2 }
             }
-            Write-Log "Mode: $VarType Out: $InputString" -Source ${CmdletName}	-DebugMessage $true		
             Write-Output -InputObject $InputString
 		}
 		Catch {
@@ -2018,6 +2690,55 @@ Function Get-EnvironmentVariable {
 	}
 }
 #endregion Function Get-EnvironmentVariable
+
+#region Function Get-FileVerb
+Function Get-FileVerb {
+<#
+.SYNOPSIS
+	Gets file verbs
+.DESCRIPTION
+	Get the file verbs of a file (context menu items for a specific file type)
+.PARAMETER file
+	File
+.EXAMPLE
+	Get-FileVerb C:\windows\notepad.exe
+.EXAMPLE
+	Get-FileVerb C:\temp\document.pdf
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[Cmdletbinding()]
+	param
+	( 
+		[Parameter(Mandatory=$True,Position=0)]
+		[ValidateNotNullorEmpty()]
+		[System.IO.FileInfo]$file
+	)
+
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+				$shell=new-object -ComObject Shell.Application
+				$ns=$shell.NameSpace($file.DirectoryName)
+				Return $ns.ParseName($file.Name).Verbs()
+		}
+
+		Catch {
+				Write-Log -Message "Failed to get verb for [$file]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+				Throw "Failed to get verb for [$file].: $($_.Exception.Message)"
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Get-FileVerb
 
 #region Function Get-FileVersion
 Function Get-FileVersion {
@@ -3081,6 +3802,127 @@ Function Get-Parameter {
 }
 #endregion Function Get-Parameter
 
+#region Function Get-ParameterFromRegKey
+    Function Get-ParameterFromRegKey {
+    <#
+    .SYNOPSIS
+	    Enumerate all registry values below a registry key and generate Powershell variables for each regsity value.
+    .DESCRIPTION
+	    Enumerate all registry values below a registry key and generate Powershell variables for each regsity value.
+    .PARAMETER Path
+        Path to the registry Key, e.g. HKEY_LOCAL_MACHINE\Software\MyCustomKeys
+    .PARAMETER Prefix
+        Prefix to add in front of the variable name (optional)
+    .PARAMETER Suffix
+        Suffix to add to the end of the variable name (optional)
+    .PARAMETER Force
+        Force to overwrite existing variable
+    .PARAMETER DetailedLog
+        Show detailed log output with each variable and value
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+	    Get-ParameterFromRegKey -Path HKEY_LOCAL_MACHINE\Software\MyCustomKeys
+	    Enumerate the registry key and generate PowerShell variables
+    .EXAMPLE
+	    Get-ParameterFromRegKey -Path HKEY_LOCAL_MACHINE\Software\MyCustomKeys -Prefix 'Custom' -Force -DetailedLog
+        Enumerate the registry key and generate PowerShell variables wiht prefix, and overwirtes existing ones, and show details in log
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+		    [Parameter(Mandatory=$true)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Path,
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Prefix,
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Suffix,
+		    [Parameter(Mandatory=$false)]
+		    [switch]$Force,
+		    [Parameter(Mandatory=$false)]
+		    [switch]$DetailedLog,
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+            
+	    }
+	    Process {
+		    Try {
+
+                # Log header
+                Write-Log -message "Get registry key [$Path] as variables" -Source ${CmdletName} 
+
+                # Convert registry path to powershell syntax
+                $Path = Convert-RegistryPath $Path
+            
+                # Get all params from registry key create PowerShell variables
+                (Get-ItemProperty -Path $Path -ErrorAction SilentlyContinue).PSObject.Properties | ForEach-Object {
+                    If (($_.Name -ine "(default)") -and ($_.Name -ine "PSPath") -and ($_.Name -ine "PSParentPath") -and ($_.Name -ine "PSChildName") -and ($_.Name -ine "PSDrive") -and ($_.Name -ine "PSProvider")) 
+                    {
+                        
+                        # Construct var name and value
+                        $VarName = "$Prefix$($_.Name)$Suffix"
+                        $VarValue = "$($_.Value)"
+
+                        # Replace everting in variable name that is not a character, number or underscore
+                        $VarName = $VarName -replace '[\W]',''
+                        
+                        # Check if a variable with this name already exists
+                        if (Get-Variable $VarName -ErrorAction SilentlyContinue) {
+                            if ($Force -eq $true){
+                                Set-Variable -Name $VarName -Value $VarValue -Description 'Auto generated variable by Get-ParameterFromRegKey' -Scope Global -Force
+                                if ($DetailedLog -eq $true) {
+                                    Write-log "Set-Variable [$VarName] with value [$VarValue]" -Source ${CmdletName}
+                                } else {
+                                    Write-log "Set-Variable [$VarName] with value [$VarValue]" -Source ${CmdletName} -DebugMessage
+                                }
+                            }
+                            else
+                            {
+                                if ($DetailedLog -eq $true) {
+                                    Write-log "Variable [$VarName)] already exists and -force was not specified, do nothing" -Source ${CmdletName}
+                                } else {
+                                    Write-log "Variable [$VarName)] already exists and -force was not specified, do nothing" -Source ${CmdletName} -DebugMessage
+                                }
+                            }
+                        }
+                        else
+                        {
+                            New-Variable -Name $VarName -Value $VarValue -Description 'Auto generated variable by Get-ParameterFromRegKey' -Scope Global -Force
+                            if ($DetailedLog -eq $true) {
+                                Write-log "New-Variable [$VarName] with value [$VarValue]" -Source ${CmdletName}
+                            } else {
+                                Write-log "New-Variable [$VarName] with value [$VarValue]" -Source ${CmdletName} -DebugMessage
+                            }
+                        }
+                    }
+                }
+            }
+		    Catch {
+                    Write-Log -Message "Failed to get registry key as variable. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to get registry key as variable.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+    #endregion Function Get-ParameterFromRegKey
+
 #region Function Get-PEFileArchitecture
 Function Get-PEFileArchitecture {
 <#
@@ -3639,32 +4481,38 @@ Function Get-ServiceStartMode
 }
 #endregion
 
-#region Function Get-FileVerb
-Function Get-FileVerb {
+#region Function Get-UniversalDate
+Function Get-UniversalDate {
 <#
 .SYNOPSIS
-	Gets file verbs
+	Returns the date/time for the local culture in a universal sortable date time pattern.
 .DESCRIPTION
-	Get the file verbs of a file (context menu items for a specific file type)
-.PARAMETER file
-	File
+	Converts the current datetime or a datetime string for the current culture into a universal sortable date time pattern, e.g. 2013-08-22 11:51:52Z
+.PARAMETER DateTime
+	Specify the DateTime in the current culture.
+.PARAMETER ContinueOnError
+	Continue if an error is encountered. Default: $false.
 .EXAMPLE
-	Get-FileVerb C:\windows\notepad.exe
+	Get-UniversalDate
+	Returns the current date in a universal sortable date time pattern.
 .EXAMPLE
-	Get-FileVerb C:\temp\document.pdf
+	Get-UniversalDate -DateTime '25/08/2013'
+	Returns the date for the current culture in a universal sortable date time pattern.
 .NOTES
-	Created by ceterion AG
 .LINK
-	http://www.ceterion.com
+	http://psappdeploytoolkit.com
 #>
-	[Cmdletbinding()]
-	param
-	( 
-		[Parameter(Mandatory=$True,Position=0)]
+	[CmdletBinding()]
+	Param (
+		#  Get the current date
+		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[System.IO.FileInfo]$file
+		[string]$DateTime = ((Get-Date -Format ($culture).DateTimeFormat.FullDateTimePattern).ToString()),
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$ContinueOnError = $false
 	)
-
+	
 	Begin {
 		## Get the name of this function and write header
 		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
@@ -3672,21 +4520,27 @@ Function Get-FileVerb {
 	}
 	Process {
 		Try {
-				$shell=new-object -ComObject Shell.Application
-				$ns=$shell.NameSpace($file.DirectoryName)
-				Return $ns.ParseName($file.Name).Verbs()
+			## If a universal sortable date time pattern was provided, remove the Z, otherwise it could get converted to a different time zone.
+			If ($DateTime -match 'Z$') { $DateTime = $DateTime -replace 'Z$', '' }
+			[datetime]$DateTime = [datetime]::Parse($DateTime, $culture)
+			
+			## Convert the date to a universal sortable date time pattern based on the current culture
+			Write-Log -Message "Convert the date [$DateTime] to a universal sortable date time pattern based on the current culture [$($culture.Name)]." -Source ${CmdletName}
+			[string]$universalDateTime = (Get-Date -Date $DateTime -Format ($culture).DateTimeFormat.UniversalSortableDateTimePattern -ErrorAction 'Stop').ToString()
+			Write-Output -InputObject $universalDateTime
 		}
-
 		Catch {
-				Write-Log -Message "Failed to get verb for [$file]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
-				Throw "Failed to get verb for [$file].: $($_.Exception.Message)"
+			Write-Log -Message "The specified date/time [$DateTime] is not in a format recognized by the current culture [$($culture.Name)]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			If (-not $ContinueOnError) {
+				Throw "The specified date/time [$DateTime] is not in a format recognized by the current culture: $($_.Exception.Message)"
+			}
 		}
 	}
 	End {
 		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
 	}
 }
-#endregion Function Get-FileVerb
+#endregion
 
 #region Function Get-WindowTitle
 Function Get-WindowTitle {
@@ -3812,6 +4666,8 @@ Function Initialize-Script {
     ##* VARIABLE DECLARATION
     ##*=============================================
     
+    $Global:InstallPhase = 'Initialization'
+
     Write-Verbose "Initialize-Script"
 
     # Store package start time
@@ -4084,9 +4940,9 @@ Function Initialize-Script {
     ## Set Deploy Mode switches
     If ($DeployMode) { Write-Log -Message "Installation is running in [$DeployMode] mode." -Source $PackagingFrameworkName }
     Switch ($deployMode) {
-	    'Silent' { $deployModeSilent = $true }
-	    'NonInteractive' { $deployModeNonInteractive = $true; $deployModeSilent = $true }
-	    Default { $deployModeNonInteractive = $false; $deployModeSilent = $false }
+	    'Silent' { $Script:deployModeSilent = $true }
+	    'NonInteractive' { $Script:deployModeNonInteractive = $true; $Script:deployModeSilent = $true }
+	    Default { $Script:deployModeNonInteractive = $false; $Script:deployModeSilent = $false }
     }
 
     ## Check deployment type (install/uninstall)
@@ -4278,6 +5134,8 @@ Function Initialize-Script {
 	[string]$Script:configRestartPromptButtonRestartNow = $ModuleConfigFile.Localization.$UILanguage.RestartPromptButtonRestartNow
 	[string]$Script:configWelcomePromptCountdownMessage = $ModuleConfigFile.Localization.$UILanguage.WelcomePromptCountdownMessage
 	[string]$Script:configWelcomePromptCustomMessage = $ModuleConfigFile.Localization.$UILanguage.WelcomePromptCustomMessage
+    [string]$Script:configInstallationPromptInstallCompleted = $ModuleConfigFile.Localization.$UILanguage.InstallationPromptInstallCompleted
+	[string]$Script:configInstallationPromptUninstallCompleted = $ModuleConfigFile.Localization.$UILanguage.InstallationPromptUninstallCompleted
 
 
 
@@ -4355,7 +5213,6 @@ Function Initialize-Script {
     If ($Global:LogName -eq "_uninstall.log") {$Global:LogName = "uninstall.log" }
 
     ## Initialize Logging
-    $Global:InstallPhase = 'Initialization'
     $LogSeparator = '*' * 79
     Write-Log -Message ($LogSeparator) -Source $PackagingFrameworkName
     if($PackageName) {Write-Log -Message "[$PackageName] package started." -Source $PackagingFrameworkName}
@@ -4499,16 +5356,18 @@ Function Initialize-Script {
             }
         }
 
-        # Call TestPackage Name (and get name scheme element variables like AppName, AppVersion, etc.
-        $NameSchemeTestResult = Test-PackageName
-        If($NameSchemeTestResult -eq $true)
-        {
-            Write-Log -Message "Package file name [$PackageName] match the naming schema." -Source $PackagingFrameworkName
-        }
-        else
-        {
-            if ($configSuppressNamingSchemeErrors -ne $true) {
-                Write-Log -Message "Warning! Package file name [$PackageName] dose not match naming scheme configured in PackagingFramework.json" -Severity 2 -Source $PackagingFrameworkName
+        # Call TestPackage Name (and get name scheme element variables like AppName, AppVersion, etc.), but filter out the extensions
+        if(-not ( $PackageName.StartsWith("PackagingFramework") ) -and ($PackageName.EndsWith("Extension") ) ){ 
+            $NameSchemeTestResult = Test-PackageName
+            If($NameSchemeTestResult -eq $true)
+            {
+                Write-Log -Message "Package file name [$PackageName] match the naming schema." -Source $PackagingFrameworkName
+            }
+            else
+            {
+                if ($configSuppressNamingSchemeErrors -ne $true) {
+                    Write-Log -Message "Warning! Package file name [$PackageName] dose not match naming scheme configured in PackagingFramework.json" -Severity 2 -Source $PackagingFrameworkName
+                }
             }
         }
 
@@ -4680,7 +5539,7 @@ Function Initialize-Script {
     $Error.Clear()
     $Script:Error.Clear()
     $Global:Error.Clear()
-    
+
 }
 #endregion Function Initialize-Script
 
@@ -5698,6 +6557,179 @@ Function Invoke-AppConfig {
 	}
 }
 #endregion Function Invoke-AppConfig
+
+#region Function Invoke-PackageEnd
+Function Invoke-PackageEnd {
+<#
+.SYNOPSIS
+	Invoke Package End Section
+.DESCRIPTION
+    This cmdlet executes various commands at package end time like AppConfig, FirewallRuleFromJson, PermissionFromJson, SkipRegistryBranding, etc.
+.PARAMETER SkipAppConfig
+	Skip App Config
+.PARAMETER SkipFirewallRuleFromJson
+	Skip Firewall Rule From Json
+.PARAMETER SkipPermissionFromJson
+	Skip Permission From Json
+.PARAMETER SkipRegistryBranding
+	Skip Registry Branding
+.EXAMPLE
+	Invoke-PackageEnd
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[Cmdletbinding()]
+	param
+	( 
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipAppConfig = $false,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipPermissionFromJson = $false,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipFirewallRuleFromJson = $false,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipRegistryBranding = $false
+
+	)
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+            
+            # Write Install Phase to log
+            Set-InstallPhase 'PackageEnd'
+            Write-Log "Invoke Package End" -Source ${CmdletName}
+ 
+            # Run PackageEndExtension from Extension (if exists)
+            If ($PackageEndExtension) { 
+                Invoke-Command -ScriptBlock $PackageEndExtension 
+            }
+
+            # App Cofnig Publish
+            if ($SkipAppConfig -ne $true) {
+                If ($deploymentType -ieq 'Install')
+                {
+                    Invoke-AppConfig -Action Install
+                }
+                If ($deploymentType -ieq 'Uninstall')
+                {
+                    Invoke-AppConfig -Action Uninstall
+                    If (Test-Path -Path "$LogDir\$PackageName.json") { Remove-File -path "$LogDir\$PackageName.json" }
+                }
+            }
+
+            # Run PermissionFromJson
+            if ($SkipPermissionFromJson -ne $true) {
+                If ($deploymentType -ieq 'Install') {
+                    Add-PermissionFromJson
+                }
+                If ($deploymentType -ieq 'Uninstall') {
+                    Remove-PermissionFromJson
+                }
+            }
+
+            # Run FirewallRuleFromJson
+            if ($SkipFirewallRuleFromJson -ne $true) {
+                If ($deploymentType -ieq 'Install') {
+                    Add-FirewallRuleFromJson
+                }
+                If ($deploymentType -ieq 'Uninstall') {
+                    Remove-FirewallRuleFromJson
+                }
+            }
+
+            # Run registry branding
+            if ($SkipRegistryBranding -ne $true) {
+                If ($deploymentType -ieq 'Install')
+                {
+                    $Global:DisableLogging = $true
+                    if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Installed" -Value 1 -Type DWord }
+                    if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Date" -Value $(Get-Date -Format g) -Type String }
+                    $Global:DisableLogging = $false
+                }
+                If ($deploymentType -ieq 'Uninstall')
+                {
+                    $Global:DisableLogging = $true
+                    if ($PackageName){ Remove-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Recurse }
+                    $Global:DisableLogging = $false
+                }
+            }
+
+            # Chaneg default value for InstallPhase based on deployment type
+            If ($deploymentType -ieq 'Install') { $Global:InstallPhase = 'Install' }
+            If ($deploymentType -ieq 'Uninstall') { $Global:InstallPhase = 'Uninstall' }
+
+		}
+		Catch {
+			Write-Log -Message "Failed to invoke Package End Section. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Throw "Failed to invoke Package End Section.: $($_.Exception.Message)"
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Invoke-PackageEnd
+
+#region Function Invoke-PackageStart
+Function Invoke-PackageStart {
+<#
+.SYNOPSIS
+	Invoke Package Start Section
+.DESCRIPTION
+    This cmdlet executes various commands at package end time
+.EXAMPLE
+	Invoke-PackageStart
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[Cmdletbinding()]
+	param
+	( 
+	)
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            # Write Install Phase to log
+            Set-InstallPhase 'PackageStart'
+            Write-Log "Invoke Package Start" -Source ${CmdletName}
+
+            # Run PackageStartExtension from Extension (if exists)
+            If ($PackageStartExtension) { 
+                Invoke-Command -ScriptBlock $PackageStartExtension 
+            }
+
+            # Chaneg default value for InstallPhase based on deployment type
+            If ($deploymentType -ieq 'Install') { $Global:InstallPhase = 'Install' }
+            If ($deploymentType -ieq 'Uninstall') { $Global:InstallPhase = 'Uninstall' }
+    
+		}
+		Catch {
+			Write-Log -Message "Failed to invoke Package End Section. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Throw "Failed to invoke Package End Section.: $($_.Exception.Message)"
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Invoke-PackageEnd
 
 #region Function Invoke-Encryption
 Function Invoke-Encryption {
@@ -7086,7 +8118,7 @@ Function New-Package {
 Try {
 
     # Import Packaging Framework module
-    `$Global:DeploymentType=`$Script:DeploymentType ; `$Global:DeployMode=`$Script:DeployMode ; `$Global:CustomParameter=`$Script:CustomParameter ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}}
+    `$Global:DeploymentType=`$Script:DeploymentType ; `$Global:DeployMode=`$Script:DeployMode ; `$Global:CustomParameter=`$Script:CustomParameter ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}} ; Invoke-PackageStart
 
     # Install
     If (`$deploymentType -ieq 'Install') {
@@ -7098,8 +8130,9 @@ Try {
         # <PLACE YOUR CODE HERE>
     }
 
-    # Call the exit-Script
-    Exit-Script -ExitCode `$mainExitCode
+    # Call package end and exit script
+	Invoke-PackageEnd ; Exit-Script -ExitCode `$mainExitCode
+
 
 }
 Catch { [int32]`$mainExitCode = 60001; [string]`$mainErrorMessage = "`$(Resolve-Error)" ; Write-Log -Message `$mainErrorMessage -Severity 3 -Source `$PackagingFrameworkName ; Show-DialogBox -Text `$mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode `$mainExitCode}
@@ -7119,7 +8152,9 @@ $TemplateFile | Out-File -FilePath "$Path\$Name\$Name.ps1" -Encoding utf8
   "Applications": [ ],
   "DetectionMethods": [ ],
   "Dependencies": [ ],
+  "FirewallRules": [ ],
   "Parameters": { },
+  "Permissions": [ ],
   "Notes": [ ],
   "ChangeLog": [
     "Version 1.0 initial release"
@@ -7286,6 +8321,83 @@ Function New-Shortcut {
 }
 #endregion
 
+#region Function Remove-AddRemovePrograms
+    Function Remove-AddRemovePrograms {
+    <#
+    .SYNOPSIS
+	    Removes a Add/Remove Programs registry entry
+    .DESCRIPTION
+	    Removes a Add/Remove Programs registry entry
+    .PARAMETER Name
+        Specifies the internal name of the Add/Remove Program entry (this Name is use for the registry hive)
+    .PARAMETER Target
+        Specifies that registry region to use. The acceptable values for this parameter are: Machine, User. Default is: Machine
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+	    Remove-AddRemovePrograms -Name 'My custom app'
+	    Removes a Add/Remove Programs registry entry
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+
+		    [Parameter(Mandatory=$true)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Name,
+
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+            
+	    }
+	    Process {
+		    Try {
+
+                # Log header
+                Write-Log -message "Remove Add/Remove Programs entry for [$Name]" -Source ${CmdletName} 
+                
+                # Registry locations
+                $RegKeys = @('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall','HKEY_CURRENT_USER\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall','HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall','HKEY_LOCAL_MACHINE\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall')
+                
+                # Remove in all locations
+                foreach ($RegKey in $RegKeys)
+                {
+                    # Check if exists and remove
+                    if (Test-path -Path "Registry::$RegKey\$Name" -ErrorAction SilentlyContinue) {
+                        $Result = Remove-RegistryKey -Key "$RegKey\$Name"
+                        $Found=$true
+                    }
+                }
+                if ($Found) {
+                    Write-log -Message "Remove Add/Remove Programs entry [$Name] successfuly" -Severity 1 -Source ${CmdletName}
+                } else {
+                    Write-log -Message "No Add/Remove Programs entry for [$Name] found" -Severity 2 -Source ${CmdletName}
+                }
+
+            }
+		    Catch {
+                    Write-Log -Message "Failed to remove Add/Remove Programs entry. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to remove Add/Remove Programs entry.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+    #endregion Function Remove-AddRemovePrograms
+
 #region Function Remove-EnvironmentVariable
 Function Remove-EnvironmentVariable {
 <#
@@ -7448,6 +8560,129 @@ Function Remove-File {
 	}
 }
 #endregion
+
+#region Function Remove-FirewallRule
+    Function Remove-FirewallRule {
+    <#
+    .SYNOPSIS
+	    Remove Windows Firewall rules
+    .DESCRIPTION
+	    Remove Windows Firewall rules
+    .PARAMETER DisplayName
+        Specifies that only matching firewall rules of the indicated display name are created. Wildcard characters are accepted. Specifies the localized, user-facing name of the firewall rule being created. When creating a rule this parameter is required. This parameter value is locale-dependent. If the object is not modified, then this parameter value may change in certain circumstances. When writing scripts in multi-lingual environments, the Name parameter should be used instead, where the default value is a randomly assigned value. This parameter cannot be set to All.
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+	    Remove-FirewallRule -DisplayName 'My Application'
+	    Remove a firewall rule
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+		    [Parameter(Mandatory=$true)]
+		    [ValidateNotNullorEmpty()]
+		    [string]$DisplayName,
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+
+                # Note: We use DisplayName and NOT Name as main identify because Name is a automaticaly generated GUID
+
+                # Log header
+                Write-Log -message "Start remove Windows Firewall rule [$DisplayName]" -Source ${CmdletName} 
+                
+                # Check if rule exists and delete
+                if  ( (Get-NetFirewallRule -DisplayName $DisplayName -ErrorAction SilentlyContinue) -and (!$force) ) {
+                    Write-log -Message "Firewall rule [$DisplayName] found, start removing..." -Severity 1 -Source ${CmdletName}
+                    $Result = Remove-NetFirewallRule -DisplayName $DisplayName -ErrorAction Stop
+                    Write-log -Message "Firewall rule remove successfuly" -Severity 1 -Source ${CmdletName}
+                } else {
+                    Write-log -Message "Firewall rule [$DisplayName] NOT found, nothing to remove" -Severity 2 -Source ${CmdletName}
+                }
+            }
+		    Catch {
+                    Write-Log -Message "Failed to remove firewall rule. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to remove firewall rule.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+    #endregion Function Remove-FirewallRule
+
+#region Function Remove-FirewallRuleFromJson
+Function Remove-FirewallRuleFromJson {
+<#
+.SYNOPSIS
+	Remove Windows firewall rules based on the package .json file
+.DESCRIPTION
+	Remove Windows firewall rules based on the package .json file
+.PARAMETER ContinueOnError
+	Continue if an error is encountered. Default: $false.
+.EXAMPLE
+    Remove-FirewallRuleFromJson
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[switch]$ContinueOnError
+    )
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            # Log header
+            if ($PackageConfigFile.FirewallRules) {
+                Write-Log -Message "Start Remove Firewall Rule From Json" -Source ${CmdletName} 
+            }
+
+            ForEach($FWRule in $PackageConfigFile.FirewallRules){ 
+                $FWHash = @{}
+                ForEach ($Item in $FWRule.PSObject.Properties) {
+                    # Expand environment variable and powershellvariables in value
+                    If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
+                    $FWHash.Add($Item.Name,$Item.Value) 
+                }
+                Remove-FirewallRule -DisplayName $FWHash.DisplayName
+            }
+        }
+		Catch {
+            Write-Log -Message "Failed to remove firewall rules from json. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    		If (-not $ContinueOnError) {
+				Throw "Failed to remove firewall rules from json.: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Remove-FirewallRuleFromJson
 
 #region Function Remove-Folder
 Function Remove-Folder {
@@ -8195,6 +9430,99 @@ Function Remove-Path {
 
 }
 #endregion Function Remove-Path
+
+#region Function Remove-PermissionFromJson
+Function Remove-PermissionFromJson {
+<#
+.SYNOPSIS
+	Remove file or folder permissions based on the package .json file
+.DESCRIPTION
+	Remove file or folder permissions based on the package .json file
+.PARAMETER ContinueOnError
+	Continue if an error is encountered. Default: $false.
+.EXAMPLE
+    Remove-PermissionFromJson
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+    [CmdletBinding()]
+    Param (
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+        )
+	
+    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+    Process {
+
+
+		    Try {
+
+                # Log header
+                if ($PackageConfigFile.Permissions) {
+                    Write-Log -Message "Start Remove Permission From Json" -Source ${CmdletName} 
+                }
+
+                # Process each permission section from json
+                ForEach($Permission in $PackageConfigFile.Permissions){ 
+                    # Init hash tabels for params
+                    $InheritanceHash = @{}
+                    $PermissionHash = @{}
+
+                    # Process each permission param from json in object syntax
+                    if ($Permission -is [PSObject]) {
+                        Write-Log "Process permission in object syntax" -DebugMessage
+                        ForEach ($Item in $Permission.PSObject.Properties) {
+
+                            # Expand environment variable and powershell variables in value
+                            If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
+                            if ($Item.Name -ieq 'Path') {
+                                if (Test-path -path $Item.Value) {
+                                    Write-log "Uninstall is unable to revert permission on $($Item.Value), please check permission manually" -Severity 2 -Source ${CmdletName}
+                                }
+                            }
+                            if ($Item.Name -ieq 'Filename') {
+                                if (Test-path -path $Item.Value) {
+                                    Write-log "Uninstall is unable to revert permission on $($Item.Value), please check permission manually" -Severity 2 -Source ${CmdletName}
+                                }
+                            }
+                        }
+                    }
+
+                    # Process each permission param from json in simple string syntax (Only file or folder path)
+                    if ($Permission -is [String]) {
+                        Write-Log "Process permission in string syntax" -DebugMessage
+                        
+                        # Expand environment variable and powershell variables in value
+                        If(![string]::IsNullOrEmpty($Permission)) { $Permission = Expand-Variable -InputString $Permission -VarType all}
+
+                        # Check if string is a folder path or a file path
+                        if (Test-Path -Path $Permission) {
+                            Write-log "Uninstall is unable to revert permission on $($Permission), please check permission manually" -Severity 2 -Source ${CmdletName}
+                        }
+                         
+                    }
+                }
+            }
+		    Catch {
+                Write-Log -Message "Failed to remove permission from json. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    		    If (-not $ContinueOnError) {
+				    Throw "Failed to remove permission from json.: $($_.Exception.Message)"
+			    }
+		    }
+
+	    }
+    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+}
+#endregion Function Remove-PermissionFromJson
 
 #region Function Remove-MSIApplications
 Function Remove-MSIApplications {
@@ -11215,6 +12543,17 @@ Function Show-InstallationPrompt {
 			Write-Log -Message "Bypassing Installation Prompt [Mode: $deployMode]... $Message" -Source ${CmdletName}
 			Return
 		}
+
+        # Fallback to default message text and icon if no message is specified
+        If (-not($Message)){
+            if ($deploymentType -ieq 'Uninstall') {
+                $Message = $configInstallationPromptUninstallCompleted
+            } else {
+                $Message = $configInstallationPromptInstallCompleted
+            }
+            If ($Icon -ieq 'None'){ $Icon = 'Information'}
+            If ($ButtonRightText -ieq ''){ $ButtonRightText = 'OK'}
+        }
 		
 		## Get parameters for calling function asynchronously
 		[hashtable]$installPromptParameters = $psBoundParameters
@@ -16892,4 +18231,4 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-EnvironmentVariable, Remove-File, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log

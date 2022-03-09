@@ -19,6 +19,8 @@
   ],
   "DetectionMethods": [ ],
   "Dependencies":[ ],
+  "FirewallRules": [ ],
+  "Permissions": [ ],
   "Parameters": {
       "InstallLocalization": false, 
       "DisableShellExtension": true, 

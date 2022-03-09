@@ -10,6 +10,8 @@
   "DetectionMethods": [ ],
   "Dependencies":[ ],
   "Parameters": { },
+  "FirewallRules": [ ],
+  "Permissions": [ ],
   "Notes": [ 
     "This package req. the NDP47-KB3186497-x86-x64-AllOS-ENU.exe that can be downloaded from https://www.microsoft.com/de-de/download/details.aspx?id=55167"
   ],

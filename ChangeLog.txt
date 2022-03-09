@@ -80,7 +80,7 @@ Set-IniValue
 General Changes
 - New runtime variables for shell folders like My Music, My Pictures, My Video, etc....
 - The frameworks manifest file now enforces the usage of PowerShell 5.1
-- Set variables $PackageName & $PackageFileName only if not already set. This change was necessary for the XenDesktop package and it’s invoke script block to let the package run in SCCM with a different user than SYSTEM
+- Set variables $PackageName & $PackageFileName only if not already set. This change was necessary for the XenDesktop package and it s invoke script block to let the package run in SCCM with a different user than SYSTEM
 - Added support for optional package command line parameter. The cmdlet Initialize-Script was extended to get the command line parameters, the cmdlet Get-Parameter has a new -force option control overwrite and inheritance of parameters
  
 Version 1.0.2.0
@@ -203,6 +203,7 @@ Version 1.0.9.0
 ###############
 
 New:
+-----------
 - General Windows 11 and Windows Server 2022 support
 - New variable $IsWin11, $IsAtLeastWin11 and $IsAtMostWin11
 - New variable $IsWin2022, $IsAtLeastWin2022 and $IsAtMostWin2022
@@ -210,3 +211,34 @@ New:
 - New variable $TPMVersion
 
 
+Version 1.0.10.0
+################
+
+New Cmdlets:
+-----------
+- Get-ParameterFromRegKey     (Cmdlet to get multiple parameters/variables from a registry key area)
+- Add-FirewallRule            (Cmdlet to add or set Windows Firwall Rules)
+- Remove-FirewallRule         (Cmdlet to remove Windows Firwall Rules)
+- Add-FirewallRuleFromJson    (Cmdlet to automaticaly add Windows Firewall Rules based on entries in the package.json file)
+- Remove-FirewallRuleFromJson (Cmdlet to automaticaly remove Windows Firwall Rules based on entries in the package.json file)
+- Add-AddRemovePrograms       (Cmdlet to add an "Software Add/Remove Program" entry)
+- Remove-AddRemovePrograms    (Cmdlet to remove an "Software Add/Remove Program" entry)
+- Add-PermissionFromJson      (Cmdlet to automaticaly add NTFS permissions based on entries in the package.json file)
+- Remove-PermissionFromJson   (Cmdlet to automaticaly remove NTFS permissions based on entries in the package.json file)
+- Invoke-PackageEndSection    (Cmdlet to to automatically execute recurring things at package end (before Exit-Script), invokes things like PermissionFromJson, FirewallRuleFromJson, AppConfig, RegistryBranding, and ScriptBlockOnEnd from the extension)
+- Invoke-PackageStartSection  (Cmdlet to to automatically execute recurring things at package start (after Initalize-Script), invokes things like ScriptBlockOnStart from the extension)
+
+Updated Module:
+---------------
+Updated optional extension for Microsoft Endpoint Configuration Manager (MECM) with the following cmdlets:
+- New-MECMApplication         (Cmdlet to automaticaly add Applications, Collections, Deployments, Detection Methods) 
+
+Other Changes:
+--------------
+ - Bugfix regading all cmdlets with dialogs, these dialogs are now suppress when in silent mode
+ - Expand-Variable error handling improved, now with warnings for unresolved variables
+ - New-Package updated, the included template includes now Invoke-PackageStart and Invoke-PackageEnd
+ - The helper functions Convert-RegistryPath and Get-MsiTableProperty are now exported as cmdlets and can be uses in packages
+ - New InstallationPromptInstallCompleted and InstallationPromptUninstallCompleted JSON parameters as default test for the Show-InstallationPrompt cmdlet
+ - Updated Example Package with examples for the new cmdlets and common changes
+ - The setup executable is now signed

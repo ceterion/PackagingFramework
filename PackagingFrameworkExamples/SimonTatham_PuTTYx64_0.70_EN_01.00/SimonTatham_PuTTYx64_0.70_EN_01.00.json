@@ -50,6 +50,9 @@
   ],
   "DetectionMethods": [ ],
   "Dependencies":[ ],
+  "FirewallRules": [ ],
+  "Parameters": { },
+  "Permissions": [ ],
   "Notes": [ 
     "This package req. putty-64bit-0.70-installer.msi that can be downloaded from http://www.putty.org/"
   ],

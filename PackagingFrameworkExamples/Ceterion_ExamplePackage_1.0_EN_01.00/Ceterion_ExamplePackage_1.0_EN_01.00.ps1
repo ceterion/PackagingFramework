@@ -2,7 +2,7 @@
 Try {
     
     # Import Packaging Framework module
-    $Global:DeploymentType=$Script:DeploymentType ; $Global:DeployMode=$Script:DeployMode ; $Global:CustomParameter=$Script:CustomParameter ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}
+    $Global:DeploymentType=$Script:DeploymentType ; $Global:DeployMode=$Script:DeployMode ; $Global:CustomParameter=$Script:CustomParameter ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}} ; Invoke-PackageStart
 
     # Install
     If ($deploymentType -ieq 'Install') {
@@ -71,7 +71,10 @@ Try {
         Write-Log "IsWin81=$IsWin81"
         Write-Log "IsWin2012R2=$IsWin2012R2"
         Write-Log "IsWin10=$IsWin10"
+        Write-Log "IsWin11=$IsWin11"
         Write-Log "IsWin2016=$IsWin2016"
+        Write-Log "IsWin2019=$IsWin2019"
+        Write-Log "IsWin2022=$IsWin2022"
         
         # IsAtLeast<OSVersion>
         Write-Log "IsAtLeastWinVista=$IsAtLeastWinVista"
@@ -83,7 +86,10 @@ Try {
         Write-Log "IsAtLeastWin81=$IsAtLeastWin81"
         Write-Log "IsAtLeastWin2012R2=$IsAtLeastWin2012R2"
         Write-Log "IsAtLeastWin10=$IsAtLeastWin10"
+        Write-Log "IsAtLeastWin11=$IsAtLeastWin11"
         Write-Log "IsAtLeastWin2016=$IsAtLeastWin2016"
+        Write-Log "IsAtLeastWin2019=$IsAtLeastWin2019"
+        Write-Log "IsAtLeastWin2022=$IsAtLeastWin2022"
 
         # IsAtMoast<OSVersion>
         Write-Log "### IsAtMost ###" 
@@ -96,7 +102,10 @@ Try {
         Write-Log "IsAtMostWin81=$IsAtMostWin81"
         Write-Log "IsAtMostWin2012R2=$IsAtMostWin2012R2"
         Write-Log "IsAtMostWin10=$IsAtMostWin10"
+        Write-Log "IsAtMostWin11=$IsAtMostWin11"
         Write-Log "IsAtMostWin2016=$IsAtMostWin2016"
+        Write-Log "IsAtMostWin2019=$IsAtMostWin2019"
+        Write-Log "IsAtMostWin2022=$IsAtMostWin2022"
 
         # Various Get-Parameter examples
         Get-Parameter 'TestParam'
@@ -114,6 +123,9 @@ Try {
         Get-Parameter 'INST_LOG_DIR' -Section 'Install' -Source CloudShaper -Variable 'TestParamInstLogDir'
         Get-Parameter 'TestParam3' -force
 
+        # Example for Get-ParameterFromRegKey
+        Get-ParameterFromRegKey -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -Prefix "_" -Force -DetailedLog
+    
         # Example how to add parameters via command line
         # Powershell.exe -file .\<PackageName>.ps1 -CustomParameter "AddLocal=ALL;TargetDir=""C:\Program Files\Test"";LicenseKey=12345-67890-ABCDEF"
 
@@ -806,7 +818,30 @@ Try {
         # Printer permissions
         Update-PrinterPermission -Action "Add" -Printer "PDFCreator" -Trustee "$TestAccount" -Permissions "FullControl"
 
+        # Example how to set multiple permissions from the 'Permissions' section of the package json file
+        Add-PermissionFromJson
+
+
+
     #endregion Security
+
+    #region Firewall
+
+        # Example usage of Add-FirewallRule with some cmdlet params
+        Add-FirewallRule -DisplayName "Notepad Test 1" -Program "C:\Windows\Notepad.exe" -Direction Inbound -Action Block
+        Add-FirewallRule -DisplayName "Notepad Test 2" -Description "My Descripton" -Program "$Env:WinDir\Notepad.exe $Env:Temp\Test.txt" -Direction Outbound -Action Allow -RemoteAddress $_ProxyIP -RemotePort 8080 -Profile Any -Protocol TCP
+    
+        # Example how to multiple rules from the 'FirewallRules' section of the package json file
+        Add-FirewallRuleFromJson
+
+        # Example usage of Remove-FirewallRule
+        Remove-FirewallRule -DisplayName "Notepad Test 1"
+        Remove-FirewallRule -DisplayName "Notepad Test 2"
+        Remove-FirewallRule -DisplayName "Notepad Test 3"
+        Remove-FirewallRule -DisplayName "Notepad Test 4"
+        Remove-FirewallRule -DisplayName "Notepad Test 5"
+
+    #endregion Firewall
 
     #region ActiveSetup
 
@@ -1102,6 +1137,19 @@ Try {
         $PackageConfigFile.Applications | New-LayoutmodificationXML -exportpath "$SystemDrive\Temp\LayoutModification.xml" -ForcePin
 
 
+        ### Add/Remove Program entry ###
+
+        # Example how to add a Add/Remove Programs entry
+        Add-AddRemovePrograms -Name "My Custom Test App 1" -Version '1.0.0.0'
+        Add-AddRemovePrograms -Name "My Custom Test App 2" -Version '2.0.0.0' -Publisher "Custom App Inc." -Target User -NoModify -NoRepair -NoRemove -Icon "C:\Windows\System32\WindowsUpdate.ico"
+
+        # Example how to remove a Add/Remove Programs entry
+        Remove-AddRemovePrograms -Name "My Custom Test App 1"
+        Remove-AddRemovePrograms -Name "My Custom Test App 2"
+
+
+
+
     #endregion Misc
     
     #region PackagingTools
@@ -1217,8 +1265,8 @@ Try {
     }
 
 
-	# Call the exit-Script
-	Exit-Script -ExitCode $mainExitCode
+	# Call package end and exit script
+	Invoke-PackageEnd ; Exit-Script -ExitCode $mainExitCode
 
 }
 Catch { [int32]$mainExitCode = 60001; [string]$mainErrorMessage = "$(Resolve-Error)" ; Write-Log -Message $mainErrorMessage -Severity 3 -Source $PackagingFrameworkName ; Show-DialogBox -Text $mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode $mainExitCode}

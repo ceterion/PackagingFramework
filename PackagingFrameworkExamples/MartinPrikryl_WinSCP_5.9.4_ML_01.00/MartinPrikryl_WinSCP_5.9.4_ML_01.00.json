@@ -19,12 +19,14 @@
   ],
   "DetectionMethods": [ ],
   "Dependencies":[ ],
+  "FirewallRules": [ ],
   "Parameters": {
     "DisableAutoUpdate": true
    }, 
+  "Permissions": [ ],
   "Notes": [
     "This package req. WinSCP-5.9.4-Setup.exe that can be downloaded from https://winscp.net/"
-   ],
+  ],
   "ChangeLog":[
     "Version 1.0 initial release"
   ]    

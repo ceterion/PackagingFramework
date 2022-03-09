@@ -19,6 +19,8 @@
   ],
   "DetectionMethods": [ ],
   "Dependencies":[ ],
+  "FirewallRules": [ ],
+  "Permissions": [ ],
   "Parameters": { },
   "Notes": [
     "This package req. the 7z1604-x64.msi file that can be downloaded from http://www.7-zip.org/download.html"
