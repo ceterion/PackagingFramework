@@ -249,18 +249,16 @@ Version 1.0.11.0
 
 New Cmdlets:
 ------------
-Start-SignPackageScript		New cmdlet to automaticaly sign the PowerShell script and moudle files of a package
+Start-SignPackageScript    New cmdlet to automaticaly sign the PowerShell script and moudle files of a package
 
 Updated Cmdlets:
 ----------------
-Start-NSISWrapper 			New optional -Sign parameter to support code signing of the PowerShell script and NSIS executable
-Add-FirewallRule			Parameter -Force default changed to $true and improved comma and semicolon handling for parameters with multiple values
-Add-FirewallRuleFromJson 	Bugfix regarding default value of the -Force and -ContinueOnError parameter
-New-Package				Template has changed regarding the AllowRebootPassThru command line parameter
+Start-NSISWrapper          New optional -Sign parameter to support code signing of the PowerShell script and NSIS executable
+Add-FirewallRule           Parameter -Force default changed to $true and improved comma and semicolon handling for parameters with multiple values
+Add-FirewallRuleFromJson   Bugfix regarding default value of the -Force and -ContinueOnError parameter
+New-Package                Template has changed regarding the AllowRebootPassThru command line parameter
 
 Other Changes:
 --------------
 - All script and module files are now signed
 - New optional package command line parameter AllowRebootPassThru, this parameter allows the 3010 return code (requires restart) to be passed back to the parent process (for SCCM / MECM)
-
-
