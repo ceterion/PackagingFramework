@@ -436,7 +436,7 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 		    [string]$Service,
 
 		    [Parameter(Mandatory=$false)]
-    	    [switch]$Force,
+    	    [switch]$Force=$True,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
@@ -455,6 +455,16 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 
                 # Log header
                 Write-Log -message "Start Add (or Set) a Windows Firewall rule [$DisplayName]" -Source ${CmdletName} 
+                
+                # Convert strings with comma or semicolon to string arrays for parameters with string array support
+                if ($IcmpType) { $IcmpType = $IcmpType.Split(",").Split(";")}
+                if ($InterfaceAlias) { $InterfaceAlias = $InterfaceAlias.Split(",").Split(";")}
+                if ($LocalAddress) { $LocalAddress = $LocalAddress.Split(",").Split(";")}
+                if ($LocalPort) { $LocalPort = $LocalPort.Split(",").Split(";")}
+                if ($Platform) { $Platform = $Platform.Split(",").Split(";")}
+                if ($RemoteAddress) { $RemoteAddress = $RemoteAddress.Split(",").Split(";")}
+                if ($RemoteDynamicKeywordAddresses) { $RemoteDynamicKeywordAddresses = $RemoteDynamicKeywordAddresses.Split(",").Split(";")}
+                if ($RemotePort) { $RemotePort = $RemotePort.Split(",").Split(";")}
 
                 # Splatting Arguments as hastable
                 $HashArguments = @{}
@@ -497,7 +507,8 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                     [string]$HashArgumentsString = ($HashArguments.GetEnumerator() | % { "$($_.Key)=$($_.Value) |" })
                     $HashArgumentsString = $HashArgumentsString.TrimEnd(' |')
                 }
-                
+
+
                 # Check if rule already exists (in this case we Set-NetFirewallRule instead of New-NetFirewallRule to update the existing rule)
                 if  ( (Get-NetFirewallRule -DisplayName $DisplayName -ErrorAction SilentlyContinue) -and (!$force) ) {
                     # Update existing rule
@@ -559,7 +570,7 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                 if ($PackageConfigFile.FirewallRules) {
                     Write-Log -Message "Start Add Firewall Rule From Json" -Source ${CmdletName} 
                 }
-
+                # Get FirewallRule hastTable from JSON
                 ForEach($FWRule in $PackageConfigFile.FirewallRules){ 
                     $FWHash = @{}
                     ForEach ($Item in $FWRule.PSObject.Properties) {
@@ -567,7 +578,16 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                         If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
                         $FWHash.Add($Item.Name,$Item.Value) 
                     }
+                    
+                    # Convert true/false strings from JSON to bool
+                    if ($FWHash.Force -ieq 'true') { $FWHash.Force = $true }
+                    if ($FWHash.Force -ieq 'false') { $FWHash.Force = $false }
+                    if ($FWHash.ContinueOnError -ieq 'true') { $FWHash.ContinueOnError = $true } 
+                    if ($FWHash.ContinueOnError -ieq 'false') { $FWHash.ContinueOnError = $false } 
+
+                    # Add Firewall rule
                     Add-FirewallRule @FWHash
+
                 }
             }
 		    Catch {
@@ -8114,11 +8134,11 @@ Function New-Package {
 
             # Create PS1 file
 [string]$TemplateFile = @"
-[CmdletBinding()] Param ([Parameter(Mandatory=`$false)] [ValidateSet('Install','Uninstall')] [string]`$DeploymentType='Install', [Parameter(Mandatory=`$false)] [ValidateSet('Interactive','Silent','NonInteractive')] [string]`$DeployMode='Interactive', [Parameter(Mandatory=`$false)] [string]`$CustomParameter)
+[CmdletBinding()] Param ([Parameter(Mandatory=`$false)] [ValidateSet('Install','Uninstall')] [string]`$DeploymentType='Install', [Parameter(Mandatory=`$false)] [ValidateSet('Interactive','Silent','NonInteractive')] [string]`$DeployMode='Interactive', [Parameter(Mandatory=`$false)] [string]`$CustomParameter, [Parameter(Mandatory=`$false)] [switch]`$AllowRebootPassThru = `$true)
 Try {
 
     # Import Packaging Framework module
-    `$Global:DeploymentType=`$Script:DeploymentType ; `$Global:DeployMode=`$Script:DeployMode ; `$Global:CustomParameter=`$Script:CustomParameter ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script}} ; Invoke-PackageStart
+    `$Global:DeploymentType=`$Script:DeploymentType ; `$Global:DeployMode=`$Script:DeployMode ; `$Global:CustomParameter=`$Script:CustomParameter ; `$Global:AllowRebootPassThru = `$Script:AllowRebootPassThru ; Remove-Module PackagingFramework -ErrorAction SilentlyContinue ; Remove-Module PackagingFrameworkExtension -ErrorAction SilentlyContinue ; if (Test-Path '.\PackagingFramework\PackagingFramework.psd1') {Import-Module .\PackagingFramework\PackagingFramework.psd1 -force ; Initialize-Script} else {Import-Module PackagingFramework -force ; Initialize-Script} ; Invoke-PackageStart
 
     # Install
     If (`$deploymentType -ieq 'Install') {
@@ -12351,7 +12371,7 @@ Function Show-InstallationProgress {
 							Topmost=""
 							ResizeMode="NoResize"
 							Icon=""
-							ShowInTaskbar="True" >
+							ShowInTaskbar="True">
 							<Window.Resources>
 								<Storyboard x:Key="Storyboard1" RepeatBehavior="Forever">
 									<DoubleAnimationUsingKeyFrames BeginTime="00:00:00" Storyboard.TargetName="ellipse" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(RotateTransform.Angle)">
@@ -14890,9 +14910,19 @@ Function Start-NSISWrapper {
 	Don't copy module files into the package folder
 .PARAMETER NoCompile
 	Wrap only, don't compile
+.PARAMETER Sign
+    Sign PowerShell script and package executable 
+.PARAMETER Certificate
+    Certificate for signing
+.PARAMETER HashAlgorithm
+    HashAlgorithm for signing
+.PARAMETER IncludeChain
+    IncludeChain for signing
+.PARAMETER TimestampServer
+    TimestampServer for signing
 .EXAMPLE
     # Wrap a single package:
-	Start-NSISWrapper C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00
+	Start-NSISWrapper "C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00"
 .EXAMPLE
     # Wrap multiple packages in a folder structure:
     Get-ChildItem -Path "C:\Packages" -Filter "*.ps1" -Recurse -Depth 2 | ForEach-Object {
@@ -14900,6 +14930,13 @@ Function Start-NSISWrapper {
             Start-NSISWrapper -Path (Get-Item $_.FullName).DirectoryName
         }
     }
+.EXAMPLE
+    # Wrap a package and sign it (and auto detect the certificate)
+	Start-NSISWrapper "C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00"
+.EXAMPLE
+    # Wrap a package and sign it (with a specified certificate, algorithm, timestamp, etc. )
+    $cert =  Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert
+    Start-SignPackageScript -Path "C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00" -Certificate $cert -HashAlgorithm 'SHA256' -IncludeChain All -TimestampServer "http://time.certum.pl" 
 .NOTES
 	Created by ceterion AG
 .LINK
@@ -14914,7 +14951,20 @@ Function Start-NSISWrapper {
 		[Parameter(Mandatory=$false)]
 		[switch]$ExcludeModuleFiles,
 		[Parameter(Mandatory=$false)]
-		[switch]$NoCompile
+		[switch]$NoCompile,
+		[Parameter(Mandatory=$false)]
+		[switch]$Sign,
+		[Parameter(Mandatory=$false)]
+		[X509Certificate]$Certificate,
+		[Parameter(Mandatory=$false)]
+		[string]$HashAlgorithm = 'SHA256',
+		[Parameter(Mandatory = $false)]
+		[ValidateNotNullorEmpty()]
+        [ValidateSet('Signer','NotRoot','All')]
+		[string]$IncludeChain = 'NotRoot',
+		[Parameter(Mandatory = $false)]
+		[ValidateNotNullorEmpty()]
+		[string]$TimestampServer
 	)
 	
 	Begin {
@@ -15045,6 +15095,16 @@ SectionEnd
             Write-Log "Generating NSIS script file [$Path\$PackageName.nsi]" -Source ${CmdletName} 
             $NSISScript | Out-File -FilePath "$Path\$PackageName.nsi" -Encoding ascii
             
+            # Sign Scripts
+            if ($Sign -eq $true){
+                $HashArguments = @{}
+                If ($Certificate) {$HashArguments.Add("Certificate",$Certificate)}
+                If ($HashAlgorithm) {$HashArguments.Add("HashAlgorithm",$HashAlgorithm)}
+                If ($IncludeChain) {$HashArguments.Add("IncludeChain",$IncludeChain)}
+                If ($TimestampServer) {$HashArguments.Add("TimestampServer",$TimestampServer)}
+                Start-SignPackageScript @HashArguments -Path "$Path"
+            }
+
             # Compile with NSIS
             if ($NoCompile -ne $true){
                 Write-Log "Start NSIS compile of [$Path\$PackageName.nsi]" -Source ${CmdletName} 
@@ -15056,6 +15116,32 @@ SectionEnd
                 {
                     Write-Log "NSIS compile failed, please check [$Path\$PackageName.nsi] and your NSIS installation" -Source ${CmdletName} -Severity 3
                 }
+            }
+
+            # Sign Executable
+            if ($Sign -eq $true){
+                If(Test-Path -path "$Path\$PackageName.exe") {
+                    # Check Certificate, fallback to first codesign cert if nothing is specified
+                    if (!$Certificate) { 
+                        $Certificate = $(Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert)[0]
+                        if (!$Certificate) { 
+                            Write-log "No code signing certificated specified and auto dectect was unable to find one!" -Severity 3 ; Throw "No code signing certificated specified and auto dectect was unable to find one!"
+                        } else {
+                            Write-log "No certificate specified, but auto detect found the code signign certificate [$($Certificate.Subject) / $($Certificate.Thumbprint)]" -Severity 2
+                        }
+                    }
+                    # Build param hash table
+                    $HashArguments = @{}
+                    If ($Certificate) {$HashArguments.Add("Certificate",$Certificate)}
+                    If ($HashAlgorithm) {$HashArguments.Add("HashAlgorithm",$HashAlgorithm)}
+                    If ($IncludeChain) {$HashArguments.Add("IncludeChain",$IncludeChain)}
+                    If ($TimestampServer) {$HashArguments.Add("TimestampServer",$TimestampServer)}
+                    # Sign
+                    Write-Log "Sign file [$Path\$PackageName`.exe)] with [$($HashArguments.Certificate.Subject) / $($HashArguments.Certificate.Thumbprint)]" 
+                    Set-AuthenticodeSignature @HashArguments -FilePath "$Path\$PackageName.exe" | Out-Null
+                } else {
+                    Write-Log "File [$Path\$PackageName.exe] not found, skip signing" -Source ${CmdletName}
+                }               
             }
 
 		}
@@ -15197,6 +15283,122 @@ Function Start-ServiceAndDependencies {
 	}
 }
 #endregion
+
+#region Function Start-SignPackageScript
+Function Start-SignPackageScript {
+<#
+.SYNOPSIS
+	Sign package files
+.DESCRIPTION
+    Sign all PowerShell Script and module files of a package
+.PARAMETER Path
+    Path to the package folder
+.PARAMETER Certificate
+    Specifies the certificate that will be used to sign the script or file. Enter a variable that stores an object representing the certificate or an expression that gets the certificate.
+    To find a certificate, use `Get-PfxCertificate` or use the `Get-ChildItem` cmdlet in the Certificate `Cert:` drive. 
+.PARAMETER HashAlgorithm
+	HashAlgorithm, default is SHA256, for a list of possible values, see HashAlgorithmName Struct (/dotnet/api/system.security.cryptography.hashalgorithmname?view=netframework-4.7.2#properties).
+.PARAMETER TimestampServer
+    Uses the specified time stamp server to add a time stamp to the signature. Type the URL of the time stamp server as a string.
+.PARAMETER IncludeChain
+    Determines which certificates in the certificate trust chain are included in the digital signature. NotRoot is the default.
+    Valid values are: Signer, NotRoot, All
+.EXAMPLE
+    # Sign a package (and auto detect the certificate)
+	Start-SignPackageScript C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00
+.EXAMPLE
+    # Sign with a specified certificate and hash algorithm and timestamp server
+    $cert =  Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert | Where-Object {$_.Subject -like "CN=ceterion AG*"}
+	Start-SignPackageScript C:\Packages\IgorPavlov_7ZipX64_16.04_ML_01.00 -Certificate $cert -HashAlgorithm 'HSA256' -TimestampServer "http://time.certum.pl"
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		#  Get the current date
+		[Parameter(Mandatory = $True)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path,
+		[Parameter(Mandatory=$false)]
+		[X509Certificate]$Certificate,
+		[Parameter(Mandatory=$false)]
+		[string]$HashAlgorithm = 'SHA256',
+		[Parameter(Mandatory = $false)]
+		[ValidateNotNullorEmpty()]
+        [ValidateSet('Signer','NotRoot','All')]
+		[string]$IncludeChain = 'NotRoot',
+		[Parameter(Mandatory = $false)]
+		[ValidateNotNullorEmpty()]
+		[string]$TimestampServer
+	)
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            if (-not($ModuleConfigFile)) { Initialize-Script }
+
+            Write-Log "Start signing package [$Path]" -Source ${CmdletName}
+
+            # Handle path param if relativ path is used instead of absolute 
+            if ($Path.StartsWith('.\')){
+                $Path = "$($(Get-Location).path)\$($Path.TrimStart('.\'))"
+                Write-Log "Changed relative path to absolute path [$Path]" -Source ${CmdletName}
+            }
+
+            # Check package path 
+            If (!(Test-Path -Path $Path)) { Write-Log "Path $path not found!" -Source ${CmdletName} -Severity 2 ; Throw "Path $path not found!" }
+
+            # Check Certificate, fallback to first codesign cert if nothing is specified
+            if (!$Certificate) { 
+                $Certificate = $(Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert)[0]
+                if (!$Certificate) { 
+                    Write-log "No code signing certificated specified and auto dectect was unable to find one!" -Severity 3 -Source ${CmdletName} ; Throw "No code signing certificated specified and auto dectect was unable to find one!"
+                } else {
+                    Write-log "No certificate specified, but auto detect found the code signign certificate [$($Certificate.Subject) / $($Certificate.Thumbprint)]" -Source ${CmdletName} -Severity 1
+                }
+            }
+
+            # Build splatting parameter hash table (without $path param)
+            $HashArguments = @{}
+            If ($Certificate) {$HashArguments.Add("Certificate",$Certificate)}
+            If ($HashAlgorithm) {$HashArguments.Add("HashAlgorithm",$HashAlgorithm)}
+            If ($IncludeChain) {$HashArguments.Add("IncludeChain",$IncludeChain)}
+            If ($TimestampServer) {$HashArguments.Add("TimestampServer",$TimestampServer)}
+
+            # Get file list of files to sign (script in root folder, module files in PackagingFramework sub folder (if exists) 
+            [array]$FilesToSign = Get-ChildItem -Path "$Path\*.ps1" 
+            if (Test-Path -Path "$Path\PackagingFramework" -PathType Container) {
+                $FilesToSign += Get-ChildItem -Path "$Path\PackagingFramework\" *.ps1
+                $FilesToSign += Get-ChildItem -Path "$Path\PackagingFramework\" *.psm1
+                $FilesToSign += Get-ChildItem -Path "$Path\PackagingFramework\" *.psd1
+            }
+            
+            # Sign each file
+            foreach ($item in $FilesToSign) { 
+                Write-Log "Sign file [$($item.FullName)] with [$($HashArguments.Certificate.Subject) / $($HashArguments.Certificate.Thumbprint)]" -Source ${CmdletName}
+                Set-AuthenticodeSignature @HashArguments -FilePath $($item.FullName) | Out-Null
+            }
+
+		}
+		Catch {
+                Write-Log -Message "Failed to sign package files.`n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			If (-not $ContinueOnError) {
+				Throw "Failed to sign package files.: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Start-SignPackageScript
 
 #region Function Stop-ServiceAndDependencies
 Function Stop-ServiceAndDependencies {
@@ -18231,4 +18433,254 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+
+# SIG # Begin signature block
+# MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBVk6UMf4m0aqLR
+# PNH8mFE7R/PFtP1xgSc1wFWVgDmQ5qCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
+# ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
+# dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
+# dHdvcmsgQ0EwHhcNMjEwNTMxMDY0MzA2WhcNMjkwOTE3MDY0MzA2WjCBgDELMAkG
+# A1UEBhMCUEwxIjAgBgNVBAoTGVVuaXpldG8gVGVjaG5vbG9naWVzIFMuQS4xJzAl
+# BgNVBAsTHkNlcnR1bSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTEkMCIGA1UEAxMb
+# Q2VydHVtIFRydXN0ZWQgTmV0d29yayBDQSAyMIICIjANBgkqhkiG9w0BAQEFAAOC
+# Ag8AMIICCgKCAgEAvfl4+ObVgAxknYYblmRnPyI6HnUBfe/7XGeMycxca6mR5rlC
+# 5SBLm9qbe7mZXdmbgEvXhEArJ9PoujC7Pgkap0mV7ytAJMKXx6fumyXvqAoAl4Va
+# qp3cKcniNQfrcE1K1sGzVrihQTib0fsxf4/gX+GxPw+OFklg1waNGPmqJhCrKtPQ
+# 0WeNG0a+RzDVLnLRxWPa52N5RH5LYySJhi40PylMUosqp8DikSiJucBb+R3Z5yet
+# /5oCl8HGUJKbAiy9qbk0WQq/hEr/3/6zn+vZnuCYI+yma3cWKtvMrTscpIfcRnNe
+# GWJoRVfkkIJCu0LW8GHgwaM9ZqNd9BjuiMmNF0UpmTJ1AjHuKSbIawLmtWJFfzcV
+# WiNoidQ+3k4nsPBADLxNF8tNorMe0AZa3faTz1d1mfX6hhpneLO/lv403L3nUlbl
+# s+V1e9dBkQXcXWnjlQ1DufyDljmVe2yAWk8TcsbXfSl6RLpSpCrVQUYJIP4ioLZb
+# MI28iQzV13D4h1L92u+sUS4Hs07+0AnacO+Y+lbmbdu1V0vc5SwlFcieLnhO+Nqc
+# noYsylfzGuXIkosagpZ6w7xQEmnYDlpGizrrJvojybawgb5CAKT41v4wLsfSRvbl
+# jnX98sy50IdbzAYQYLuDNbdeZ95H7JlI8aShFf6tjGKOOVVPORa5sWOd/7cCAwEA
+# AaOCAT4wggE6MA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFLahVDkCw6A/joq8
+# +tT4HKbROg79MB8GA1UdIwQYMBaAFAh2zcsH/yT2xc3tu5C84oQ3RnX3MA4GA1Ud
+# DwEB/wQEAwIBBjAvBgNVHR8EKDAmMCSgIqAghh5odHRwOi8vY3JsLmNlcnR1bS5w
+# bC9jdG5jYS5jcmwwawYIKwYBBQUHAQEEXzBdMCgGCCsGAQUFBzABhhxodHRwOi8v
+# c3ViY2Eub2NzcC1jZXJ0dW0uY29tMDEGCCsGAQUFBzAChiVodHRwOi8vcmVwb3Np
+# dG9yeS5jZXJ0dW0ucGwvY3RuY2EuY2VyMDkGA1UdIAQyMDAwLgYEVR0gADAmMCQG
+# CCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1bS5wbC9DUFMwDQYJKoZIhvcNAQEM
+# BQADggEBAFHCoVgWIhCL/IYx1MIy01z4S6Ivaj5N+KsIHu3V6PrnCA3st8YeDrJ1
+# BXqxC/rXdGoABh+kzqrya33YEcARCNQOTWHFOqj6seHjmOriY/1B9ZN9DbxdkjuR
+# mmW60F9MvkyNaAMQFtXx0ASKhTP5N+dbLiZpQjy6zbzUeulNndrnQ/tjUoCFBMQl
+# lVXwfqefAcVbKPjgzoZwpic7Ofs4LphTZSJ1Ldf23SIikZbr3WjtP6MZl9M7JYjs
+# NhI9qX7OAo0FmpKnJ25FspxihjcNpDOO16hO0EoXQ0zF8ads0h5YbBRRfopUofbv
+# n3l6XYGaFpAP4bvxSgD5+d2+7arszgowggXSMIIDuqADAgECAhAh1tBKTyUPyTI3
+# /KpeEo3pMA0GCSqGSIb3DQEBDQUAMIGAMQswCQYDVQQGEwJQTDEiMCAGA1UEChMZ
+# VW5pemV0byBUZWNobm9sb2dpZXMgUy5BLjEnMCUGA1UECxMeQ2VydHVtIENlcnRp
+# ZmljYXRpb24gQXV0aG9yaXR5MSQwIgYDVQQDExtDZXJ0dW0gVHJ1c3RlZCBOZXR3
+# b3JrIENBIDIwIhgPMjAxMTEwMDYwODM5NTZaGA8yMDQ2MTAwNjA4Mzk1NlowgYAx
+# CzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEu
+# MScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxJDAiBgNV
+# BAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0EgMjCCAiIwDQYJKoZIhvcNAQEB
+# BQADggIPADCCAgoCggIBAL35ePjm1YAMZJ2GG5ZkZz8iOh51AX3v+1xnjMnMXGup
+# kea5QuUgS5vam3u5mV3Zm4BL14RAKyfT6Lowuz4JGqdJle8rQCTCl8en7psl76gK
+# AJeFWqqd3CnJ4jUH63BNStbBs1a4oUE4m9H7MX+P4F/hsT8PjhZJYNcGjRj5qiYQ
+# qyrT0NFnjRtGvkcw1S5y0cVj2udjeUR+S2MkiYYuND8pTFKLKqfA4pEoibnAW/kd
+# 2ecnrf+aApfBxlCSmwIsvam5NFkKv4RK/9/+s5/r2Z7gmCPspmt3FirbzK07HKSH
+# 3EZzXhliaEVX5JCCQrtC1vBh4MGjPWajXfQY7ojJjRdFKZkydQIx7ikmyGsC5rVi
+# RX83FVojaInUPt5OJ7DwQAy8TRfLTaKzHtAGWt32k89XdZn1+oYaZ3izv5b+NNy9
+# 51JW5bPldXvXQZEF3F1p45UNQ7n8g5Y5lXtsgFpPE3LG130pekS6UqQq1UFGCSD+
+# IqC2WzCNvIkM1ddw+IdS/drvrFEuB7NO/tAJ2nDvmPpW5m3btVdL3OUsJRXIni54
+# TvjanJ6GLMpX8xrlyJKLGoKWesO8UBJp2A5aRos66yb6I8m2sIG+QgCk+Nb+MC7H
+# 0kb25Y51/fLMudCHW8wGEGC7gzW3XmfeR+yZSPGkoRX+rYxijjlVTzkWubFjnf+3
+# AgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFLahVDkCw6A/joq8
+# +tT4HKbROg79MA4GA1UdDwEB/wQEAwIBBjANBgkqhkiG9w0BAQ0FAAOCAgEAcaUO
+# zuTpvz841YlaxAJh+0zFFBcti09TaxAX/GWExxBJkN7bxyaTiCZvcNYCXjmg94+r
+# lrWlE1yBFG0OgYIRG4pOxk+l3WIeRN8JWfRbdws36YsgxvgKTi5YHOsz0M+GYMna
+# +4AvnkxghHg9IWTW+0EfGA/nyXVxvb1c3jSHPkGwDva51j8JE5YUL96aHVq5Vs41
+# OrBfcE1e4ynxIyhyWbarwoxmJhx3LCZ2NYsop2mg+Tv1I92FEHTJkANWkeevukfU
+# EpcRIuOiSZRs57eUS7otpNozi0ymRP9aPMYdZNi1MeSmPHqoVwvb7WEay/HOc3dj
+# pIdvTFE41uRfx5+2gSrkhUh5WF47+NsCgmfBOdvDdEs9Nh75KZOIaFuoRBkh8Kfo
+# gQ0s6JM2tDeyyrAbJnqaJR+amoCeSyo/+6Oa/nMyccKexnLhimgn8eQPtMRMpWGT
+# +JcQByowJam5yHG472jMLX714H4Pgqhvtrpsg0N3zYqSF6GeW3gWPUXiM3Ld4WbK
+# mdPJxSb9DWgERq622ZuMvhm+scbyGeNcAsos2G9KB9nJNdpAdfLEpxlvnkIQmHXm
+# lYtgvO3FEteKztWYXFaWA8XudwY1/8/k7j8TYe7b2i2F8M2unbIYCUXDkqFyF/xH
+# tqALLPHE3kNoCGpfO/B2Y/vMBiymxuIOtbm+JI8wggaUMIIEfKADAgECAhAr1K5w
+# udBjWyrphMjWdKowMA0GCSqGSIb3DQEBDAUAMFYxCzAJBgNVBAYTAlBMMSEwHwYD
+# VQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBU
+# aW1lc3RhbXBpbmcgMjAyMSBDQTAeFw0yMjA3MjgwODU2MjZaFw0zMzA3MjcwODU2
+# MjZaMFAxCzAJBgNVBAYTAlBMMSEwHwYDVQQKDBhBc3NlY28gRGF0YSBTeXN0ZW1z
+# IFMuQS4xHjAcBgNVBAMMFUNlcnR1bSBUaW1lc3RhbXAgMjAyMjCCAiIwDQYJKoZI
+# hvcNAQEBBQADggIPADCCAgoCggIBAMrFXu0fCUbwRMtqXliGb6KwhLCeP4vySHEq
+# QBI78xFcjqQae26x7v21UvkWS+X0oTh61yTcdoZaQAg5hNcBqWbGn7b8OOEXkGwU
+# vGZ65MWKl2lXBjisc6d1GWVI5fXkP9+ddLVX4G/pP7eIdAtI5Fh4rGC/x9/vNan9
+# C8C4I56N525HwiKzqPSz6Z5N2XYM0+bT4VdYsZxyPRwLkjhcqdzg2tCB2+YP6ld+
+# uBOkcfCrhFCeeTB4Y/ZalrZXaCGFIlBWjIyXb9UGspAaoDvP2LCSSRcnvrP49qII
+# GD7TqHbDoYumubWDgx8/YE7M5Bfd7F14mQOqnr7ImCFS5Ty/nfSO7XVSQ6TrlIYX
+# 8rLA4BSjnOu0WoYZTLOWyaekWPraAAhvzJQ3mXt6ruGa6VEljyzDTUfgEmSDpnxP
+# 6OFSOOc4xBOXbkV8OO4ivGf0pIff+IOsysOwvuSSHfF1FxSerNZb3VcUneyQaT+o
+# mC+kaGTPpvsyly53V/MUKuHVhgRIrGiWIJgN9Tr73oZXHk6mbuzkXiHhao/1AQrQ
+# 35q+mtGKvnXtf62dsJFztYf/XceELTw/KJd1YL7hlQ9zGR/fFE+fx9pvLd2yZ3Y1
+# PCtpaNzq6i7JZ2mRldC1XwikBtjoQ6GT2T3kyRn0lAU8Y4/TdN/4pptwouFk+75J
+# sdToPQ6BAgMBAAGjggFiMIIBXjAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBQjwTzM
+# UzMZVo7Y4/POPPyoc0dW6jAfBgNVHSMEGDAWgBS+VAIvv0Bsc0POrAklTp5DRBru
+# 4DAOBgNVHQ8BAf8EBAMCB4AwFgYDVR0lAQH/BAwwCgYIKwYBBQUHAwgwMwYDVR0f
+# BCwwKjAooCagJIYiaHR0cDovL2NybC5jZXJ0dW0ucGwvY3RzY2EyMDIxLmNybDBv
+# BggrBgEFBQcBAQRjMGEwKAYIKwYBBQUHMAGGHGh0dHA6Ly9zdWJjYS5vY3NwLWNl
+# cnR1bS5jb20wNQYIKwYBBQUHMAKGKWh0dHA6Ly9yZXBvc2l0b3J5LmNlcnR1bS5w
+# bC9jdHNjYTIwMjEuY2VyMEAGA1UdIAQ5MDcwNQYLKoRoAYb2dwIFAQswJjAkBggr
+# BgEFBQcCARYYaHR0cDovL3d3dy5jZXJ0dW0ucGwvQ1BTMA0GCSqGSIb3DQEBDAUA
+# A4ICAQBrxvc9Iz4vV5D57BeApm1pfVgBjTKWgflb1htxJA9HSvXneq/j/+5kohu/
+# 1p0j6IJMYTpSbT7oHAtg59m0wM0HnmrjcN43qMNo5Ts/gX/SBmY0qMzdlO6m1D9e
+# gn7U49EgGO+IZFAnmMH1hLx+pse6dgtThZ4aqr+zRfRNoTFNSUxyOSo6cmVKfRbZ
+# gTiLEcMehGJTeM5CQs1AmDpF+hqyq0X6Mv0BMtHU2wPoVlI3xrRQ167lM64/gl8d
+# CYzMPF8l8W89ds2Rfro9Y1p5dI0L8x60opb1f8n5Hf4ayW9Kc7rgUdlnfJc4cYdv
+# V0JxWYpSZPN5LJM54xSKrveXnYq1NNIuovqJOM9mixVMJ2TTWPkfQ2pl0H/Zokxx
+# XB4qEKAySa6bfcijoQiOaR5wKQR+0yrc7KIdqt+hOVhl5uUti9cZxA8JMiNdX6Sa
+# asglnJ9olTSMJ4BRO6tCASEvJeeCzX6ZViKRDHbFQCaMZ1XdxlwR6Cqkfa2p5EN1
+# DKQSjxI1p6lddQmc9PTVGWM8dpbRKtHHBoOQvfWEdigP3EI7RGZqWTonwr8AaMCg
+# TzYbFpuZed3lG7yi0jwUJo9/ryUNFA82m9CpzLcaAKaLQ0s1uboR6zaWSt9fqUAS
+# Nz9zD+8IiGlyUqKIAFViQMqqyHej0vK7G2gPqEy5GDdxL/DBaTCCBrcwggSfoAMC
+# AQICEGL8teUMa7gqh7ZMNIbcDUEwDQYJKoZIhvcNAQELBQAwVjELMAkGA1UEBhMC
+# UEwxITAfBgNVBAoTGEFzc2VjbyBEYXRhIFN5c3RlbXMgUy5BLjEkMCIGA1UEAxMb
+# Q2VydHVtIENvZGUgU2lnbmluZyAyMDIxIENBMB4XDTIyMDgwODE1MjkzMVoXDTI1
+# MDgwNzE1MjkzMFowXTELMAkGA1UEBhMCREUxDzANBgNVBAgMBkhlc3NlbjERMA8G
+# A1UEBwwIRXNjaGJvcm4xFDASBgNVBAoMC2NldGVyaW9uIEFHMRQwEgYDVQQDDAtj
+# ZXRlcmlvbiBBRzCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMgqJhvo
+# vfISjaFsmVnPYHMgqqEyUiLuDn0o3TTBiTgcZAnoICLY04QpK2Dche9y+SHXIT5e
+# Rr25jbpziP+Fn1e1wkTI6rtJJFxH1qjFlLwuAatGRTx3ug1Bl0ArUeDNWYQNWaC+
+# pafQ1XzaJPviG7fvsliO/6maz5FKJRM5H4tsDhMZ4fEV4Jn3i5W18d2NkyBFIS24
+# SCFNqMAj0TqYabLM63sPaFTwdPK2mJUbRECaJ65Nji0PUpqGXYIB4DWhCD5muYdX
+# k1rUVxnaNoJs1ADvQlkBoL4eEl/igIV3QRFqulFSwLRXO8wXUtOI7Dq2lZu+FDrv
+# 20rP9X/lcJauq0gDBm6ZSUyeAvEGlv1uydIFcsJBQg4ZlZBA7fOtMxq1+bqi1Xng
+# Swe6lcZgr2W6Yg021/Z6HJ5NrypRP2kyB2wkmjSh6fh6jCiPU/9wHhqfPoB0Xfuq
+# GstZvZo16fZCbtxPyzR1HsZpW7i4E12VM9c+hwZ0GdA6RGJ/aAIn00SJwpNPXiuv
+# bDMUmws8csAp7+eDzn5/0hEDTL75M6uNKnRikDdpgHSg9ykzL5y75KEbyaKsi8E3
+# NdMWbSsX+lLNR4kXIoUZ8k5YbzY0zaAWU3xNzlR3xRS/XXzH/udtlAt7NKTBJApv
+# UJC0JPfPQXiTCS6LPzRgGMY3A9JxfX3X+R1fAgMBAAGjggF4MIIBdDAMBgNVHRMB
+# Af8EAjAAMD0GA1UdHwQ2MDQwMqAwoC6GLGh0dHA6Ly9jY3NjYTIwMjEuY3JsLmNl
+# cnR1bS5wbC9jY3NjYTIwMjEuY3JsMHMGCCsGAQUFBwEBBGcwZTAsBggrBgEFBQcw
+# AYYgaHR0cDovL2Njc2NhMjAyMS5vY3NwLWNlcnR1bS5jb20wNQYIKwYBBQUHMAKG
+# KWh0dHA6Ly9yZXBvc2l0b3J5LmNlcnR1bS5wbC9jY3NjYTIwMjEuY2VyMB8GA1Ud
+# IwQYMBaAFN10XUwA23ufoHTKsW73PMAywHDNMB0GA1UdDgQWBBQDYLx5fpnKbox5
+# /2t/KQDe622pVjBLBgNVHSAERDBCMAgGBmeBDAEEATA2BgsqhGgBhvZ3AgUBBDAn
+# MCUGCCsGAQUFBwIBFhlodHRwczovL3d3dy5jZXJ0dW0ucGwvQ1BTMBMGA1UdJQQM
+# MAoGCCsGAQUFBwMDMA4GA1UdDwEB/wQEAwIHgDANBgkqhkiG9w0BAQsFAAOCAgEA
+# TBLZ3tWUwnWdEOleRQHr9Efdze+qcyTkqNbu345uqI/i6b8ZUTNqtg9QmfLVN1RX
+# 41m1h7qTEKPx5dAXepX2fHfmCDctJdKZzQN9/R5EChuPVkG5uB/SWtBeMckG4Kpq
+# BMXAuYKJqaK3bRqr8qLbUbCyVsS/hIs3q80i2W/IKxG3U67V/23kDiOiTFneuqjn
+# 7Zg1VXy2VN61Cr8A90fIqPz1g3UKHMXRnbrWlBgHOmDirUo8HdshgyPKm2JUoEhV
+# H51Z6ajN4bFeAH720+FYjMiDQwjKVgzro/HpapW5qJdK8CLc8/VHj9IHE5yu6FfY
+# wnJwJSTSNPnYqw+Br4iIE7YKC1mmR4riR4S0c91NUBo71bQZGu70NMIlPz0l62rc
+# qXVimllopyYxKaS7elPuRbsAeSWDXxCDydTLnOhTXNeYi38r9eS5rEhHAfOMgLtb
+# CFV9NxfA71vXg+k/KdLgh92Lq6MTvK/5/9/SuDvf1HlZatLLZ0BvgDc9/1l53rUg
+# N/XixB+14S8edkL0Lhtubv0D+ZXJjxrZRwkAvRU8tktkwhh5qhgRVRtcJrXi9hVJ
+# KfUj++IC62H6IZh8buJhdvkuMgIovKT+XagvQFgiBGh4XOozoSfu/X90DpOTi3f0
+# 0ruxIiMRG0UyePdg3a1kcnd25sDE1vqYQU52S6zOr0swgga5MIIEoaADAgECAhEA
+# maOACiZVO2Wr3G6EprPqOTANBgkqhkiG9w0BAQwFADCBgDELMAkGA1UEBhMCUEwx
+# IjAgBgNVBAoTGVVuaXpldG8gVGVjaG5vbG9naWVzIFMuQS4xJzAlBgNVBAsTHkNl
+# cnR1bSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTEkMCIGA1UEAxMbQ2VydHVtIFRy
+# dXN0ZWQgTmV0d29yayBDQSAyMB4XDTIxMDUxOTA1MzIxOFoXDTM2MDUxODA1MzIx
+# OFowVjELMAkGA1UEBhMCUEwxITAfBgNVBAoTGEFzc2VjbyBEYXRhIFN5c3RlbXMg
+# Uy5BLjEkMCIGA1UEAxMbQ2VydHVtIENvZGUgU2lnbmluZyAyMDIxIENBMIICIjAN
+# BgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAnSPPBDAjO8FGLOczcz5jXXp1ur5c
+# Tbq96y34vuTmflN4mSAfgLKTvggv24/rWiVGzGxT9YEASVMw1Aj8ewTS4IndU8s7
+# VS5+djSoMcbvIKck6+hI1shsylP4JyLvmxwLHtSworV9wmjhNd627h27a8RdrT1P
+# H9ud0IF+njvMk2xqbNTIPsnWtw3E7DmDoUmDQiYi/ucJ42fcHqBkbbxYDB7SYOou
+# u9Tj1yHIohzuC8KNqfcYf7Z4/iZgkBJ+UFNDcc6zokZ2uJIxWgPWXMEmhu1gMXgv
+# 8aGUsRdaCtVD2bSlbfsq7BiqljjaCun+RJgTgFRCtsuAEw0pG9+FA+yQN9n/kZtM
+# LK+Wo837Q4QOZgYqVWQ4x6cM7/G0yswg1ElLlJj6NYKLw9EcBXE7TF3HybZtYvj9
+# lDV2nT8mFSkcSkAExzd4prHwYjUXTeZIlVXqj+eaYqoMTpMrfh5MCAOIG5knN4Q/
+# JHuurfTI5XDYO962WZayx7ACFf5ydJpoEowSP07YaBiQ8nXpDkNrUA9g7qf/rCkK
+# bWpQ5boufUnq1UiYPIAHlezf4muJqxqIns/kqld6JVX8cixbd6PzkDpwZo4SlADa
+# Ci2JSplKShBSND36E/ENVv8urPS0yOnpG4tIoBGxVCARPCg1BnyMJ4rBJAcOSnAW
+# d18Jx5n858JSqPECAwEAAaOCAVUwggFRMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0O
+# BBYEFN10XUwA23ufoHTKsW73PMAywHDNMB8GA1UdIwQYMBaAFLahVDkCw6A/joq8
+# +tT4HKbROg79MA4GA1UdDwEB/wQEAwIBBjATBgNVHSUEDDAKBggrBgEFBQcDAzAw
+# BgNVHR8EKTAnMCWgI6Ahhh9odHRwOi8vY3JsLmNlcnR1bS5wbC9jdG5jYTIuY3Js
+# MGwGCCsGAQUFBwEBBGAwXjAoBggrBgEFBQcwAYYcaHR0cDovL3N1YmNhLm9jc3At
+# Y2VydHVtLmNvbTAyBggrBgEFBQcwAoYmaHR0cDovL3JlcG9zaXRvcnkuY2VydHVt
+# LnBsL2N0bmNhMi5jZXIwOQYDVR0gBDIwMDAuBgRVHSAAMCYwJAYIKwYBBQUHAgEW
+# GGh0dHA6Ly93d3cuY2VydHVtLnBsL0NQUzANBgkqhkiG9w0BAQwFAAOCAgEAdYhY
+# D+WPUCiaU58Q7EP89DttyZqGYn2XRDhJkL6P+/T0IPZyxfxiXumYlARMgwRzLRUS
+# tJl490L94C9LGF3vjzzH8Jq3iR74BRlkO18J3zIdmCKQa5LyZ48IfICJTZVJeChD
+# UyuQy6rGDxLUUAsO0eqeLNhLVsgw6/zOfImNlARKn1FP7o0fTbj8ipNGxHBIutiR
+# sWrhWM2f8pXdd3x2mbJCKKtl2s42g9KUJHEIiLni9ByoqIUul4GblLQigO0ugh7b
+# WRLDm0CdY9rNLqyA3ahe8WlxVWkxyrQLjH8ItI17RdySaYayX3PhRSC4Am1/7mAT
+# wZWwSD+B7eMcZNhpn8zJ+6MTyE6YoEBSRVrs0zFFIHUR08Wk0ikSf+lIe5Iv6RY3
+# /bFAEloMU+vUBfSouCReZwSLo8WdrDlPXtR0gicDnytO7eZ5827NS2x7gCBibESY
+# kOh1/w1tVxTpV2Na3PR7nxYVlPu1JPoRZCbH86gc96UTvuWiOruWmyOEMLOGGniR
+# +x+zPF/2DaGgK2W1eEJfo2qyrBNPvF7wuAyQfiFXLwvWHamoYtPZo0LHuH8X3n9C
+# +xN4YaNjt2ywzOr+tKyEVAotnyU9vyEVOaIYMk3IeBrmFnn0gbKeTTyYeEEUz/Qw
+# t4HOUBCrW602NCmvO1nm+/80nLy5r0AZvCQxaQ4wgga5MIIEoaADAgECAhEA5/9p
+# xzs1zkuRJth0fGilhzANBgkqhkiG9w0BAQwFADCBgDELMAkGA1UEBhMCUEwxIjAg
+# BgNVBAoTGVVuaXpldG8gVGVjaG5vbG9naWVzIFMuQS4xJzAlBgNVBAsTHkNlcnR1
+# bSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTEkMCIGA1UEAxMbQ2VydHVtIFRydXN0
+# ZWQgTmV0d29yayBDQSAyMB4XDTIxMDUxOTA1MzIwN1oXDTM2MDUxODA1MzIwN1ow
+# VjELMAkGA1UEBhMCUEwxITAfBgNVBAoTGEFzc2VjbyBEYXRhIFN5c3RlbXMgUy5B
+# LjEkMCIGA1UEAxMbQ2VydHVtIFRpbWVzdGFtcGluZyAyMDIxIENBMIICIjANBgkq
+# hkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA6RIfBDXtuV16xaaVQb6KZX9Od9FtJXXT
+# Zo7b+GEof3+3g0ChWiKnO7R4+6MfrvLyLCWZa6GpFHjEt4t0/GiUQvnkLOBRdBqr
+# 5DOvlmTvJJs2X8ZmWgWJjC7PBZLYBWAs8sJl3kNXxBMX5XntjqWx1ZOuuXl0R4x+
+# zGGSMzZ45dpvB8vLpQfZkfMC/1tL9KYyjU+htLH68dZJPtzhqLBVG+8ljZ1ZFilO
+# KksS79epCeqFSeAUm2eMTGpOiS3gfLM6yvb8Bg6bxg5yglDGC9zbr4sB9ceIGRtC
+# QF1N8dqTgM/dSViiUgJkcv5dLNJeWxGCqJYPgzKlYZTgDXfGIeZpEFmjBLwURP5A
+# BsyKoFocMzdjrCiFbTvJn+bD1kq78qZUgAQGGtd6zGJ88H4NPJ5Y2R4IargiWAmv
+# 8RyvWnHr/VA+2PrrK9eXe5q7M88YRdSTq9TKbqdnITUgZcjjm4ZUjteq8K331a4P
+# 0s2in0p3UubMEYa/G5w6jSWPUzchGLwWKYBfeSu6dIOC4LkeAPvmdZxSB1lWOb9H
+# zVWZoM8Q/blaP4LWt6JxjkI9yQsYGMdCqwl7uMnPUIlcExS1mzXRxUowQref/EPa
+# S7kYVaHHQrp4XB7nTEtQhkP0Z9Puz/n8zIFnUSnxDof4Yy650PAXSYmK2TcbyDoT
+# Nmmt8xAxzcMCAwEAAaOCAVUwggFRMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE
+# FL5UAi+/QGxzQ86sCSVOnkNEGu7gMB8GA1UdIwQYMBaAFLahVDkCw6A/joq8+tT4
+# HKbROg79MA4GA1UdDwEB/wQEAwIBBjATBgNVHSUEDDAKBggrBgEFBQcDCDAwBgNV
+# HR8EKTAnMCWgI6Ahhh9odHRwOi8vY3JsLmNlcnR1bS5wbC9jdG5jYTIuY3JsMGwG
+# CCsGAQUFBwEBBGAwXjAoBggrBgEFBQcwAYYcaHR0cDovL3N1YmNhLm9jc3AtY2Vy
+# dHVtLmNvbTAyBggrBgEFBQcwAoYmaHR0cDovL3JlcG9zaXRvcnkuY2VydHVtLnBs
+# L2N0bmNhMi5jZXIwOQYDVR0gBDIwMDAuBgRVHSAAMCYwJAYIKwYBBQUHAgEWGGh0
+# dHA6Ly93d3cuY2VydHVtLnBsL0NQUzANBgkqhkiG9w0BAQwFAAOCAgEAuJNZd8lM
+# Ff2UBwigp3qgLPBBk58BFCS3Q6aJDf3TISoytK0eal/JyCB88aUEd0wMNiEcNVMb
+# K9j5Yht2whaknUE1G32k6uld7wcxHmw67vUBY6pSp8QhdodY4SzRRaZWzyYlviUp
+# yU4dXyhKhHSncYJfa1U75cXxCe3sTp9uTBm3f8Bj8LkpjMUSVTtMJ6oEu5JqCYzR
+# fc6nnoRUgwz/GVZFoOBGdrSEtDN7mZgcka/tS5MI47fALVvN5lZ2U8k7Dm/hTX8C
+# WOw0uBZloZEW4HB0Xra3qE4qzzq/6M8gyoU/DE0k3+i7bYOrOk/7tPJg1sOhytOG
+# UQ30PbG++0FfJioDuOFhj99b151SqFlSaRQYz74y/P2XJP+cF19oqozmi0rRTkfy
+# EJIvhIZ+M5XIFZttmVQgTxfpfJwMFFEoQrSrklOxpmSygppsUDJEoliC05vBLVQ+
+# gMZyYaKvBJ4YxBMlKH5ZHkRdloRYlUDplk8GUa+OCMVhpDSQurU6K1ua5dmZftnv
+# SSz2H96UrQDzA6DyiI1V3ejVtvn2azVAXg6NnjmuRZ+wa7Pxy0H3+V4K4rOTHlG3
+# VYA6xfLsTunCz72T6Ot4+tkrDYOeaU1pPX1CBfYj6EW2+ELq46GP8KCNUQDirWLU
+# 4nOmgCat7vN0SD6RlwUiSsMeCiQDmZwgwrUxggciMIIHHgIBATBqMFYxCzAJBgNV
+# BAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNV
+# BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
+# QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
+# CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAELGCLyZruPy+aFqlyUQRVpAa/ybcmra82
+# vaoj+/pYyTANBgkqhkiG9w0BAQEFAASCAgBa9VU5TBeFlOio/NiJ3oHu1+6ApK//
+# mONLlY8gDCQyGJcg/x2euavF4Sj0Lcufen0ilghaLqNBy5d/tJxLB25uAt8yCnsS
+# eg/28VgqUXlCp5SJalJk/N+AjF9JuUTpQiQAqqH/XaAK0H5a4BB7RfxV2BCggm8W
+# 3nky0/Uxa4NqrSRuepFjptv27oMQuYAODh692RMobPaHyLF8x2V6vnI4AR/Y8wub
+# E7J+qnUx8IlGfw63ffeQNB8H7SifqbKVCoVhaoYQ+eW6MzZukOZYFic0XL3u7m1T
+# P+FmbNjFPxIFrpcpTwNEGG+4RqdDrvtce4x1sXPQuMzeD3vRjEGfI2ps3V79GzBt
+# O4rsPWZPdHR+QYI58zhdDfLx3d1ZtVcZ2nUOrbvh0Z7FMZoQGUZJXACU1e+O2hdo
+# RHfpI/1IK94YIovYEO5AQj3xMhaXJOAYKYAOn8pY95kBHehgKr7ej0z+81tL1S1u
+# 9U8fKnltwelUdTAjmhyYO6YjLtIBmr9GqEwnK0holBeY844aDT1aVvpnC5tnYIDp
+# tdrRc4IstdoNfsUcgQVwXJJwMT9qZt6h55USS9dh8VPZ3Qpw+6Kb/T6PYquNy6MR
+# WhBnQFo4Njs4uSWj1sbm2xooLcoVnvYqi6kfCQIT5T1Bl2yMT7lmvNMW2afoH1q6
+# lsIMLKmy/laVlKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
+# BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
+# 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMjExMDcxNjAwMTFaMDcGCyqGSIb3DQEJEAIv
+# MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
+# SIb3DQEJBDEyBDDXTmgl6u52+Q2ucsT56QUjJtsFetf+OSpiOzV0b3/tKDE/WHHA
+# UYmxnSaQbZVi404wgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
+# ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
+# aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
+# t5isgwqI+HcC8Mikvb4lUB+Ke874MTynOO2ToPc3QUr8RN8ZCt66NBEGKKWb/IKo
+# +ZhhvVe1bqHmJpvXWqqFDkWQPZIZUdOgyDLBJAx7EM5o1U7WkM0BknhuXmFElW94
+# DoYLuvnNmnj+KCd6MU3X/70zScKpa0wNDe7UbLQnXIlGEkHNVuTSnycAsaw6rsW3
+# sVuwqNP9lV0V6oGrLB2NKnz7QrQtJ3JxwiZOayZnNPaBdYoPLQhtRyFUJVTd1FUT
+# fPM/FHbH6h8okHXFJGetunYVYDrI3SHqzEbCVp6W32UI3xorB5UP5nybKZjCKEhh
+# OIT5triRzwy+2RR8GGo3OFEorYOGwkBnM4xpKRQrRFiVvrrKnJ6OIcUB6re9A79N
+# 4yfSk0Oa0+yAuv1pqwNns+XR1jtpI0fQGNlJMEE8klSWIPGfCiHxs4RGDwV4Qq44
+# VTB1KUsdwd7tYhpd5X1qHoSJsWIyBwmw5zvv4AYGnGWgG1U+IpH9D8ApJ4c5llC6
+# EWdWjcjmFOvCP9CRHnJN0fvpGUVflTeJ98KrP7RIRbYiyFjCMH2oHG2DJWRg2ooS
+# mx8tCsbfsLpWr4RnJ5z8gLADpEuygN5ARG8wJvkIR5wGiIEhvOaV3QQ5SFokpCZF
+# CiZAYQXzMXbJz+u6BI9ZMmWO1mrCiFLMXwlMEKbO4Rc=
+# SIG # End signature block
