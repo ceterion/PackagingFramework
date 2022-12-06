@@ -2550,6 +2550,7 @@ Function Exit-Script {
     Remove-Variable -Name PackageAuthor -ErrorAction SilentlyContinue -Scope Global 
     Remove-Variable -Name PackageDescription -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name PackageDisplayName -ErrorAction SilentlyContinue -Scope Global
+    Remove-Variable -Name PackageGUID -ErrorAction SilentlyContinue -Scope Global 
     Remove-Variable -Name PackagingFrameworkModuleVer -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global
     Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global
@@ -5453,6 +5454,7 @@ Function Initialize-Script {
             [string]$Global:PackageAuthor = $PackageConfigFile.Package.PackageAuthor
             [string]$Global:PackageDescription = $PackageConfigFile.Package.PackageDescription
             [string]$Global:PackageDisplayName = $PackageConfigFile.Package.PackageDisplayName
+            [string]$Global:PackageGUID = $PackageConfigFile.Package.PackageGUID
             
             # User PackageName as PackageDescription if empty
             if (-not $Global:PackageDescription) {$Global:PackageDescription = $Global=$PackageName}
@@ -6674,6 +6676,7 @@ Function Invoke-PackageEnd {
                     $Global:DisableLogging = $true
                     if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Installed" -Value 1 -Type DWord }
                     if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Date" -Value $(Get-Date -Format g) -Type String }
+                    if ($PackageGUID) { if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "GUID" -Value "$PackageGUID" -Type String } }
                     $Global:DisableLogging = $false
                 }
                 If ($deploymentType -ieq 'Uninstall')
@@ -8167,7 +8170,8 @@ $TemplateFile | Out-File -FilePath "$Path\$Name\$Name.ps1" -Encoding utf8
   "Package": {
     "PackageDate": "$(Get-Date -Format d)",
     "PackageAuthor": "$env:USERNAME",
-    "PackageDescription": "$AppVendor $AppName $AppVersion"
+    "PackageDescription": "$AppVendor $AppName $AppVersion",
+    "PackageGUID": "$((New-GUID).GUID)"
   },
   "Applications": [ ],
   "DetectionMethods": [ ],
@@ -16121,6 +16125,7 @@ Function Test-Package {
                             if (!($objJsonFile.Package.PackageDescription)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageDescription is not definied in JSON file" ; Link="$PackageLink"}}
                             if (!($objJsonFile.Package.PackageDate)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageDate is not definied in JSON file" ; Link="$PackageLink"}}
                             if (!($objJsonFile.Package.PackageAuthor)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageAuthor is not definied in JSON file" ; Link="$PackageLink"}}
+                            if (!($objJsonFile.Package.GUID)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageGUID is not definied in JSON file" ; Link="$PackageLink"}}
 
                             # Check if at least one detection method entry exists.
                             if($ModuleConfigFile.PackageValidation.CheckJsonDetectionMethod -eq $true) 
@@ -18438,8 +18443,8 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBVk6UMf4m0aqLR
-# PNH8mFE7R/PFtP1xgSc1wFWVgDmQ5qCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCC3twzbEGMk8ve
+# d0l0KWMebFBB3liaoBn1NVhpwuu996CCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -18649,38 +18654,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAELGCLyZruPy+aFqlyUQRVpAa/ybcmra82
-# vaoj+/pYyTANBgkqhkiG9w0BAQEFAASCAgBa9VU5TBeFlOio/NiJ3oHu1+6ApK//
-# mONLlY8gDCQyGJcg/x2euavF4Sj0Lcufen0ilghaLqNBy5d/tJxLB25uAt8yCnsS
-# eg/28VgqUXlCp5SJalJk/N+AjF9JuUTpQiQAqqH/XaAK0H5a4BB7RfxV2BCggm8W
-# 3nky0/Uxa4NqrSRuepFjptv27oMQuYAODh692RMobPaHyLF8x2V6vnI4AR/Y8wub
-# E7J+qnUx8IlGfw63ffeQNB8H7SifqbKVCoVhaoYQ+eW6MzZukOZYFic0XL3u7m1T
-# P+FmbNjFPxIFrpcpTwNEGG+4RqdDrvtce4x1sXPQuMzeD3vRjEGfI2ps3V79GzBt
-# O4rsPWZPdHR+QYI58zhdDfLx3d1ZtVcZ2nUOrbvh0Z7FMZoQGUZJXACU1e+O2hdo
-# RHfpI/1IK94YIovYEO5AQj3xMhaXJOAYKYAOn8pY95kBHehgKr7ej0z+81tL1S1u
-# 9U8fKnltwelUdTAjmhyYO6YjLtIBmr9GqEwnK0holBeY844aDT1aVvpnC5tnYIDp
-# tdrRc4IstdoNfsUcgQVwXJJwMT9qZt6h55USS9dh8VPZ3Qpw+6Kb/T6PYquNy6MR
-# WhBnQFo4Njs4uSWj1sbm2xooLcoVnvYqi6kfCQIT5T1Bl2yMT7lmvNMW2afoH1q6
-# lsIMLKmy/laVlKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCDQm10TZtv9orfhOGe/m7zEL5xDakq5pr7J
+# NR7Hja1cVTANBgkqhkiG9w0BAQEFAASCAgC6a6gH12nevo2KyYS9P5cZMLt6WFpg
+# h5RADwVhnI/E676BK91VEdf9fpa6S9KEpYtoRdR4SWebaHFv3jlElTgUkjaj8nan
+# FWqrSu22tBBmMal59m46dgc7nRHyvcgtv6sfvHkY5jXeqyMT4HwxY85VD1v7/3Sk
+# ypBtUs1to+3F5BXMgzzO3/5xrYO7foKnTqrqfsLuEOBZ76Rr8KJ9dYtrSU0EtDv+
+# dibarOtgPjyg1kI/mUU56yMCk4ZH4cMKr0SDxm4O82pgfEwzNkns2lqNXxPw8L7r
+# Q7v6TFGGi2XSywIrs2SuzYZiRJddDnH4WWOH15hjIiiqSYP6QjN5hCYaSMcOvOuy
+# jIdySwD5nFLvcV4e9iW6bdWfby0TYAbkjOHWEbxPJ0sN7yGseOrdNFB07URibl6V
+# It8QAaeNezBM/MpXyXLFXlnrVazYdlgo1Oi6ooVuf/cnWfPqwOF1Sdf9f1WmLiOw
+# qBN+n3TtzIAVE1ugPLuLdvT8foELEijYEFJL/EOeDuv6YnqbWlqsyUf9KPYgkKPS
+# nkebY+xsN/HVWzQWtExSIK//WWK0NHyH+lXxJlULhGt4TP4vkhF+Nrk6mHLjs9r0
+# +7N21s+Tc5MKLtueOOlJPMpp9+YR0QaAQo5zw8RyDXlsbcABg8hGAQNZGVLniWP0
+# RETNwZN/8n7SbKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMjExMDcxNjAwMTFaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMjEyMDYxNTI5MjlaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDDXTmgl6u52+Q2ucsT56QUjJtsFetf+OSpiOzV0b3/tKDE/WHHA
-# UYmxnSaQbZVi404wgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDCIpyz4nmvb4tI+YphUhpMcjRo7Nj4B+FlxMPNgqv/zsvyYQC8Q
+# PPULpw3JruiKyUEwgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# t5isgwqI+HcC8Mikvb4lUB+Ke874MTynOO2ToPc3QUr8RN8ZCt66NBEGKKWb/IKo
-# +ZhhvVe1bqHmJpvXWqqFDkWQPZIZUdOgyDLBJAx7EM5o1U7WkM0BknhuXmFElW94
-# DoYLuvnNmnj+KCd6MU3X/70zScKpa0wNDe7UbLQnXIlGEkHNVuTSnycAsaw6rsW3
-# sVuwqNP9lV0V6oGrLB2NKnz7QrQtJ3JxwiZOayZnNPaBdYoPLQhtRyFUJVTd1FUT
-# fPM/FHbH6h8okHXFJGetunYVYDrI3SHqzEbCVp6W32UI3xorB5UP5nybKZjCKEhh
-# OIT5triRzwy+2RR8GGo3OFEorYOGwkBnM4xpKRQrRFiVvrrKnJ6OIcUB6re9A79N
-# 4yfSk0Oa0+yAuv1pqwNns+XR1jtpI0fQGNlJMEE8klSWIPGfCiHxs4RGDwV4Qq44
-# VTB1KUsdwd7tYhpd5X1qHoSJsWIyBwmw5zvv4AYGnGWgG1U+IpH9D8ApJ4c5llC6
-# EWdWjcjmFOvCP9CRHnJN0fvpGUVflTeJ98KrP7RIRbYiyFjCMH2oHG2DJWRg2ooS
-# mx8tCsbfsLpWr4RnJ5z8gLADpEuygN5ARG8wJvkIR5wGiIEhvOaV3QQ5SFokpCZF
-# CiZAYQXzMXbJz+u6BI9ZMmWO1mrCiFLMXwlMEKbO4Rc=
+# DlpOZGABRmkwTZWI6Ea4K/O9hnV6pGxJQ1xposXziambsXJIYrFlPkeJQ7fkIyAX
+# KrG7gyO4ihNxR+VgL2+uK6mLdciHGA5Xh/QCawVVKGRcp4Ao7qJPiPN7711f/ip+
+# Z5VPNuVU2lhPBbO0tAU1TNpImvw6cMnZoLLR6bcoBdXyH7EOcSmAvEPwlvL8w+ZD
+# 6pZesNQGALvaGigtq0X456qWOCoEdWHhnN8+CSwJrdS3JGk6t6mFTEfABlXz0A6q
+# cOYXP1nnj3pTesqRluhvV4FSpGeldENgVw4wTirlrD74rZbemop16Ki//j83yBbr
+# okLpDzJqLEcOUedpwMtEK561isYE5UEyjOqNn07dKiRgWgVXxtfxRr1cramZwQ8P
+# PcHtgugbF2ZnLK3zu3d198nsg/n3ekCNJt0Kx9dYkhQEglot3oSaxO1KYOo39a9Q
+# zV2x7NaX8vIaH4RCB3SaXRKgV488E1TSMZRRRSkVCJAYzqaPHA3WsAlhmqyxCk9e
+# Z+S6tLKbLgKaJUoktMSQ3/0u4TOSjG3ps99qrEP1wnqj7QjzVmGDWEqKd4aozgHr
+# +Q0T66EXLrwl6VCotfkcnhYzTEvsVEqxaabuBoc/bCyFoUIajg2obLFJL43OJp5R
+# IzYraso+aOq85eR/wGIKBquVylmQiGG1nzfV6dWf4m8=
 # SIG # End signature block

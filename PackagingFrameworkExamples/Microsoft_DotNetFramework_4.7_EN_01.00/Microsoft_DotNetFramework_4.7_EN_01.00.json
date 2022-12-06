@@ -1,10 +1,11 @@
 {
   "Package": 
     {
-      "PackageDate": "10.1ß.2017",
+      "PackageDate": "10.12.2017",
       "PackageAuthor": "ceterion AG",
       "PackageDescription": "Microsoft .NET Framework 4.7",
-      "PackageDisplayName": ".Net Framework"
+      "PackageDisplayName": ".Net Framework",
+      "PackageGUID": "9a9dbfa6-4a92-45ec-a9c8-f4566f8fe555"
     },
   
   "DetectionMethods": [ ],

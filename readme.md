@@ -1,4 +1,4 @@
-# ceterion Packaging Framework 1.0.11.0
+# ceterion Packaging Framework 1.0.12.0
 
 ## Synopsis
 

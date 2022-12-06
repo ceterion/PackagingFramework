@@ -4,7 +4,8 @@
       "PackageDate": "01.01.2017",
       "PackageAuthor": "ceterion AG",
       "PackageDescription": "Gimp 2.8.20",
-      "PackageDisplayName": "Gimp"      
+      "PackageDisplayName": "Gimp",
+      "PackageGUID": "747faf77-5bc1-4985-861c-dcf250d6a53f"
     },
   "Applications": [
     {

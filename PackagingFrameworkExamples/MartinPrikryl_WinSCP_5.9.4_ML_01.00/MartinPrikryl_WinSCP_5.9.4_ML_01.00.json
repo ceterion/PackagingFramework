@@ -4,7 +4,8 @@
       "PackageDate": "10.10.2017",
       "PackageAuthor": "ceterion AG",
       "PackageDescription": "WinSCP 5.9.4",
-      "PackageDisplayName": "WinSCP"
+      "PackageDisplayName": "WinSCP",
+      "PackageGUID": "0f845c14-660c-4a9d-bbb5-e2a721c045c5"
     },
   "Applications": [
     {

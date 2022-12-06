@@ -1,5 +1,5 @@
 ceterion Packaging Framework - Change Log
-Date: 20 April 2021
+Date: 06 December 2022
 Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
 
 Version 1.0.0.0 
@@ -262,3 +262,26 @@ Other Changes:
 --------------
 - All script and module files are now signed
 - New optional package command line parameter AllowRebootPassThru, this parameter allows the 3010 return code (requires restart) to be passed back to the parent process (for SCCM / MECM)
+
+
+Version 1.0.12.0
+################
+
+General:
+------------
+Packages now have an optional "PackageGUID" parameter in the PackageName.Json file as a unique identifier.
+When using "New-Package" an individual GUID is automatically added to the PackageName.json file, alternatively you can use "New-GUID" to generate one.
+This GUID is available as $PackageGUID variable at package runtime, and its written to HKLM\Software\PackagingFramework\InstalledPackages\<PackageName>\
+and can be used as detection method for MECM/SCCM/etc.
+
+Updated Cmdlets:
+----------------
+New-Package			Added support for the new package GUID
+Initialize-Script		Added support for the new package GUID
+Invoke-PackageEnd		Added support for the new package GUID
+
+
+
+
+
+

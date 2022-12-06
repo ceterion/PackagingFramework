@@ -4,7 +4,8 @@
       "PackageDate": "19.09.2017",
       "PackageAuthor": "Andreas Mariotti",
       "PackageDescription": "PuTTY 0.70",
-      "PackageDisplayName": "PuTTY"
+      "PackageDisplayName": "PuTTY",
+      "PackageGUID": "3fc3df88-b491-4c07-8a74-c5beca55cbd2"
     },
   "Applications": [
     {

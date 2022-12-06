@@ -4,7 +4,8 @@
       "PackageDate": "10.10.2017",
       "PackageAuthor": "ceterion AG",
       "PackageDescription": "Notepad++ 7.5.1",
-      "PackageDisplayName": "Notepad++"
+      "PackageDisplayName": "Notepad++",
+      "PackageGUID": "60c1464a-cfcb-403e-95ae-bb926714d80b"
     },
   "Applications": [
     {
