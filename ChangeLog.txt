@@ -281,6 +281,18 @@ Initialize-Script		Added support for the new package GUID
 Invoke-PackageEnd		Added support for the new package GUID
 
 
+Version 1.0.13.0
+################
+
+General:
+------------
+Package Naming Scheme in PackagingFramework.json file includes now WIN11, W2K19 & W2K22
+
+Updated Cmdlets:
+----------------
+New-Package			Added "Dependencies" and "Supersedence" secion to PackageName.json, can be used for MECM/SCCM/etc. 
+
+
 
 
 
