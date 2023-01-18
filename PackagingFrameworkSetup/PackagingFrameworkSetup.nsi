@@ -134,6 +134,7 @@ Section /o "Online Help" Section3
   SetOutPath '$InstDir\PackagingFramework'
   File /r ..\PackagingFrameworkHelp\*.*
 
+
   # Create shortcut
   CreateShortcut "$Desktop\Packaging Framework Help.lnk" '$InstDir\PackagingFramework\PackagingFramework.html'
 

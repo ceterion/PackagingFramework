@@ -9,7 +9,8 @@
     },
   
   "DetectionMethods": [ ],
-  "Dependencies":[ ],
+  "Dependencies": [ ],
+  "Supersedence": [ ],
   "Parameters": { },
   "FirewallRules": [ ],
   "Permissions": [ ],

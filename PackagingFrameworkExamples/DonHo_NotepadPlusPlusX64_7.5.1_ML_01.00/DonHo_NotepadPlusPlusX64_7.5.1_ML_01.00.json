@@ -19,7 +19,8 @@
     }
   ],
   "DetectionMethods": [ ],
-  "Dependencies":[ ],
+  "Dependencies": [ ],
+  "Supersedence": [ ],
   "FirewallRules": [ ],
   "Permissions": [ ],
   "Parameters": {
