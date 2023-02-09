@@ -1,11 +1,12 @@
 ceterion Packaging Framework - Change Log
-Date: 18 January 2023
+Date: 08 February 2023
 Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
 
 Version 1.0.0.0 
 ###############
 
 Initial Release
+
 
 Version 1.0.1.0
 ###############
@@ -83,6 +84,7 @@ General Changes
 - Set variables $PackageName & $PackageFileName only if not already set. This change was necessary for the XenDesktop package and it s invoke script block to let the package run in SCCM with a different user than SYSTEM
 - Added support for optional package command line parameter. The cmdlet Initialize-Script was extended to get the command line parameters, the cmdlet Get-Parameter has a new -force option control overwrite and inheritance of parameters
  
+
 Version 1.0.2.0
 ###############
 
@@ -119,6 +121,7 @@ General Changes
 - Windows Server 2019 support, new variable $IsWin2019, $IsAtLeastWin2019 and $IsAtMostWin2019
 - Improved package template, a "Remove-Module PackagingFramework" added in front of "Import-Module..." line inside the package template and all example packages to avoid issues when running multiple packages in a single PowerShell instance
 
+
 Version 1.0.3.0
 ###############
 
@@ -139,6 +142,7 @@ Update-RegistryPermissions
 Install-DeployPackageService
 - Improved Install-DeployPackageService cmdlet, now with additional delay in the Schedule Tasks trigger to avoid domain logon issues after a reboot
 
+
 Version 1.0.4.0
 ###############
 Start-IntuneWrapper
@@ -147,6 +151,7 @@ Start-IntuneWrapper
 Install-DeployPackageService
 - Bugfix: Scheduled Task Trigger Delay only on Win10/W2k16 and newer, because it does not work on older OS versions
 - Bugfix: Deployment stops with error if package from CSV is not found on share
+
 
 Version 1.0.5.0
 ###############
@@ -159,6 +164,7 @@ Remove-IniSection
 
 Invoke-Encryption
 - Bugfix: Unnecessary file exist check removed for GeneratKey mode 
+
 
 Version 1.0.6.0
 ###############
@@ -173,6 +179,7 @@ Show-InstallationPrompt
 Set-DisableLogging
 - Bugfix: Mode parameter scope issue fixed and logging improved
 
+
 Version 1.0.7.0
 ###############
 
@@ -181,6 +188,7 @@ General Changes
   To use this feature, you can specify the "PackageDisplayName" JSON parameter. If this parameter is missing the "PackageDescription" JSON parameter is used, 
   and if this is parameter is missing the "PackageName" runtime variable is used as fallback
 - The final balloon tip notification after the package is terminated shows now the correct title instead of "Microsoft.Explorer.Notification.{guid}"
+
 
 Version 1.0.8.0
 ###############
@@ -198,6 +206,7 @@ Changes:
 -----------
 Copy-File
  - ContinueOnError parameter default changed from $true to $false to make sure an error is thrown if a copy job fails
+
 
 Version 1.0.9.0
 ###############
@@ -225,8 +234,8 @@ New Cmdlets:
 - Remove-AddRemovePrograms    (Cmdlet to remove an "Software Add/Remove Program" entry)
 - Add-PermissionFromJson      (Cmdlet to automaticaly add NTFS permissions based on entries in the package.json file)
 - Remove-PermissionFromJson   (Cmdlet to automaticaly remove NTFS permissions based on entries in the package.json file)
-- Invoke-PackageEndSection    (Cmdlet to to automatically execute recurring things at package end (before Exit-Script), invokes things like PermissionFromJson, FirewallRuleFromJson, AppConfig, RegistryBranding, and ScriptBlockOnEnd from the extension)
-- Invoke-PackageStartSection  (Cmdlet to to automatically execute recurring things at package start (after Initalize-Script), invokes things like ScriptBlockOnStart from the extension)
+- Invoke-PackageEnd           (Cmdlet to automatically execute recurring things at package end (before Exit-Script), invokes things like PermissionFromJson, FirewallRuleFromJson, AppConfig, RegistryBranding, and ScriptBlockOnEnd from the extension)
+- Invoke-PackageStart         (Cmdlet to automatically execute recurring things at package start (after Initalize-Script), invokes things like ScriptBlockOnStart from the extension)
 
 Updated Module:
 ---------------
@@ -242,6 +251,14 @@ Other Changes:
  - New InstallationPromptInstallCompleted and InstallationPromptUninstallCompleted JSON parameters as default test for the Show-InstallationPrompt cmdlet
  - Updated Example Package with examples for the new cmdlets and common changes
  - The setup executable is now signed
+
+Breaking Change / Note about the update: 
+----------------------------------------
+The package template has changed with this version regarding the new Invoke-PackageStart and Invoke-PackageEnd functionality. 
+When updating existing packages to this version, you must update the package header and footer section of your existing packages to reflect this change.
+As a reference for the new header and footer section simply call "New-Package" to generate a new package and have a look at the resulting <PackageName>.ps1 file. 
+The first 5 lines is the header section, and the last 5 lines is the footer section. Then copy & paste this new header and footer sections to your existing packages, 
+to replace the existing header and footer section.
 
 
 Version 1.0.11.0
@@ -290,10 +307,25 @@ Package Naming Scheme in PackagingFramework.json file includes now WIN11, W2K19 
 
 Updated Cmdlets:
 ----------------
-New-Package			Added "Dependencies" and "Supersedence" secion to PackageName.json, can be used for MECM/SCCM/etc. 
+New-Package			    Added "Dependencies" and "Supersedence" secion to PackageName.json, can be used for MECM/SCCM/etc. 
 
 
+Version 1.0.14.0
+################
 
+General:
+------------ 
+The default value of the MSILoggingOptions parameter in the PackagingFramework.json file has changed from "/L*v" to "/L*v+" to allow appended to existing MSI logs
 
+Updated Cmdlets:
+----------------
+Add-PermissionFromJson		Bugfix regarding registry permissions via JSON object, the -Key parameter is replaced by the -Path parameter
+Start-Program 		  		Logfile reporting improved, captured output of StdErr is handled as error only when ExitCode is not 0 (e.g. useful for reg.exe which reports falsely success messages to StdErr instead of StdOut)
+Update-Ownership			Improved error handling, last error is removed from error object when error is not critical
+Update-FolderPermissions	Improved error handling, last error is removed from error object when error is not critical
+Update-FilePermissions 		Improved error handling, last error is removed from error object when error is not critical
+Update-RegistryPermissions 	Improved error handling, last error is removed from error object when error is not critical
+Update-PrinterPermission	Improved error handling, last error is removed from error object when error is not critical
+Test-IsMutexAvailable		Improved error handling, last error is removed from error object when error is not critical
 
 

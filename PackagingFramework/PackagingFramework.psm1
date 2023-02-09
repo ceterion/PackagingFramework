@@ -13,7 +13,7 @@
 
     To get help for the individual PowerShell commands of the module use the following PowerShell command:
     Get-Help <Command>
-
+    
     To get a full help of all included command use the following PowerShell command:
     Get-Command -Module PackagingFramework | Get-Help
 .LINK
@@ -1149,6 +1149,10 @@ Function Add-PermissionFromJson {
                             $InheritanceHash.Add($Item.Name,$Item.Value) 
                             $PermissionHash.Add($Item.Name,$Item.Value) 
                         }
+                        if ($Item.Name -ieq 'Key') {
+                            $InheritanceHash.Add('Path',$Item.Value)    # Sonderfall, bei einem RegKey wird aus Key -> Path im InheritanceHash, weil Set-Inheritance @den Path als Key Parameter erwartet
+                            $PermissionHash.Add($Item.Name,$Item.Value) # Für den PermissionHash der von Update-RegistryPermission wird  das nicht geamcht, da hier direkt Key als Paramter erwartet wird
+                        }
                         if ($Item.Name -ieq 'Filename') {
                             $InheritanceHash.Add($Item.Name,$Item.Value) 
                             $PermissionHash.Add($Item.Name,$Item.Value) 
@@ -1159,13 +1163,20 @@ Function Add-PermissionFromJson {
                         if ($Item.Name -ieq 'Permissions') {
                             $PermissionHash.Add($Item.Name,$Item.Value) 
                         }
-                    }
 
+                    }
+                    
                     # Execute cmdlets with hash params
                     Set-Inheritance @InheritanceHash
-                    if ($PermissionHash.Filename) {
+                    if ($PermissionHash.Key) {
+                        # Registry
+                        Update-RegistryPermission @PermissionHash
+                    }
+                    elseif ($PermissionHash.Filename) {
+                        # File
                         Update-FilePermission @PermissionHash
                     } else {
+                        # Folder
                         Update-FolderPermission @PermissionHash
                     }
 
@@ -2520,40 +2531,40 @@ Function Exit-Script {
     If ($script:notifyIcon) { Try { $script:notifyIcon.Dispose() } Catch {} }
 
     # Remove vars that are specific to the current package (they will be recreated for the nex package on the next call of Initialize-script)
-    Remove-Variable -Name Applications -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name AppLang -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name AppRevision -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name AppName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name AppVendor -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name AppVersion -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name CurrentDate -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name CurrentDateTime -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name CurrentTime -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name CurrentTimeZoneBias -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name DeploymentType -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name DeployMode -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name DisableLogging -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name Files -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name InstallPhase -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name InstallTitle -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name InstallName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name LogDir -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name LogName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name ModuleConfigFile -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name ModuleFileName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name ModuleName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name ModulePath -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name ModuleRoot -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackageConfigFile -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackageFileName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackageName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackageAuthor -ErrorAction SilentlyContinue -Scope Global 
-    Remove-Variable -Name PackageDescription -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackageDisplayName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackageGUID -ErrorAction SilentlyContinue -Scope Global 
-    Remove-Variable -Name PackagingFrameworkModuleVer -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global
-    Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global
+    if (Test-path -path Variable:Applications) {Remove-Variable -Name Applications -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:AppLang) {Remove-Variable -Name AppLang -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:AppRevision) {Remove-Variable -Name AppRevision -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:AppName) {Remove-Variable -Name AppName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:AppVendor) {Remove-Variable -Name AppVendor -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:AppVersion) {Remove-Variable -Name AppVersion -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:CurrentDate) {Remove-Variable -Name CurrentDate -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:CurrentDateTime) {Remove-Variable -Name CurrentDateTime -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:CurrentTime) {Remove-Variable -Name CurrentTime -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:CurrentTimeZoneBias) {Remove-Variable -Name CurrentTimeZoneBias -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:DeploymentType) {Remove-Variable -Name DeploymentType -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:DeployMode) {Remove-Variable -Name DeployMode -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:DisableLogging) {Remove-Variable -Name DisableLogging -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:Files) {Remove-Variable -Name Files -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:InstallPhase) {Remove-Variable -Name InstallPhase -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:InstallTitle) {Remove-Variable -Name InstallTitle -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:InstallName) {Remove-Variable -Name InstallName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:LogDir) {Remove-Variable -Name LogDir -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:LogName) {Remove-Variable -Name LogName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ModuleConfigFile) {Remove-Variable -Name ModuleConfigFile -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ModuleFileName) {Remove-Variable -Name ModuleFileName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ModuleName) {Remove-Variable -Name ModuleName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ModulePath) {Remove-Variable -Name ModulePath -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ModuleRoot) {Remove-Variable -Name ModuleRoot -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageConfigFile) {Remove-Variable -Name PackageConfigFile -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageFileName) {Remove-Variable -Name PackageFileName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageName) {Remove-Variable -Name PackageName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageAuthor) {Remove-Variable -Name PackageAuthor -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageDescription) {Remove-Variable -Name PackageDescription -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageDisplayName) {Remove-Variable -Name PackageDisplayName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageGUID) {Remove-Variable -Name PackageGUID -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackagingFrameworkModuleVer) {Remove-Variable -Name PackagingFrameworkModuleVer -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackagingFrameworkName) {Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ScriptDirectory) {Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global}
 
     $Global:DisableLogging = $true
 
@@ -8156,7 +8167,6 @@ Try {
     # Call package end and exit script
 	Invoke-PackageEnd ; Exit-Script -ExitCode `$mainExitCode
 
-
 }
 Catch { [int32]`$mainExitCode = 60001; [string]`$mainErrorMessage = "`$(Resolve-Error)" ; Write-Log -Message `$mainErrorMessage -Severity 3 -Source `$PackagingFrameworkName ; Show-DialogBox -Text `$mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode `$mainExitCode}
 "@
@@ -9576,7 +9586,7 @@ Function Remove-MSIApplications {
 .PARAMETER IncludeUpdatesAndHotfixes
 	Include matches against updates and hotfixes in results.
 .PARAMETER LoggingOptions
-	Overrides the default logging options specified in the configuration file. Default options are: "/L*v".
+	Overrides the default logging options specified in the configuration file. Default options are: "/L*v+".
 .PARAMETER LogName
 	Overrides the default log file name. The default log file name is generated from the MSI file name. If LogName does not end in .log, it will be automatically appended.
 	For uninstallations, by default the product code is resolved to the DisplayName and version of the application.
@@ -14470,7 +14480,11 @@ Function Start-Program {
 					$stdOut = $stdOutBuilder.ToString() -replace $null,''
 					
 					If ($stdErr.Length -gt 0) {
-						Write-Log -Message "Standard error output from the process: $stdErr" -Severity 3 -Source ${CmdletName}
+                        If ($returnCode -ne 0) {
+						    Write-Log -Message "Standard error output from the process: $stdErr" -Source ${CmdletName} -Severity 3
+                        } else {
+                            Write-Log -Message "Standard error output from the process: $stdErr" -Source ${CmdletName} -Severity 1
+                        }
 					}
 				}
 			}
@@ -15687,18 +15701,22 @@ Function Test-IsMutexAvailable {
 		Catch [Threading.WaitHandleCannotBeOpenedException] {
 			## The named mutex does not exist
 			$IsMutexFree = $true
+            $Global:Error.Remove($Global:Error[0])
 		}
 		Catch [ObjectDisposedException] {
 			## Mutex was disposed between opening it and attempting to wait on it
 			$IsMutexFree = $true
+            $Global:Error.Remove($Global:Error[0])
 		}
 		Catch [UnauthorizedAccessException] {
 			## The named mutex exists, but the user does not have the security access required to use it
 			$IsMutexFree = $false
+            $Global:Error.Remove($Global:Error[0])
 		}
 		Catch [Threading.AbandonedMutexException] {
 			## The wait completed because a thread exited without releasing a mutex. This exception is thrown when one thread acquires a mutex object that another thread has abandoned by exiting without releasing it.
 			$IsMutexFree = $true
+            $Global:Error.Remove($Global:Error[0])
 		}
 		Catch {
 			$IsUnhandledException = $true
@@ -17096,8 +17114,11 @@ Function Update-FolderPermission {
 				}
 				Catch [System.Management.Automation.MethodInvocationException] {
 					Try {
+                        $Global:Error.Remove($Global:Error[0])
+                        Write-log "ErrorCount InFunction after Remove $($global:Error.count)"
 						$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
 						$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
+
 					}
 					Catch [System.Management.Automation.MethodInvocationException] {
 						Write-Log -Message "Trustee not found: [$trustee]" -Severity 3 -Source ${CmdletName}
@@ -17328,6 +17349,7 @@ Function Update-FilePermission {
 				}
 				Catch [System.Management.Automation.MethodInvocationException] {
 					Try {
+                        $Global:Error.Remove($Global:Error[0])
 						$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
 						$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
 					}
@@ -17452,11 +17474,13 @@ Function Update-FrameworkInPackages {
 .DESCRIPTION
 	Update Packaging Framework files in Package folders
 .PARAMETER ModuleFolder
-	The folder where your source moduel file are
+	The  folder where your reference "PackagingFramework" folder is located
 .PARAMETER PackagesFolder
 	The destination folder where your packages are stored
 .EXAMPLE
-	Update-FrameworkInPackages -ModuleFolder 'C:\Program Files\WindowsPowerShell\Modules' -PackagesFolder 'Y:\Packages\'
+	Update-FrameworkInPackages -ModuleFolder 'C:\MyTemplate' -PackagesFolder 'Z:\Packages\'
+.EXAMPLE
+	Update-FrameworkInPackages -ModuleFolder 'C:\Program Files\WindowsPowerShell\Modules' -PackagesFolder 'Z:\Packages\'
 .NOTES
 	Created by ceterion AG
 .LINK
@@ -17489,11 +17513,15 @@ Function Update-FrameworkInPackages {
 				Foreach($FrameworkFolder in $FrameworkFolders)
 				{
     				if (Test-Path -path "$ModuleFolder\PackagingFramework" -PathType Container) {
-                        Copy-item -Path "$ModuleFolder\PackagingFramework\*" -Destination $FrameworkFolder.DirectoryName -Verbose -Force 
+                        Copy-item -Path "$ModuleFolder\PackagingFramework\PackagingFramework*" -Destination $FrameworkFolder.DirectoryName -Verbose -Force -Exclude "*.bak","Uninstall.exe","Readme.txt","PackagingFramework.html"
+                        if (Test-Path -path "$($FrameworkFolder.DirectoryName)\readme.txt") { Remove-item -Path "$($FrameworkFolder.DirectoryName)\*.bak" }
+                        if (Test-Path -path "$($FrameworkFolder.DirectoryName)\Uninstall.exe") { Remove-item -Path "$($FrameworkFolder.DirectoryName)\Uninstall.exe" }
+                        if (Test-Path -path "$($FrameworkFolder.DirectoryName)\Readme.txt") { Remove-item -Path "$($FrameworkFolder.DirectoryName)\Readme.txt" }
+                        if (Test-Path -path "$($FrameworkFolder.DirectoryName)\PackagingFramework.html") { Remove-item -Path "$($FrameworkFolder.DirectoryName)\PackagingFramework.html" }
                     }
 
     				if (Test-Path -path "$ModuleFolder\PackagingFrameworkExtension" -PathType Container) {
-                        Copy-item -Path "$ModuleFolder\PackagingFrameworkExtension\*" -Destination $FrameworkFolder.DirectoryName -Verbose -Force 
+                        Copy-item -Path "$ModuleFolder\PackagingFrameworkExtension\PackagingFramework*" -Destination $FrameworkFolder.DirectoryName -Verbose -Force -Exclude "*.bak","Uninstall.exe","Readme.txt","PackagingFramework.html"
                     }
 
 				} 
@@ -17585,6 +17613,7 @@ Function Update-Ownership {
 		}
 		Catch [System.Management.Automation.MethodInvocationException] {
 			Try {
+                $Global:Error.Remove($Global:Error[0])
 				$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
 				$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
 				}
@@ -17678,6 +17707,7 @@ Function Update-PrinterPermission
 			}
 		Catch [System.Management.Automation.MethodInvocationException] {
 			Try {
+                $Global:Error.Remove($Global:Error[0])
 				$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
 				$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
 			}
@@ -17941,6 +17971,7 @@ Function Update-RegistryPermission {
 				}
 				Catch [System.Management.Automation.MethodInvocationException] {
 					Try {
+                        $Global:Error.Remove($Global:Error[0])
 						$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
 						$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
 					}
@@ -18440,12 +18471,11 @@ Function Write-FunctionHeaderOrFooter {
 
 ## Export functions, aliases and variables
 Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
-
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCADOU4ZUyV9sDie
-# 5jnybAtHc/UyVqjgX6MmrQRhaRo1dqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCLYOeIB93Ucw47
+# A1yJJcRBxEgeYefIo3wI4hHp1KvKvqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -18655,38 +18685,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAzP1dFYRKMoHDQ7+kfODXvaWlq1M4i2KFr
-# pxhipL4hPTANBgkqhkiG9w0BAQEFAASCAgDEhaS1d8fyl4lDk8s8JqyEVa08ualC
-# k4a894BQ5ca2rJtDjZv2Yn6s3J/QGiBnrq1p0kuE2VaBHAU7AwusubvHqMJR7DOc
-# sImx3oiVHGBTROCnmJm+Jg6uCWScBzVje4i4S4JdquJNNUs9FEZbDAo14SJ9VR/p
-# R1EOz3XsZ91s4I/H2ljRZWz4uFdbvSHbEyuNntB5WoO2Z/VsYxzq/EdM0J1hPx0o
-# a9mIWxneAYbsEfivPFEKdSg8iWuoX8LypGGI91x5rKr2xqNS7yXFTK1upsCoAthK
-# hMmeVtRQkCGoFU2wagS60KdD9KCdPDqP0HDhx/WfU7TELYAJ1QSSBrt264hr8MkQ
-# JCs4TLrDzQIT/7uD+LHYhlGWEfUfx4iMvDTSTIIwr4rrPx8eFwKwa5MuU6flwvXq
-# Da29wKNKaZqcR8D6aL1M0x351M/If57O0Ffm1l9eBcZ2GmJZn7eRVM0kC5WeKret
-# 2dbwPvC6JewcRXXvUw++yhfr2KN7h6da+hCu3Y1lC2XQjhBh2TLLpUq7A6maONGx
-# DUBz6RWqR4vHrmaUTWtxCIYARObdj66rqlbNqtl9ne1ryWOxy2iMo88b0IQA1kU3
-# TS96x1EHL5ES45BunwDsJKWfgD8srR5GSnfXaqAoDFMnxvugu4kkiSGVlKPVakoh
-# GTvsO6VzRnOFcKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCABGrdgdCd40C1Qo/Nhakr6F/YJNTjO+6Ir
+# DUIAW5AGEDANBgkqhkiG9w0BAQEFAASCAgA3umuVNsinRMr8SOfjxUl8yW36/Iy6
+# emDiGhoeEyvY+rjzemb6er0KLy0KYZkjBlXk4XleZBzsRGBiGJDfG047qEZz/Ru+
+# ordBBYTOavVj8pH6l6ZR++FYnAz9bvIEf99STgW6IXrKJO4GXKGh7BvuMxpKg9V2
+# faR72BOaiLo/jWrsVYKvG65UTqd0lC3mzFpcujxCy57yYJ2DE3G00FskT0qvHp9Z
+# ru5da5OYydh/BMwOMX+T3nD+2tvvVpLtGDqqWuP01Q0VPP7vsRoK9mjLTnwAhvgM
+# 8AgQLEjBV9xl+dNrWQ/9S4FXIq34VhoINFJBYGDtZkSRDo3hY9MXLIIqkmrYlWPW
+# 6nM2PdeH8f5kWq8RfvEQfUV1moSAHDsqrUY/FD1XB45f6kEYOulMo3fYIjY033Xb
+# d0GOacj2QrRkOrVLjAL89IvmVSu6wpxkXUjgOZhsEeChiHxXyn2v+10lmSKawBoH
+# 74fIL6eN45ktDh6ERbosvbHXlEtPHGmjhwBnRn+hH75DRqkN18H+91nkFErW4YtY
+# qpLHQWfh8VENkT973EJL/N+GqZlC/iVOzeDZ1UW20RoY9qq2ypVhRz6P6Wj1N6Kd
+# sWzlod4YO9ZN1AmuBfpeJFU83yxv2sS24bRYfKsOE+1ipzK63h3nyDEbLplj+D5A
+# a+pK8lA2bTQ0j6GCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAxMTgxMzMyNTFaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAyMDkwNzI1NThaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDB1t884cNtyBBvbDYGSCTnwp+Rrr2DDvo6ed4OzQwwdKeq7MEzc
-# QA1joLU2OtQUFvQwgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDAklpABUM+iAIibcQ4OPueU8p1MPa0OPFhaszkAnmQyvL0lquN7
+# Ga3vSkWSWH1dmWswgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# f8hRwzS6UFFi6QFFeD/FjWZM/EZ7YS6dxrn+QRZzoLttHYNiBc/ifBkkJXr9Sg3R
-# 1hmx0OOIKcm3Alhho1RdKj7jbFxf42iHUpuexCwF3++2gXPr+oo1kp3lHhQ+WQ/a
-# 82XgnTNVJhUzrtgd4ptAQVeG0BCSLLuqdGHmRmNcqSCkm4Cv3O7MJ/m1gq7ORVUc
-# aMWzBx0ga6nhqjAKqUfSZVBp1SdIO/wBLtjBWUC+D3z8mD+lW9vXpvuCpDsUi9ic
-# nUf9HoywkKA9VL+YrGC0WlMVhVQStsifoSMfr2Osfv0FpkmdLWR/u4KHHAju9hku
-# rQiIXHQx+ASn5rjMdbqNjL4xZgPpTBH588hCLYVHxF/wrKZKeJKRPyuzTMILTdeC
-# /2G2Br3tqX2qeAf1qnSQGz548NdTIv04EhzlCnOun4scOLGuNfh+By8mmu7qzysb
-# u/DxbEBkBT688b/88Rltzyx5pootaxf57A+lh9NB8cUyKqlPVJtjFZwmlL+spikF
-# 1+FEw9Xb9Nl3y6kbP5SzJs2mt214DDK156bmn37evvDNw6qbrafoCo5tweQhOebh
-# GCR52nIL4yJKPU33Hm3HW/rl/XPtQM3TMDt3qYYIq6UUTDq9CppDRU9WK8ESK6nV
-# wFY2mwSz2EYkSvwZRGyaOpxNQNTqErQJD/UMqs8Syfc=
+# fU+8LNZWGsN2DvkwkJ3hMoM4hjMARH14dV1SBS//ZO8soQ13AdfB5NaEChvgetL2
+# vPfdT36QCC7FWwEBcS2OVXLLE9kpMqpbBrilZpKX8NSF0+SmQKEUa7d6b77uZe4F
+# FcH+58RcjhAA6UamiTDLs8g1jG2Np1cYUbHrWTUNIXPa6FxyVnWdMVsFJxb2VM5m
+# POQ5S8iLfEp5UjmosfZWc24akyk4ySoRphtOek7sIY03d3cRhrcSzHHN/W8I3D2Q
+# 7V4k6KG6FUOrXUIXe0dkpD2Hvqgx873HPY07TDic38VPCTz915N0OAbWDDTXFuOw
+# P5GAnwMsXUY/8XBgNfr0OaHebVlY6ximn29Vj5C9AGY6lOo0lgwwueA0O+7cq2Ia
+# MRbeu3ar4/hT6HpfGOTxdAp4N7yrVHwFNUngCJ9ORicK9rjIl1krRf8PLi9/4hPw
+# sAYrv3dbyxiALF93b750SzjlYDl6+9+YnYKdxuX8Fp4he8fOnNBA86tpwPXfK00v
+# Eg1kO4hLvIE9uAVMGyfqqpsOKz6tKXwzZVWkL0nK5OwgCVd94AfuIPuhMshVE3m0
+# j3qgXueFQ6v3dL4brvl+7Up3IAcxPwkn5JnX5gavfvTPUXCBQ1jSTEug7sLc69op
+# Gzs2nd5Fp/9OIKxl7ocCRlGvH7xIp/pExyPAZ7l+P6M=
 # SIG # End signature block
