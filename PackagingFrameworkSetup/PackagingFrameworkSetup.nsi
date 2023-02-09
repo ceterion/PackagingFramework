@@ -21,7 +21,6 @@ VIAddVersionKey "ProductVersion" "1.0.14.0"
 VIAddVersionKey "LegalCopyright" "ceterion AG"
 VIAddVersionKey "CompanyName" "ceterion AG"
 
-
 # Interface settings
 !define MUI_ABORTWARNING
 !define MUI_ICON "PackagingFrameworkSetup.ico"

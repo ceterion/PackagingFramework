@@ -32,7 +32,7 @@ To get a help console use this PowerShell command:
 Show-HelpConsole
 
 To get a list of all runtime variables use the following PowerShell command: 
-Get-Variable | Out-GridView
+Get-Variable | Out-GridView 
 
 To create your first own package use the following PowerShell command (example): 
 New-Package -Path C:\Temp -Name 'Microsoft_Office_16.0_EN_01.00'
