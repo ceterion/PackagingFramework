@@ -293,9 +293,9 @@ and can be used as detection method for MECM/SCCM/etc.
 
 Updated Cmdlets:
 ----------------
-New-Package			Added support for the new package GUID
-Initialize-Script		Added support for the new package GUID
-Invoke-PackageEnd		Added support for the new package GUID
+New-Package         Added support for the new package GUID
+Initialize-Script   Added support for the new package GUID
+Invoke-PackageEnd   Added support for the new package GUID
 
 
 Version 1.0.13.0
@@ -307,7 +307,7 @@ Package Naming Scheme in PackagingFramework.json file includes now WIN11, W2K19 
 
 Updated Cmdlets:
 ----------------
-New-Package			    Added "Dependencies" and "Supersedence" secion to PackageName.json, can be used for MECM/SCCM/etc. 
+New-Package         Added "Dependencies" and "Supersedence" secion to PackageName.json, can be used for MECM/SCCM/etc. 
 
 
 Version 1.0.14.0
@@ -319,13 +319,34 @@ The default value of the MSILoggingOptions parameter in the PackagingFramework.j
 
 Updated Cmdlets:
 ----------------
-Add-PermissionFromJson		Bugfix regarding registry permissions via JSON object, the -Key parameter is replaced by the -Path parameter
-Start-Program 		  		Logfile reporting improved, captured output of StdErr is handled as error only when ExitCode is not 0 (e.g. useful for reg.exe which reports falsely success messages to StdErr instead of StdOut)
-Update-Ownership			Improved error handling, last error is removed from error object when error is not critical
-Update-FolderPermissions	Improved error handling, last error is removed from error object when error is not critical
-Update-FilePermissions 		Improved error handling, last error is removed from error object when error is not critical
-Update-RegistryPermissions 	Improved error handling, last error is removed from error object when error is not critical
-Update-PrinterPermission	Improved error handling, last error is removed from error object when error is not critical
-Test-IsMutexAvailable		Improved error handling, last error is removed from error object when error is not critical
+Add-PermissionFromJson      Bugfix regarding registry permissions via JSON object, the -Key parameter is replaced by the -Path parameter
+Start-Program               Logfile reporting improved, captured output of StdErr is handled as error only when ExitCode is not 0 (e.g. useful for reg.exe which reports falsely success messages to StdErr instead of StdOut)
+Update-Ownership            Improved error handling, last error is removed from error object when error is not critical
+Update-FolderPermissions    Improved error handling, last error is removed from error object when error is not critical
+Update-FilePermissions      Improved error handling, last error is removed from error object when error is not critical
+Update-RegistryPermissions  Improved error handling, last error is removed from error object when error is not critical
+Update-PrinterPermission    Improved error handling, last error is removed from error object when error is not critical
+Test-IsMutexAvailable       Improved error handling, last error is removed from error object when error is not critical
 
 
+
+Version 1.0.15.0
+################
+
+New Cmdlets:
+------------
+Test-DSMPackage             New cmdlet that is able to detect installed DSM packages via DSM package GUID or package name.
+
+Updated Cmdlets:
+----------------
+Add-FirewallRule            The default parameters can now overwritten via $Global:DefaultFirewallRuleProgram<ParameterName> variables, this allows you firewall rules with only the program parameter when calling the cmdlet.
+Add-FirewallRuleFromJson    The default parameters can now overwritten via $Global:DefaultFirewallRuleProgram<ParameterName> variables, this allows you firewall rules with only the program parameter in the .json file. And improved environment variable handling. The cmdlet is now using the updated Expand-Variable cmdlet to support escaped environment variables.
+Add-PermissionFromJson      Improved environment variable handling. The cmdlet is now using the updated Expand-Variable cmdlet to support escaped environment variables.
+Add-Path                    New Target parameter for Machine vs. User support.
+Get-Path                    New Target parameter for Machine vs. User support.
+Remove-Path                 New Target parameter for Machine vs. User support and improved folder name handling. Previously if a folder was specified without and ending \, but the corresponding PATH had an ending \, an unnecessary ;\; entry remained, this is now fixed.
+Expand-Variable             Improved environment variable handling. Environment variables can now escaped by wrapping them with additional % characters, for example use %%Username%% if you want to keep %Username% unresolved. This is useful if the variable should resolved later at user runtime and not at package installation runtime.
+Import-RegFile              Improved resolve variable feature. It supports now escaping of the \ character.
+Start-Program               New MaxWaitTime parameter to detect programs that run to long or hang. If MaxWaitTime is exceeded the exit code 258 (0x102) WAIT_TIMEOUT is returned.
+New-Shortcut                New hotkey parameter to add keyboard hotkeys to shortcut links.
+Test-Package                Bug regarding wrong message "Parameter PackageGUID is not defined in JSON file" is fixed.

@@ -282,6 +282,13 @@ Try {
         # Launch InstallShield "setup.exe" with embedded MSI and force log files to the logging folder.
         Start-Program -Path 'setup.exe' -Parameters "/s /v`"ALLUSERS=1 /qn /L* \`"$LogDir\$PackageName.log`"`""
 
+        # Launch Notepad, wait a maximum of 5 seconds
+        Start-Program -Path "Notepad.exe" -MaxWaitTime 5
+
+        # Launch Notepad, wait a maximum of 5 seconds, ignore the 258 timeout exit code
+        Start-Program -Path "Notepad.exe" -MaxWaitTime 5 -IgnoreExitCodes 258
+
+
     #endregion Execute
 
     #region MSI
@@ -830,6 +837,17 @@ Try {
         # Example usage of Add-FirewallRule with some cmdlet params
         Add-FirewallRule -DisplayName "Notepad Test 1" -Program "C:\Windows\Notepad.exe" -Direction Inbound -Action Block
         Add-FirewallRule -DisplayName "Notepad Test 2" -Description "My Descripton" -Program "$Env:WinDir\Notepad.exe $Env:Temp\Test.txt" -Direction Outbound -Action Allow -RemoteAddress $_ProxyIP -RemotePort 8080 -Profile Any -Protocol TCP
+
+        # Example usage of Add-FirewallRule with default $DefaultFirewallRule<ParameterName> variables.  Hint: you can put this default into your extension file
+        $Global:DefaultFirewallRuleDescription = "Packaging Framework Default Rule - $PackageName"
+        $Global:DefaultFirewallRuleDisplayName = "Packaging Framework Default Rule - $PackageName"
+        $Global:DefaultFirewallRuleAction = "Allow"
+        $Global:DefaultFirewallRuleDirection = "Outbound"
+        $Global:DefaultFirewallRuleProtocol = "TCP"
+        $Global:DefaultFirewallRuleProfile = "Any"
+        Add-FirewallRule -Program "C:\Windows\Notepad.exe"
+        Add-FirewallRule -Program "C:\Windows\Regedit.exe"
+        Add-FirewallRule -Program "C:\Windows\Write.exe"
     
         # Example how to multiple rules from the 'FirewallRules' section of the package json file
         Add-FirewallRuleFromJson
@@ -1147,8 +1165,13 @@ Try {
         Remove-AddRemovePrograms -Name "My Custom Test App 1"
         Remove-AddRemovePrograms -Name "My Custom Test App 2"
 
+        ### Check for DSM packages ###
 
-
+        if (Test-DSMPackage -GUID "E5565EC5-6D27-4322-B26D-ED0F75BF86FC") {Show-DialogBox "Package found!" }
+        if (Test-DSMPackage -GUID "E5565EC5-6D27-4322-B26D-ED0F75BF86FC","E5565EC5-6D27-4322-B26D-ED0F75BF86FX") {Show-DialogBox "Package found!" }
+        if (Test-DSMPackage -Name "PackageNameA") {Show-DialogBox "Package found!" }
+        if (Test-DSMPackage -Name "PackageNameA","PackageNameB") {Show-DialogBox "Package found!" }
+        if (Test-DSMPackage -Name "PackageNameC") {Show-DialogBox "Package found!" }
 
     #endregion Misc
     

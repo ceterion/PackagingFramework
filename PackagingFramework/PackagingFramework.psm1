@@ -301,139 +301,139 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateSet('Allow','Block')]
-		    [string]$Action,
+		    [string]$Action = $Global:DefaultFirewallRuleAction,
+
 
             [Parameter(Mandatory=$false)]
 		    [ValidateSet('NotRequired','Required','NoEncap')]
-		    [string]$Authentication,
+		    [string]$Authentication = $Global:DefaultFirewallRuleAuthentication,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Description,
+		    [string]$Description = $Global:DefaultFirewallRuleDescription,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateSet('Inbound','Outbound')]
-		    [string]$Direction,
-
-		    [Parameter(Mandatory=$true)]
-		    [ValidateNotNullorEmpty()]
-		    [string]$DisplayName,
+		    [string]$Direction = $Global:DefaultFirewallRuleDirection,
 
 		    [Parameter(Mandatory=$false)]
+		    [string]$DisplayName = $Global:DefaultFirewallRuleDisplayName,
+                                           
+		    [Parameter(Mandatory=$false)]
 		    [ValidateSet('Any','ProximityApps','ProximitySharing','WifiDirectPrinting','WifiDirectDisplay','WifiDirectDevices')]
-		    [string]$DynamicTarget,
+		    [string]$DynamicTarget = $Global:DefaultFirewallRuleDynamicTarget,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateSet('Block','Allow','DeferToUser','DeferToApp')]
-		    [string]$EdgeTraversalPolicy,
+		    [string]$EdgeTraversalPolicy = $Global:DefaultFirewallRuleEdgeTraversalPolicy,
 
             [Parameter(Mandatory=$false)]
             [ValidateNotNullorEmpty()]
-		    [boolean]$Enabled,
+		    [boolean]$Enabled = [boolean]$Global:DefaultFirewallRuleEnabled,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateSet('NotRequired','Required','Dynamic')]
-		    [string]$Encryption,
+		    [string]$Encryption = $Global:DefaultFirewallRuleEncryption,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$GPOSession,
+		    [string]$GPOSession = $Global:DefaultFirewallRuleGPOSession,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Group,
+		    [string]$Group = $Global:DefaultFirewallRuleGroup,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$IcmpType,
+		    [string[]]$IcmpType = $Global:DefaultFirewallRuleIcmpType,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$InterfaceAlias,
+		    [string[]]$InterfaceAlias = $Global:DefaultFirewallRuleInterfaceAlias,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateSet('Any','Wired','Wireless','RemoteAccess')]
-		    [string]$InterfaceType,
+		    [string]$InterfaceType = $Global:DefaultFirewallRuleInterfaceType,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$LocalAddress,
+		    [string[]]$LocalAddress = $Global:DefaultFirewallRuleLocalAddress,
 
             [Parameter(Mandatory=$false)]
             [ValidateNotNullorEmpty()]
-		    [boolean]$LocalOnlyMapping,
+		    [boolean]$LocalOnlyMapping = [boolean]$Global:DefaultFirewallRuleLocalOnlyMapping,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$LocalPort,
+		    [string[]]$LocalPort = $Global:DefaultFirewallRuleLocalPort,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$LocalUser,
+		    [string]$LocalUser = $Global:DefaultFirewallRuleLocalUser,
 
             [Parameter(Mandatory=$false)]
             [ValidateNotNullorEmpty()]
-		    [boolean]$LooseSourceMapping,
+		    [boolean]$LooseSourceMapping = [boolean]$Global:DefaultFirewallRuleLooseSourceMapping,
 
             [Parameter(Mandatory=$false)]
             [ValidateNotNullorEmpty()]
-		    [string]$Name,
+		    [string]$Name = $Global:DefaultFirewallRuleName,
 
             [Parameter(Mandatory=$false)]
             [ValidateNotNullorEmpty()]
-		    [boolean]$OverrideBlockRules,
+		    [boolean]$OverrideBlockRules = [boolean]$Global:DefaultFirewallRuleOverrideBlockRules,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Owner,
+		    [string]$Owner = $Global:DefaultFirewallRuleOwner,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Package,
+		    [string]$Package = $Global:DefaultFirewallRulePackage,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$Platform,
+		    [string[]]$Platform = $Global:DefaultFirewallRulePlatform,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$PolicyStore,
+		    [string]$PolicyStore = $Global:DefaultFirewallRulePolicyStore,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateSet('Any','Domain','Private','Public','NotApplicable')]
-		    [string]$Profile,
+		    [string]$Profile = $Global:DefaultFirewallRuleProfile,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Program,
+		    [string]$Program = $Global:DefaultFirewallRuleProgram,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Protocol,
+		    [string]$Protocol = $Global:DefaultFirewallRuleProtocol,
 		
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$RemoteAddress,
+		    [string[]]$RemoteAddress = $Global:DefaultFirewallRuleRemoteAddress,
 
             [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$RemoteDynamicKeywordAddresses,
+		    [string[]]$RemoteDynamicKeywordAddresses = $Global:DefaultFirewallRuleRemoteDynamicKeywordAddresses,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$RemoteMachine,
+		    [string]$RemoteMachine = $Global:DefaultFirewallRuleRemoteMachine,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string[]]$RemotePort,
+		    [string[]]$RemotePort = $Global:DefaultFirewallRuleRemotePort,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$RemoteUser,
+		    [string]$RemoteUser = $Global:DefaultFirewallRuleRemoteUser,
 
 		    [Parameter(Mandatory=$false)]
 		    [ValidateNotNullorEmpty()]
-		    [string]$Service,
+		    [string]$Service = $Global:DefaultFirewallRuleAService,
 
 		    [Parameter(Mandatory=$false)]
     	    [switch]$Force=$True,
@@ -570,15 +570,27 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                 if ($PackageConfigFile.FirewallRules) {
                     Write-Log -Message "Start Add Firewall Rule From Json" -Source ${CmdletName} 
                 }
-                # Get FirewallRule hastTable from JSON
+                # Get FirewallRule HashTable from JSON
                 ForEach($FWRule in $PackageConfigFile.FirewallRules){ 
-                    $FWHash = @{}
-                    ForEach ($Item in $FWRule.PSObject.Properties) {
-                        # Expand environment variable and powershellvariables in value
-                        If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
-                        $FWHash.Add($Item.Name,$Item.Value) 
+
+                    # Process each firewall from json in object syntax
+                    if ($FWRule -is [PSObject]) {
+                        Write-Log "Process firewall rule in object syntax" -DebugMessage
+                        $FWHash = @{}
+                        ForEach ($Item in $FWRule.PSObject.Properties) {
+                            # Expand environment variable and powershellvariables in value
+                            If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all }
+                            $FWHash.Add($Item.Name,$Item.Value) 
+                        }
                     }
-                    
+
+                    # Process each permission param from json in simple string syntax (Only file or folder or registry path)
+                    if ($FWRule -is [String]) {
+                        Write-Log "Process firewall rule in string syntax" -DebugMessage
+                        $FWHash = @{}
+                        $FWHash.Add('Program',$FWRule) 
+                    }
+
                     # Convert true/false strings from JSON to bool
                     if ($FWHash.Force -ieq 'true') { $FWHash.Force = $true }
                     if ($FWHash.Force -ieq 'false') { $FWHash.Force = $false }
@@ -587,7 +599,6 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 
                     # Add Firewall rule
                     Add-FirewallRule @FWHash
-
                 }
             }
 		    Catch {
@@ -1036,6 +1047,8 @@ Function Add-Path {
 	Add-Path "C:\Temp"
 .EXAMPLE
 	Add-Path "%SystemDrive%\Temp"
+.EXAMPLE
+	Add-Path "%UserProfile%\Temp" -Target User
 .NOTES
 	Created by ceterion AG
 .LINK
@@ -1046,7 +1059,10 @@ Function Add-Path {
     ( 
         [Parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
         [ValidateNotNullorEmpty()]
-        [String[]]$Folder
+        [String[]]$Folder,
+        [Parameter(Mandatory=$false,Position=1)]
+		[ValidateSet('User','Machine')]
+		[String]$Target = 'Machine'
     )
 
 	Begin {
@@ -1056,32 +1072,45 @@ Function Add-Path {
 	}
 	Process {
 		Try {
-                Write-Log "[$Folder]" -Source ${CmdletName}
+                Write-Log "Add [$Folder] to [$Target] path" -Source ${CmdletName}
                 
                 # Get the PATH environment variable from the coresponding registry key (unexpanded)
-                $Hive = [Microsoft.Win32.Registry]::LocalMachine
-                $Key = $Hive.OpenSubKey("System\CurrentControlSet\Control\Session Manager\Environment")
-                $OldPath = $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                if ($Target -ieq 'Machine') {
+                    $Hive = [Microsoft.Win32.Registry]::LocalMachine
+                    $Key = $Hive.OpenSubKey("System\CurrentControlSet\Control\Session Manager\Environment")
+                    $OldPath = $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                }
+                Elseif ($Target -ieq 'User') {
+                    $Hive = [Microsoft.Win32.Registry]::CurrentUser
+                    $Key = $Hive.OpenSubKey("Environment")
+                    $OldPath = $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                }
 
                 # See if a new folder has been supplied.
-                If (!$Folder) { Return 'No Folder Supplied. $ENV:PATH Unchanged'}
+                If (!$Folder) { Return 'No folder supplied. $ENV:PATH Unchanged'}
 
                 # See if the new Folder is already in the path (resolved or unresolved)
-                IF ($ENV:PATH | Select-String -SimpleMatch $Folder) { Write-Log "[$Folder] already within the PATH variable" -Source ${CmdletName} -Severity 2; return}
-                IF ($OldPath | Select-String -SimpleMatch $Folder) { Write-Log "[$Folder] already within the PATH variable" -Source ${CmdletName} -Severity 2; return}
+                $CurrentPath = Get-EnvironmentVariable PATH -Target $Target 
+                If ($CurrentPath | Select-String -SimpleMatch $Folder) { Write-Log "[$Folder] already within the [$Target] PATH variable" -Source ${CmdletName} -Severity 2; return}
+                If ($OldPath | Select-String -SimpleMatch $Folder) { Write-Log "[$Folder] already within the [$Target] PATH variable" -Source ${CmdletName} -Severity 2; return}
 
                 # Set the New Path variable 
                 $NewPath=$OldPath+';'+$Folder
-                Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $NewPath
+                if ($Target -ieq 'Machine') {
+                    Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $NewPath
+                }
+                Elseif ($Target -ieq 'User') {
+                    Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Environment' -Name PATH -Value $NewPath
+                }
 
                 # Show success
-                Write-Log "[$Folder] successfully added to the PATH variable" -Source ${CmdletName} -Severity 1
+                Write-Log "[$Folder] successfully added to the [$Target] PATH variable" -Source ${CmdletName} -Severity 1
 
         }
 
 		Catch {
                 Write-Log -Message "Failed to add path [$Folder]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
-				Throw "Failed to add font [$Folder].: $($_.Exception.Message)"
+				Throw "Failed to add path [$Folder].: $($_.Exception.Message)"
 		}
 	}
 	End {
@@ -2580,6 +2609,7 @@ Function Expand-Variable {
 	Expands variables
 .DESCRIPTION
 	Returns the input string with resolved PowerShell and Environment variables
+    Environment variables can escaped by wrapping them with aditional % characters, for example %%Username%%
 .PARAMETER InputString
 	Input text string to be processed 
 .PARAMETER VarType
@@ -2590,6 +2620,9 @@ Function Expand-Variable {
 .EXAMPLE
 	Expand-Variable -InputString 'This is a test string with %USERNAME% and $PShome' -VarType 'environment'
 	Returns the text string with the environment variable resolved, but the powershell variable stays unresolved
+.EXAMPLE
+	Expand-Variable -InputString 'This is a test string with escaped %%USERNAME%%'
+	Returns the text string with the unresolved %USERNAME% variable name
 .NOTES
 	Created by ceterion AG
 .LINK
@@ -2615,7 +2648,17 @@ Function Expand-Variable {
 		Try {
             Write-Log "Mode: $VarType Out: $InputString" -Source ${CmdletName} -DebugMessage $true		
             If ($VarType -ieq "all" -or $VarType -ieq "environment"  ) {
-                try { $InputString = [System.Environment]::ExpandEnvironmentVariables($InputString) } catch { Write-Log "Unable to expand environment variables in string [$InputString]" -Source ${CmdletName} -Severity 2 }
+                try { 
+                    [bool]$EscapeCharFound=$false
+                    if ($InputString -match '%%') {
+                        $InputString = $InputString.replace('%%','%_')
+                        $EscapeCharFound=$true
+                    }
+                    $InputString = [System.Environment]::ExpandEnvironmentVariables($InputString) 
+                    if ($EscapeCharFound -ieq $true) {
+                        $InputString = $InputString.replace('%_','%')
+                    }
+                } catch { Write-Log "Unable to expand environment variables in string [$InputString]" -Source ${CmdletName} -Severity 2 }
             }
             If ($VarType -ieq "all" -or $VarType -ieq "powershell"  ) {
                 try { $InputString = $ExecutionContext.InvokeCommand.ExpandString($InputString) } catch { Write-Log "Unable to expand powershell variables in string [$InputString]" -Source ${CmdletName} -Severity 2 }
@@ -3544,17 +3587,37 @@ Function Get-Path {
 	Get the PATH environment variable (unresolved)
 .DESCRIPTION
 	Get the PATH environment variable (unresolved)
+.PARAMETER Target
+    Target of the PATH variable, possible values are User or Machine
 .EXAMPLE
 	Get-Path
+.EXAMPLE
+	Get-Path -Target User
+.EXAMPLE
+	Get-Path -Target Machine
 .NOTES
 	Created by ceterion AG
 .LINK
 	http://www.ceterion.com
 #>
-    
-    $Hive = [Microsoft.Win32.Registry]::LocalMachine
-    $Key = $Hive.OpenSubKey("System\CurrentControlSet\Control\Session Manager\Environment")
-    Return $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+
+	[CmdletBinding()]
+	Param (
+        [Parameter(Mandatory=$false,Position=0)]
+		[ValidateSet('User','Machine')]
+		[String]$Target = 'Machine'
+    )
+
+    if ($Target -ieq 'Machine') {
+        $Hive = [Microsoft.Win32.Registry]::LocalMachine
+        $Key = $Hive.OpenSubKey("System\CurrentControlSet\Control\Session Manager\Environment")
+        Return $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    }
+    Elseif ($Target -ieq 'User') {
+        $Hive = [Microsoft.Win32.Registry]::CurrentUser
+        $Key = $Hive.OpenSubKey("Environment")
+        Return $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    }
 }
 #endregion Function Get-Path
 
@@ -7353,7 +7416,6 @@ Function Invoke-SCCMTask {
 #endregion Function Invoke-SCCMTask
 
 #region Function Import-RegFile
-
 Function Import-RegFile {
 <#
 .SYNOPSIS
@@ -7366,7 +7428,6 @@ Function Import-RegFile {
 	Continue if an error is encountered
 .PARAMETER ResolveVars
 	Resolve environment or PowerShell variables inside a .reg file while importing. 
-    Please note, this feature cannot be used currently for variables that have no \ characters in the values because this need to be escaped in the .reg file syntax as \\
 .PARAMETER Use32BitRegistry
 	Imports the .reg file into the 32 bit registry branche on a 64 bit system
 .EXAMPLE
@@ -7420,7 +7481,15 @@ Function Import-RegFile {
                 # Expand variables in registry keys
                 If ($ResolveVars -eq $true) {
                     #Resolve variables
-                    if ($RegLine) { $RegLine = Expand-Variable -InputString $RegLine }
+                    if ($RegLine) { 
+                        # Expand variable
+                        $RegLine = Expand-Variable -InputString $RegLine 
+
+                        # Escape \ character to \\ (but not \\ to \\\\), and only for value and not for keys that start with [
+                        if (-not($RegLine.StartsWith('['))){
+                            $RegLine = $RegLine.Replace("\","\\").Replace("\\\\","\\")
+                        }
+                    }
 
                     # Write new reg file with resolved variables
                     Add-Content $ResolvedRegFile $RegLine
@@ -8236,10 +8305,17 @@ Function New-Shortcut {
 	Windows style of the application. Options: Normal, Maximized, Minimized. Default is: Normal.
 .PARAMETER RunAsAdmin
 	Set shortcut to run program as administrator. This option will prompt user to elevate when executing shortcut.
+.PARAMETER Hotkey
+	Set shortcut hotkey keyboard shortcut, e.g. ALT+CTRL+F
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $true.
 .EXAMPLE
-	New-Shortcut -Path "$ProgramData\Microsoft\Windows\Start Menu\My Shortcut.lnk" -TargetPath "$WinDir\system32\notepad.exe" -IconLocation "$WinDir\system32\notepad.exe" -Description 'Notepad' -WorkingDirectory "$HomeDrive\$HomePath"
+	New-Shortcut -Path "$CommonStartMenuPrograms\My Shortcut.lnk" -TargetPath "$WinDir\system32\notepad.exe"
+.EXAMPLE
+	New-Shortcut -Path "$CommonStartMenuPrograms\My Bookmark.url" -TargetPath "https://www.google.de/"
+.EXAMPLE
+	New-Shortcut -Path "$CommonStartMenuPrograms\My Shortcut with Hotkey.lnk" -TargetPath "$WinDir\system32\notepad.exe" -IconLocation "$WinDir\system32\notepad.exe" -Description 'Notepad' -WorkingDirectory "$HomeDrive\$HomePath" -Hotkey "ALT+CTRL+F"
+ALT+CTRL+F
 .NOTES
 	Originaly from App Deployment Toolkit, adapted by ceterion AG
 .LINK
@@ -8269,6 +8345,8 @@ Function New-Shortcut {
 		[string]$WindowStyle,
 		[Parameter(Mandatory=$false)]
 		[Switch]$RunAsAdmin,
+		[Parameter(Mandatory=$false)]
+		[string]$Hotkey,
 		[Parameter(Mandatory=$false)]
 		[ValidateNotNullOrEmpty()]
 		[boolean]$ContinueOnError = $true
@@ -8322,6 +8400,7 @@ Function New-Shortcut {
 				if ($workingDirectory) { $shortcut.WorkingDirectory = $workingDirectory }
 				if ($windowStyleInt) { $shortcut.WindowStyle = $windowStyleInt }
 				If ($iconLocation) { $shortcut.IconLocation = $iconLocation }
+                If ($Hotkey) { $shortcut.Hotkey = $hotkey }
 				$shortcut.Save()
 				
 				## Set shortcut to run program as administrator
@@ -9415,7 +9494,10 @@ Function Remove-Path {
     ( 
         [parameter(Mandatory=$True,ValueFromPipeline=$True,Position=0)]
         [ValidateNotNullorEmpty()]
-        [String[]]$Folder
+        [String[]]$Folder,
+        [Parameter(Mandatory=$false,Position=1)]
+		[ValidateSet('User','Machine')]
+		[String]$Target = 'Machine'
     )
 
 	Begin {
@@ -9426,37 +9508,50 @@ Function Remove-Path {
 	Process {
 		Try {
 
-
             # Get the Current PATH (unexpanded)
-            $Hive = [Microsoft.Win32.Registry]::LocalMachine
-            $Key = $Hive.OpenSubKey("System\CurrentControlSet\Control\Session Manager\Environment")
-            [string]$NewPath = $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            $OldPath=$NewPath # store new path as old path for later compare afte the replace
+            if ($Target -ieq 'Machine') {
+                $Hive = [Microsoft.Win32.Registry]::LocalMachine
+                $Key = $Hive.OpenSubKey("System\CurrentControlSet\Control\Session Manager\Environment")
+                [string]$NewPath = $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            } else {
+                $Hive = [Microsoft.Win32.Registry]::CurrentUser
+                $Key = $Hive.OpenSubKey("Environment")
+                [string]$NewPath = $Key.GetValue("PATH",$False, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            }
 
+            # Store new path as old path for later compare afte the replace
+            $OldPath=$NewPath 
             # Find the value to remove, replace it with $NULL, if not found do nothing
             $NewPath = $NewPath.Replace($Folder,$null)
             if ($NewPath -eq $OldPath) 
             {
-                Write-log "[$Folder] not found in PATH, no change" -Source ${CmdletName} -Severity 2
+                Write-log "[$Folder] not found in [$Target] PATH, no change" -Source ${CmdletName} -Severity 2
             } 
             else 
             {
                 # Make sure ther is no double ; after the replace
                 $NewPath = $NewPath.Replace(";;",";") 
 
+                # Make sure there is no ;\;
+                $NewPath = $NewPath.Replace(";\;",";") 
+
                 # Make sure the string is not ending with ";"
                 $NewPath = $NewPath.TrimEnd(";") 
 
                 # Update the Path environment variable
-                Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $newPath
-                Write-log "[$Folder] found and removed from PATH" -Source ${CmdletName} -Severity 1
+                if ($Target -ieq 'Machine') {
+                    Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $newPath
+                } else {
+                    Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Environment' -Name PATH -Value $newPath
+                }
+                Write-log "[$Folder] found and removed from [$Target] PATH" -Source ${CmdletName} -Severity 1
             }
 
         }
 
 		Catch {
-                Write-Log -Message "Failed to remove path [$Folder]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
-				Throw "Failed to remove font [$Folder].: $($_.Exception.Message)"
+                Write-Log -Message "Failed to remove path [$Folder] at [$Target]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+				Throw "Failed to remove path [$Folder] at [$Target].: $($_.Exception.Message)"
 		}
 	}
 	End {
@@ -14284,6 +14379,8 @@ Function Start-Program {
 	The working directory used for executing the process. Defaults to the directory of the file being executed.
 .PARAMETER NoWait
 	Immediately continue after executing the process.
+.PARAMETER MaxWaitTime
+	Maximum wait time in seconds. If MaxWaitTime is exceeded the exit code 258 (0x102) WAIT_TIMEOUT is returned. Parameter is optional and only valid without the -NoWait parameter
 .PARAMETER PassThru
 	Returns ExitCode, STDOut, and STDErr output from the process.
 .PARAMETER WaitForMsiExec
@@ -14337,6 +14434,8 @@ Function Start-Program {
 		[Parameter(Mandatory=$false)]
 		[Switch]$NoWait = $false,
 		[Parameter(Mandatory=$false)]
+		[int]$MaxWaitTime,
+		[Parameter(Mandatory=$false)]
 		[Switch]$PassThru = $false,
 		[Parameter(Mandatory=$false)]
 		[Switch]$WaitForMsiExec = $false,
@@ -14359,7 +14458,7 @@ Function Start-Program {
 	Process {
 		Try {
 			$private:returnCode = $null
-			
+
 			## Validate and find the fully qualified path for the $Path variable.
 			If (([IO.Path]::IsPathRooted($Path)) -and ([IO.Path]::HasExtension($Path))) {
 				Write-Log -Message "[$Path] is a valid fully qualified path, continue." -Source ${CmdletName}
@@ -14457,14 +14556,30 @@ Function Start-Program {
 					Write-Log -Message 'NoWait parameter specified. Continuing without waiting for exit code...' -Source ${CmdletName}
 				}
 				Else {
-					$process.BeginOutputReadLine()
-					$stdErr = $($process.StandardError.ReadToEnd()).ToString() -replace $null,''
 					
-					## Instructs the Process component to wait indefinitely for the associated process to exit.
-					$process.WaitForExit()
+					## Instructs the Process component to wait indefinitely for the associated process to exit or till MaxWaitTime is exceeded
+                    if ($MaxWaitTime) { 
+                        # Convert ms to Secondes
+                        $MaxWaitTimeInMilliSeconds = $MaxWaitTime *1000
+                        Write-Log -Message "Wait for process to exit or till MaxWaitTime of [$MaxWaitTime] seconds is exceeded" -Source ${CmdletName} 
+                        if ($process.WaitForExit($MaxWaitTimeInMilliSeconds) -ne $true) { 
+                            Write-Log "Process wait operation timed out after [$MaxWaitTime] seconds." -Severity 2
+                            $ProcessTimeout=$true
+                        }
+                    } 
+                    else 
+                    {
+                        Write-Log -Message "Wait for process to exit" -Source ${CmdletName} 
+					    $process.BeginOutputReadLine()
+					    $stdErr = $($process.StandardError.ReadToEnd()).ToString() -replace $null,''
+                        $process.WaitForExit() 
+                    }
+
 					
 					## HasExited indicates that the associated process has terminated, either normally or abnormally. Wait until HasExited returns $true.
-					While (-not ($process.HasExited)) { $process.Refresh(); Start-Sleep -Seconds 1 }
+					if (-not ($ProcessTimeout)){
+                        While (-not ($process.HasExited)) { $process.Refresh(); Start-Sleep -Seconds 1 }
+                    }
 					
 					## Get the exit code for the process
 					Try {
@@ -14474,6 +14589,11 @@ Function Start-Program {
 						#  Catch exit codes that are out of int32 range
 						[int32]$returnCode = 60013
 					}
+                    
+                    # In case of a timeout we return exit code  258 (0x102) WAIT_TIMEOUT aka "The wait operation timed out"
+                    if ($ProcessTimeout) {
+                        [int32]$returnCode = 258
+                    }
 					
 					## Unregister standard output event to retrieve process output
 					If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
@@ -15544,6 +15664,107 @@ Function Stop-ServiceAndDependencies {
 }
 #endregion
 
+#region Function Test-DSMPackage
+Function Test-DSMPackage {
+<#
+.SYNOPSIS
+	Test if a specified DSM package is installed or not
+.DESCRIPTION
+	Test if a specified DSM package is installed or not, returns $true if found, otherwise returns $false
+    You can use Package Names or Package GUIDs
+.PARAMETER GUID
+	The GUID of one or multiple DSM packages, multiple GUIDs can sepcified seperated by coma 
+.PARAMETER Name
+	The Name of one or multiple DSM packages, multiple Names can sepcified seperated by coma 
+.OUTPUTS
+    Bool
+.EXAMPLE
+    Check for a DSM package by GUID, returns $true if found
+    Test-DSMPackage -GUID "E5565EC5-6D27-4322-B26D-ED0F75BF86FC"
+.EXAMPLE
+	Check for multiple DSM package by GUID, returns $true if at least one of the packages is found, otherwise returns $false
+    Test-DSMPackage -GUID  "E5565EC5-6D27-4322-B26D-ED0F75BF86FC","12E187FE-46DC-461A-9BB6-770AF988C5CB"
+.EXAMPLE
+    Check for a DSM package by Name, returns $true if found
+    Test-DSMPackage -Name "Notepad"
+.EXAMPLE
+	Check for multiple DSM package by Name, returns $true if at least one of the packages is found, otherwise returns $false
+    Test-DSMPackage -Name  "PackageNameA","PackageNameB"
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		[ValidateNotNullorEmpty()]
+		[Parameter(Mandatory = $false)]
+		[string[]]$GUID,
+		[ValidateNotNullorEmpty()]
+		[Parameter(Mandatory = $false)]
+		[string[]]$NAME
+    )
+ 	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            # Vars            
+            $Found = $null
+            if ($Is64BitProcess) { $DSMInstalledAppsRegKeyPath = "HKLM:\SOFTWARE\WOW6432Node\NetSupport\Installed Apps" } else { $DSMInstalledAppsRegKeyPath = "HKLM:\SOFTWARE\NetSupport\Installed Apps" }
+            
+            # Check for DSM package GUIDs
+            foreach ($Item in $GUID)
+            {
+                Write-log "Check for DSM Package with GUID [$Item]" -Source ${CmdletName}
+                $InstalledDSMPackageName = (Get-ItemProperty -path "$DSMInstalledAppsRegKeyPath\$Item" -ErrorAction SilentlyContinue).'(default)'
+                if ($InstalledDSMPackageName) {
+                    Write-Log "DSM Package with GUID [$Item] and name [$InstalledDSMPackageName] found." -Source ${CmdletName}
+                    $Found=$true
+                } else {
+                    Write-Log "DSM Package with GUID [$Item] not found." -Source ${CmdletName}
+                }
+            }
+
+            # Get all installed DSM Packages
+            $GUIDs = (Get-ChildItem -Path "$DSMInstalledAppsRegKeyPath" -ErrorAction SilentlyContinue).PSChildName
+            [array]$InstalledApps = @()
+            foreach ($item in $GUIDs) { 
+                $InstalledApp = (Get-ItemProperty -path "$DSMInstalledAppsRegKeyPath\$Item"  -ErrorAction SilentlyContinue).'(default)'
+                try{ $InstalledApp = $InstalledApp.Split('\')[-1] } catch { <#do noting#> }
+                Write-Log "DSM Package [$InstalledApp] found." -Source ${CmdletName} -DebugMessage
+                $InstalledApps += $InstalledApp
+            }
+
+            # Check for DSM package names
+            foreach ($Item in $Name)
+            {
+                Write-log "Check for DSM Package with Name [$Item]" -Source ${CmdletName}
+                if ($InstalledApps -icontains $item) {
+                    Write-Log "DSM Package with Name [$Item] found." -Source ${CmdletName}
+                    $Found=$true
+                } else {
+                    Write-Log "DSM Package with Name [$Item] not found." -Source ${CmdletName}
+                }
+            }
+    
+            # Return result
+            if ($Found) {Return $true} else {Return $false}
+		}
+		Catch {
+            Write-Log -Message "Failed to test DSM package. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Throw "Failed to test DSM package.: $($_.Exception.Message)"
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Test-DSMPackage
+
 #region Function Test-IsGroupMember
 Function Test-IsGroupMember {
 <#
@@ -16141,10 +16362,10 @@ Function Test-Package {
                             }
 
                             # Check other JSON parameter for existance
-                            if (!($objJsonFile.Package.PackageDescription)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageDescription is not definied in JSON file" ; Link="$PackageLink"}}
-                            if (!($objJsonFile.Package.PackageDate)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageDate is not definied in JSON file" ; Link="$PackageLink"}}
-                            if (!($objJsonFile.Package.PackageAuthor)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageAuthor is not definied in JSON file" ; Link="$PackageLink"}}
-                            if (!($objJsonFile.Package.GUID)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageGUID is not definied in JSON file" ; Link="$PackageLink"}}
+                            if (!($objJsonFile.Package.PackageDescription)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageDescription is not defined in JSON file" ; Link="$PackageLink"}}
+                            if (!($objJsonFile.Package.PackageDate)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageDate is not defined in JSON file" ; Link="$PackageLink"}}
+                            if (!($objJsonFile.Package.PackageAuthor)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageAuthor is not defined in JSON file" ; Link="$PackageLink"}}
+                            if (!($objJsonFile.Package.PackageGUID)) {$ResultObject += New-Object -TypeName psobject -Property @{Package=$PackageName; Severity="Warning"; Description="Parameter PackageGUID is not defined in JSON file" ; Link="$PackageLink"}}
 
                             # Check if at least one detection method entry exists.
                             if($ModuleConfigFile.PackageValidation.CheckJsonDetectionMethod -eq $true) 
@@ -18470,12 +18691,12 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCLYOeIB93Ucw47
-# A1yJJcRBxEgeYefIo3wI4hHp1KvKvqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA7qnPN+RQbsOgv
+# GOR9RrrKniu5egktlhzxYYPbGDW7WqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -18685,38 +18906,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCABGrdgdCd40C1Qo/Nhakr6F/YJNTjO+6Ir
-# DUIAW5AGEDANBgkqhkiG9w0BAQEFAASCAgA3umuVNsinRMr8SOfjxUl8yW36/Iy6
-# emDiGhoeEyvY+rjzemb6er0KLy0KYZkjBlXk4XleZBzsRGBiGJDfG047qEZz/Ru+
-# ordBBYTOavVj8pH6l6ZR++FYnAz9bvIEf99STgW6IXrKJO4GXKGh7BvuMxpKg9V2
-# faR72BOaiLo/jWrsVYKvG65UTqd0lC3mzFpcujxCy57yYJ2DE3G00FskT0qvHp9Z
-# ru5da5OYydh/BMwOMX+T3nD+2tvvVpLtGDqqWuP01Q0VPP7vsRoK9mjLTnwAhvgM
-# 8AgQLEjBV9xl+dNrWQ/9S4FXIq34VhoINFJBYGDtZkSRDo3hY9MXLIIqkmrYlWPW
-# 6nM2PdeH8f5kWq8RfvEQfUV1moSAHDsqrUY/FD1XB45f6kEYOulMo3fYIjY033Xb
-# d0GOacj2QrRkOrVLjAL89IvmVSu6wpxkXUjgOZhsEeChiHxXyn2v+10lmSKawBoH
-# 74fIL6eN45ktDh6ERbosvbHXlEtPHGmjhwBnRn+hH75DRqkN18H+91nkFErW4YtY
-# qpLHQWfh8VENkT973EJL/N+GqZlC/iVOzeDZ1UW20RoY9qq2ypVhRz6P6Wj1N6Kd
-# sWzlod4YO9ZN1AmuBfpeJFU83yxv2sS24bRYfKsOE+1ipzK63h3nyDEbLplj+D5A
-# a+pK8lA2bTQ0j6GCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAPmg7hYeeFC7H75uTAMdwUakmcOsaXwXwM
+# 68Ss0BUQaDANBgkqhkiG9w0BAQEFAASCAgBKTXR3tN+YvLZbpHQUb/NnIElZOZcL
+# Sb0zfp8kfPlAWGpa9UPmbqikn7eU5Z/bjJjEj+yMU2SJIGuuxvrWdHUXVHyMORfx
+# /3srQJjl+dbVJ68nJeVlRCdywIZMMXv9csSW4784yzCZ/TlXQDN2bsaMH8la7N0o
+# gSdgwP1TAsygC3DG51AZmlhNJJE41SdmkYTuyhflNWAISe2q5OO8SOHV7+j3BnoL
+# s6VtP1o3kd9d8iHkKiA3KbrrLmJRPDh6+1Nm4OuCTEbyG48dMIkVR3TjM7OcDuaB
+# 7/hU5rVlwJrYenebT/YRmgeb1Ovdxa3mgLD7iUy2/WuAPpZ+HWcAIjy5SNU4qxF0
+# jNAzrnCZ1QqsPDbF0bx+tlDOlxHtFEa40U2wbxBiRwy5mGMTiwKCOs0Q3GoFkOdC
+# a/hEkXL7VpkKmdHuXl34jccxfF8NsnU4cg6jY6KRHSg1pHEKK5i0YAfExW//L6fZ
+# TTQIQqZ8eIs/42NLfPjfuSAQpVyIRPWZpTNCLxzb3UeoVIgg2GxjroIaEpooZ7Tn
+# 6gz4r6eh03rWp/EZlupgaf3jaMAObbc/o20YFrMYq7c5mH7IBBu23eLbXG3uPSB5
+# s5tFsCsXzNCSyEQ3Rak0gJYszmlJrMHtBPjx65gmgqhGQSdhnV+3u9w6wHxeH2yU
+# vjgV3oE4tHmsa6GCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAyMDkwNzM5NDdaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAzMDcxMDI3NTVaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDAklpABUM+iAIibcQ4OPueU8p1MPa0OPFhaszkAnmQyvL0lquN7
-# Ga3vSkWSWH1dmWswgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDDgqIXIhqCOv8wdPMhKVdJPChXCU/xHw1t4xDi8tqXr28HZxO36
+# dB35Y4CHNyhVo/owgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# DYZYBqqoNXRjTUkPxrQh7Y8SsYEFhR/R4tUHGwdHvngUfoRMOmYoAJWeUeuSaG/G
-# m9YQlTcndQaJ4oF2JmDatI3CtIRa6nxs5/QAQm+ZQvo3KfRSGkeY+Ao7in9I+VeK
-# pE0Ph6ye7U7mq1O2H4csT4cMkgTkuwWNJTPGSNZrzm44fQsg200mctpahtbfonzE
-# BtA2KaRgI82Kqrq89tZtWE6+bOByO8AX7wWpAlKxscQFnDgltN66Sw+jRIhSgBeV
-# 9Hv6LshcNAWnd94Le40kGnR07bDIuvuMR/Un4rIUn9XacQilxBUy8LJjgcwx+a/o
-# 7kcCU4eHQxGD9Bu7eBywTejGhSqvB1RavKqpepV/P2FN6bw7IxpSVkg9pa+KM2Rm
-# svLTnBED9+eNKRFW40UzrMH1EW+mtG6WbxsccCPltgjj9U98HK/OtKu/8QBQELWh
-# cpAeHN0gE4mJ2NLyGAXlx9KQuHCeEK76F8WmZvpxDcb6c4piyEnBLrOAFsHdFqrC
-# umvbKPu1j3TRRmrl30jPoJJRdTJCRzjleOw1MZj8Q7fbcVPcVhn8iUGIzKlhC76O
-# 5Z9vhDXVOQs5GFhGYOB7T/lWzsfn8ZVzfVy2+SfdsnccBi3oIm17h3dUihHdw51E
-# iX7++ARHwRO09odpGaaJL//Mv11pos8ABovCGlUWZ7Y=
+# vUO8ks1oUDAWnnldJ+mMJNzze93v/VAa1mK6nolrCqucX1jJ/VztWjuzkHkqmiF7
+# dXcnKLKSuRDTRHRai2iKsAd1PhsM8GRSWZSIwZg+bybCNTqqQLUjoMBEF1pXikjJ
+# p9Cof1SGaoAftdp+P4UxEFVO9bAU/75QbyyItfoM2Js6sgsKJEAphlUAl63zSbrn
+# WDn6jdpRyKzq4BU8KwLTgAqnxbr04MfRU8pCUTtl5G+z96uBC+nUarn2f3p9GKvp
+# TL6qtRyaMstdPFMPca4rSp5zcLEIL/AGosTwIpUGkWe1qPXvgr7hMvoRtd9JS4Qp
+# rqxt0Qv3SEKGyAL8f//itSRuuwuj5mEoy7UnjfCnlHW0ZufOFOuIQPP83gUZqNRN
+# e657sfO64ARSL+5erG6gUxh47m48np0HvofPeyVmFjsXBwC/m3jOi38i8+RD3WSJ
+# SpVLuX+Yn31AJ2K4KTKwIUHeR3qQazrYbFqIlZQBiI4k6C4vlX5lUBZ3zTzNo3f/
+# 1HO2UlgXz6wRT5marEKAQ2B1LNymTT0VtE5DY9SfSMA2Jb30fSg890gNDDQs00nn
+# lRbYSwiI90bsoLkYTSaSVLp5PQwWdf1dc/G2Apq4wyJmw0noYnyVdxZVxE3my0GZ
+# yF/9B9GzZQu6hLMPqgkbgE137dlyIi3LyIv2HHGePhU=
 # SIG # End signature block

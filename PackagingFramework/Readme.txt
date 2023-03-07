@@ -1,4 +1,4 @@
-ceterion Packaging Framework 1.0.14.0
+ceterion Packaging Framework 1.0.15.0
 
 This packaging framework contains parts of the PowerShell App Deployment Toolkit (Version 3.6.9) project from
 http://psappdeploytoolkit.com/ with some modifications and custom extensions.
