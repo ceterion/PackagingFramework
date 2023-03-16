@@ -350,3 +350,22 @@ Import-RegFile              Improved resolve variable feature. It supports now e
 Start-Program               New MaxWaitTime parameter to detect programs that run to long or hang. If MaxWaitTime is exceeded the exit code 258 (0x102) WAIT_TIMEOUT is returned.
 New-Shortcut                New hotkey parameter to add keyboard hotkeys to shortcut links.
 Test-Package                Bug regarding wrong message "Parameter PackageGUID is not defined in JSON file" is fixed.
+
+
+Version 1.0.16.0
+################
+
+General:
+------------ 
+New variable OfficeVersion, OfficeBitness, OfficeCDNBaseURL & OfficeChannel to get details from Offlice 365 C2R installations
+New variable OSVersionMajor, OSVersionMinor & OSVersionBuild (as a supplement to OSVersion)
+The config value configShowBalloonNotifications has changed form data type string to boolean and from script to global scope. This allows you to overwrite this config value at package runtime when needed via $Global:configShowBalloonNotifications=$false or $true
+Addition registry brading at HKLM\Software\PackagingFramework with information aboput the last package, like LastPackageName, LastPackageExitCode, LastPackageDate, LastPackageDeploymentType, LastPackageGUID
+
+Updated Cmdlets:
+----------------
+Remove-FirewallRuleFromJson The default parameters can now overwritten via $Global:DefaultFirewallRuleProgram<ParameterName> variables like in Add-FirewallRuleFromJsoncmdlet 
+Show-BalloonTip             Has now support for toast notification. Win 10 and newer only, fallback to BalloonTip on older OS versions. Behavior can be controlled via InstallationUIShowBalloonNotificationsUseToast parameter in the package.json file and via cmdlet -UseToast parameter. Customizable PackagingFrameworkLogo.png logo file.
+Test-Package                The path parameter can now be used to specify an individual package, previously only a parent folder was supported that included multiple packages.
+
+

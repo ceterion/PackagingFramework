@@ -2487,7 +2487,6 @@ Function Exit-Script {
 		[ValidateNotNullorEmpty()]
 		[int32]$ExitCode = 0
 	)
-	
 	# Set InstallPhase to exit script
 	Set-InstallPhase 'Exit'
 
@@ -2520,7 +2519,7 @@ Function Exit-Script {
 	}
 
     ## Determine if balloon notification should be shown
-	If ($DeployMode -ieq 'Silent') { [boolean]$Script:configShowBalloonNotifications = $false }
+	If ($DeployMode -ieq 'Silent') { [boolean]$global:configShowBalloonNotifications = $false }
 	
 	If ($installSuccess) {
 		If (Test-Path -LiteralPath $Script:regKeyDeferHistory -ErrorAction 'SilentlyContinue') {
@@ -2540,17 +2539,17 @@ Function Exit-Script {
 		}
 		
 		Write-Log -Message "$installName $DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
-		If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
+		If ($global:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 	}
 	ElseIf (-not $installSuccess) {
 		Write-Log -Message "$installName $DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
 		If (($exitCode -eq $Script:configInstallationUIExitCode) -or ($exitCode -eq $Script:configInstallationDeferExitCode)) {
             [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextFastRetry"
-			If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
+			If ($global:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 		}
 		Else {
             [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextError"
-			If ($Script:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
+			If ($global:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 		}
 	}
 	
@@ -2558,6 +2557,18 @@ Function Exit-Script {
 	Write-Log -Message $LogDash -Source ${CmdletName}
 
     If ($script:notifyIcon) { Try { $script:notifyIcon.Dispose() } Catch {} }
+
+    # Exit Code Branding Registry Key
+    $Global:DisableLogging = $true
+    $Global:DisableWriteHost = $true
+    if (![string]::IsNullOrWhitespace($ExitCode)) { if ($PackageName) { Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages" -Name "LastPackageExitCode" -Value $ExitCode -Type DWord } }
+    if (![string]::IsNullOrWhitespace($ExitCode)) { if ($PackageName) { Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "ExitCode" -Value $ExitCode -Type DWord } }
+    If ($installSuccess) {
+        if ($deploymentType -ieq 'Uninstall')
+        {
+            if ($PackageName){ Remove-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Recurse }
+        }
+    }
 
     # Remove vars that are specific to the current package (they will be recreated for the nex package on the next call of Initialize-script)
     if (Test-path -path Variable:Applications) {Remove-Variable -Name Applications -ErrorAction SilentlyContinue -Scope Global}
@@ -2573,6 +2584,7 @@ Function Exit-Script {
     if (Test-path -path Variable:DeploymentType) {Remove-Variable -Name DeploymentType -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:DeployMode) {Remove-Variable -Name DeployMode -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:DisableLogging) {Remove-Variable -Name DisableLogging -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:DisableWriteHost) {Remove-Variable -Name DisableWriteHost -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:Files) {Remove-Variable -Name Files -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:InstallPhase) {Remove-Variable -Name InstallPhase -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:InstallTitle) {Remove-Variable -Name InstallTitle -ErrorAction SilentlyContinue -Scope Global}
@@ -2595,7 +2607,6 @@ Function Exit-Script {
     if (Test-path -path Variable:PackagingFrameworkName) {Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:ScriptDirectory) {Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global}
 
-    $Global:DisableLogging = $true
 
 	## Exit the script, returning the exit code to SCCM
 	If (Test-Path -LiteralPath 'variable:HostInvocation') { $script:ExitCode = $exitCode; Exit } Else { Exit $exitCode }
@@ -4879,6 +4890,10 @@ Function Initialize-Script {
     [string]$Global:OSServicePack = $Global:ObjectOperatingSystem.CSDVersion
     [version]$Global:OSVersion = $Global:ObjectOperatingSystem.Version
     [string]$Global:OSReleaseID = (Get-ItemProperty -Path 'HKLM:Software\Microsoft\Windows NT\CurrentVersion' -Name 'ReleaseID' -ErrorAction SilentlyContinue).ReleaseID
+    [String]$Global:OSVersionMajor = $OSVersion.Major
+    [String]$Global:OSVersionMinor = $OSVersion.Minor
+    [String]$Global:OSVersionBuild = $OSVersion.Build
+    [String]$Global:OSVersionRevision = $OSVersion.Revision
 
     #  Get the operating system type
     [int32]$Global:OSProductType = $Global:ObjectOperatingSystem.ProductType
@@ -5005,6 +5020,28 @@ Function Initialize-Script {
     # Get TPM version
     Try {$Global:TPMVersion = ((Get-WmiObject -Namespace 'root\cimv2\security\microsofttpm' -Query 'Select SpecVersion from win32_tpm').SpecVersion -split ',')[0]} Catch {$Global:TPMVersion = 'Unknown'}
 
+    # Office C2R version, bitness and channel
+    If ((Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction 'SilentlyContinue').PSObject.Properties.Name -contains 'VersionToReport') {
+        [Version]$Global:OfficeVersion = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -Name 'VersionToReport' -ErrorAction 'SilentlyContinue').VersionToReport
+        [string]$Global:OfficeVersionMajor = $OfficeVersion.Major
+        [string]$Global:OfficeVersionMinor = $OfficeVersion.Minor
+        [string]$Global:OfficeVersionBuild = $OfficeVersion.Build
+        [string]$Global:OfficeVersionRevision = $OfficeVersion.Revision
+    }
+    If ((Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction 'SilentlyContinue').PSObject.Properties.Name -contains 'Platform') {
+        [String]$Global:OfficeBitness = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -Name 'Platform' -ErrorAction 'SilentlyContinue').Platform
+    }
+    If ((Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction 'SilentlyContinue').PSObject.Properties.Name -contains 'CDNBaseURL') {
+        [String]$Global:OfficeCDNBaseURL = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -Name 'CDNBaseURL' -ErrorAction 'SilentlyContinue').CDNBaseURL
+        Switch -regex ([String]$Global:OfficeCDNBaseURL) {
+            "492350f6-3a01-4f97-b9c0-c7c6ddf67d60" {$Global:OfficeChannel = "monthly"}
+            "7ffbc6bf-bc32-4f92-8982-f9dd17fd3114" {$Global:OfficeChannel = "semi-annual"}
+            "64256afe-f5d9-4f86-8936-8840a6a4f5be" {$Global:OfficeChannel = "monthly targeted"}
+            "b8f9b850-328d-4355-9145-c59439a0c4cf" {$Global:OfficeChannel = "semi-annual targeted"}
+        }
+    }
+
+
     ## Variables: PowerShell And CLR (.NET) Versions
     [hashtable]$PSVersionHashTable = $PSVersionTable
     [version]$Global:PSVersionInfo = $PSVersionHashTable.PSVersion
@@ -5047,6 +5084,8 @@ Function Initialize-Script {
     ## Variables: Module Dependency Files (incl. if exists check)
     [string]$Script:LogoIcon = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.ico'
     [string]$Script:LogoBanner = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.png'
+    [string]$Script:LogoSquare = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFrameworkLogo.png'
+    If (-not(Test-Path $Script:LogoSquare)) {$Script:LogoSquare = $Script:LogoBanner} # Fallback to banner logo if square logo is not found
     [string]$ModuleJsonFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.json'  # not global intentionally, only the json object will be clobal, but not the file !
     [string]$Script:CustomTypesFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.cs'
     If (-not (Test-Path -LiteralPath $Script:LogoIcon -PathType 'Leaf')) { Throw 'Packaging Framework icon file not found.' }
@@ -5109,17 +5148,19 @@ Function Initialize-Script {
     [int32]$Script:configInstallationPersistInterval = $ModuleConfigFile.Options.InstallationPromptPersistInterval
     [int32]$Script:configInstallationRestartPersistInterval = $ModuleConfigFile.Options.InstallationRestartPromptPersistInterval
     [int32]$Script:configInstallationPromptToSave = $ModuleConfigFile.Options.InstallationPromptToSaveTimeout
-    [int32]$Script:configInstallationPromptToSave = $ModuleConfigFile.Options.InstallationPromptToSaveTimeout
     [string]$Script:configInstallationUILanguageOverride = $ModuleConfigFile.Options.InstallationUILanguageOverride
-    [string]$Script:configShowBalloonNotifications = $ModuleConfigFile.Options.InstallationUIShowBalloonNotifications
+    [boolean]$Global:configShowBalloonNotifications = $ModuleConfigFile.Options.InstallationUIShowBalloonNotifications
+    [boolean]$Script:configShowBalloonNotificationsUseToast = $ModuleConfigFile.Options.InstallationUIShowBalloonNotificationsUseToast
     [int32]$Script:configMSIMutexWaitTime = $ModuleConfigFile.Options.MSIMutexWaitTime
     [string]$Script:configMSILoggingOptions = $ModuleConfigFile.Options.MSILoggingOptions
     [string]$Script:configMSIInstallParams = $ModuleConfigFile.Options.MSIInstallParams
     [string]$Script:configMSISilentParams = $ModuleConfigFile.Options.MSISilentParams
     [string]$Script:configMSIUninstallParams = $ModuleConfigFile.Options.MSIUninstallParams
-    [string]$Script:configSuppressNamingSchemeErrors = $ModuleConfigFile.Options.SuppressNamingSchemeErrors
-    [string]$Script:configSuppressPackageJsonErrors = $ModuleConfigFile.Options.SuppressPackageJsonErrors
+    [boolean]$Script:configSuppressNamingSchemeErrors = $ModuleConfigFile.Options.SuppressNamingSchemeErrors
+    [boolean]$Script:configSuppressPackageJsonErrors = $ModuleConfigFile.Options.SuppressPackageJsonErrors
     
+
+
     ## Getting details for all logged on users
 	[psobject[]]$LoggedOnUserSessions = Get-LoggedOnUser
 	[string[]]$usersLoggedOn = $LoggedOnUserSessions | ForEach-Object { $_.NTAccount }
@@ -6700,7 +6741,17 @@ Function Invoke-PackageEnd {
 	}
 	Process {
 		Try {
-            
+
+            ## Determine action based on exit code
+	        Switch ($exitCode) {
+		        $Script:configInstallationUIExitCode { $installSuccess = $false }
+		        $Script:configInstallationDeferExitCode { $installSuccess = $false }
+		        3010 { $installSuccess = $true }
+		        1641 { $installSuccess = $true }
+		        0 { $installSuccess = $true }
+		        Default { $installSuccess = $false }
+	        }
+
             # Write Install Phase to log
             Set-InstallPhase 'PackageEnd'
             Write-Log "Invoke Package End" -Source ${CmdletName}
@@ -6745,20 +6796,30 @@ Function Invoke-PackageEnd {
 
             # Run registry branding
             if ($SkipRegistryBranding -ne $true) {
+                $Global:DisableLogging = $true
+                $Global:DisableWriteHost = $true
+
+                # Global "LastPackage.." entry
+                if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages" -Name "LastPackageName" -Value "$PackageName" -Type String}
+                if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages" -Name "LastPackageDate" -Value $(Get-Date -Format g) -Type String }
+                if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages" -Name "LastPackageDeploymentType" -Value "$DeploymentType" -Type String }
+                if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages" -Name "LastPackageDeployMode" -Value "$DeployMode" -Type String }
+                if ($PackageGUID) { if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages" -Name "LastPackageGUID" -Value "$PackageGUID" -Type String } }
+
+                # Entry for indvidual package
                 If ($deploymentType -ieq 'Install')
                 {
-                    $Global:DisableLogging = $true
                     if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Installed" -Value 1 -Type DWord }
                     if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "Date" -Value $(Get-Date -Format g) -Type String }
                     if ($PackageGUID) { if ($PackageName){ Set-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Name "GUID" -Value "$PackageGUID" -Type String } }
-                    $Global:DisableLogging = $false
                 }
-                If ($deploymentType -ieq 'Uninstall')
-                {
-                    $Global:DisableLogging = $true
-                    if ($PackageName){ Remove-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Recurse }
-                    $Global:DisableLogging = $false
+                If ($deploymentType -ieq 'Uninstall'){
+                    If ($installSuccess) {
+                        if ($PackageName){ Remove-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Recurse }
+                    }
                 }
+                $Global:DisableLogging = $false
+                $Global:DisableWriteHost = $false
             }
 
             # Chaneg default value for InstallPhase based on deployment type
@@ -8723,7 +8784,7 @@ Function Remove-File {
                     $Result = Remove-NetFirewallRule -DisplayName $DisplayName -ErrorAction Stop
                     Write-log -Message "Firewall rule remove successfuly" -Severity 1 -Source ${CmdletName}
                 } else {
-                    Write-log -Message "Firewall rule [$DisplayName] NOT found, nothing to remove" -Severity 2 -Source ${CmdletName}
+                    Write-log -Message "Firewall rule [$DisplayName] NOT found, nothing to remove" -Severity 1 -Source ${CmdletName}
                 }
             }
 		    Catch {
@@ -8776,13 +8837,27 @@ Function Remove-FirewallRuleFromJson {
             }
 
             ForEach($FWRule in $PackageConfigFile.FirewallRules){ 
-                $FWHash = @{}
-                ForEach ($Item in $FWRule.PSObject.Properties) {
-                    # Expand environment variable and powershellvariables in value
-                    If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
-                    $FWHash.Add($Item.Name,$Item.Value) 
+
+                # Process each firewall from json in object syntax
+                if ($FWRule -is [PSObject]) {
+                    Write-Log "Process firewall rule in object syntax" -DebugMessage
+                    $FWHash = @{}
+                    ForEach ($Item in $FWRule.PSObject.Properties) {
+                        # Expand environment variable and powershellvariables in value
+                        If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all}
+                        $FWHash.Add($Item.Name,$Item.Value) 
+                    }
+                    Remove-FirewallRule -DisplayName $FWHash.DisplayName
                 }
-                Remove-FirewallRule -DisplayName $FWHash.DisplayName
+
+                # Process each permission param from json in simple string syntax (Only file or folder or registry path)
+                if ($FWRule -is [String]) {
+                    Write-Log "Process firewall rule in string syntax" -DebugMessage
+                    Remove-FirewallRule -DisplayName $DefaultFirewallRuleDisplayName
+                }
+
+
+
             }
         }
 		Catch {
@@ -12016,129 +12091,240 @@ Function Set-ServiceStartMode
 Function Show-BalloonTip {
 <#
 .SYNOPSIS
-	Displays a balloon tip notification in the system tray.
+    Displays a balloon tip notification in the system tray.
 .DESCRIPTION
-	Displays a balloon tip notification in the system tray.
+    Displays a balloon tip notification in the system tray.
 .PARAMETER BalloonTipText
-	Text of the balloon tip.
+    Text of the balloon tip.
 .PARAMETER BalloonTipTitle
-	Title of the balloon tip.
+    Title of the balloon tip.
 .PARAMETER BalloonTipIcon
-	Icon to be used. Options: 'Error', 'Info', 'None', 'Warning'. Default is: Info.
+    Icon to be used. Options: 'Error', 'Info', 'None', 'Warning'. Default is: Info.
 .PARAMETER BalloonTipTime
-	Time in milliseconds to display the balloon tip. Default: 500.
+    Time in milliseconds to display the balloon tip. Default: 10000.
+.PARAMETER NoWait
+    Create the balloontip asynchronously. Default: $false
+.PARAMETER UseToast
+    Use Toast Notification instead of Balloon Tip (Only Win 10 and newer)
 .EXAMPLE
-	Show-BalloonTip -BalloonTipText 'Installation Started' -BalloonTipTitle 'Application Name'
+    Show-BalloonTip -BalloonTipText 'Installation Started' -BalloonTipTitle 'Application Name'
 .EXAMPLE
-	Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText 'Installation Started' -BalloonTipTitle 'Application Name' -BalloonTipTime 1000
+    Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText 'Installation Started' -BalloonTipTitle 'Application Name' -BalloonTipTime 1000
 .NOTES
-	Originaly from App Deployment Toolkit, adapted by ceterion AG
+    For Windows 10 OS and above a Toast notification is displayed in place of a balloon tip. The toast notification does not use the BalloonTipIcon if specified.
 .LINK
-	http://psappdeploytoolkit.com
+    https://psappdeploytoolkit.com
 #>
-	[CmdletBinding()]
-	Param (
-		[Parameter(Mandatory=$true,Position=0)]
-		[ValidateNotNullOrEmpty()]
-		[string]$BalloonTipText,
-		[Parameter(Mandatory=$false,Position=1)]
-		[ValidateNotNullorEmpty()]
-		[string]$BalloonTipTitle = $installTitle,
-		[Parameter(Mandatory=$false,Position=2)]
-		[ValidateSet('Error','Info','None','Warning')]
-		[Windows.Forms.ToolTipIcon]$BalloonTipIcon = 'Info',
-		[Parameter(Mandatory=$false,Position=3)]
-		[ValidateNotNullorEmpty()]
-		[int32]$BalloonTipTime = 10000
-	)
-	
-	Begin {
-		## Get the name of this function and write header
-		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
-		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
-	}
-	Process {
-		
-        ## Skip balloon if in silent mode
-		If (($deployModeSilent) -or (-not $Script:configShowBalloonNotifications) -or (Test-PowerPoint)) { Return }
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [ValidateNotNullOrEmpty()]
+        [String]$BalloonTipText,
+        [Parameter(Mandatory = $false, Position = 1)]
+        [ValidateNotNullorEmpty()]
+        [String]$BalloonTipTitle = $installTitle,
+        [Parameter(Mandatory = $false, Position = 2)]
+        [ValidateSet('Error', 'Info', 'None', 'Warning')]
+        [Windows.Forms.ToolTipIcon]$BalloonTipIcon = 'Info',
+        [Parameter(Mandatory = $false, Position = 3)]
+        [ValidateNotNullorEmpty()]
+        [Int32]$BalloonTipTime = 10000,
+        [Parameter(Mandatory = $false, Position = 4)]
+        [Switch]$NoWait = $false,
+        [Parameter(Mandatory = $false, Position = 5)]
+        [Switch]$UseToast = $Script:configShowBalloonNotificationsUseToast
+    )
 
-		## Dispose of previous balloon
-		If ($script:notifyIcon) { Try { $script:notifyIcon.Dispose() } Catch {} }
-		
-		## Get the calling function so we know when to display the exiting balloon tip notification in an asynchronous script
-		Try { [string]$callingFunction = $MyInvocation.Value.MyCommand.Name } Catch { }
-		
-		If ($callingFunction -eq 'Exit-Script') {
-			Write-Log -Message "Display balloon tip notification asynchronously with message [$BalloonTipText]." -Source ${CmdletName}
-			## Create a script block to display the balloon notification in a new PowerShell process so that we can wait to cleanly dispose of the balloon tip without having to make the deployment script wait
-			[scriptblock]$notifyIconScriptBlock = {
-				Param (
-					[Parameter(Mandatory=$true,Position=0)]
-					[ValidateNotNullOrEmpty()]
-					[string]$BalloonTipText,
-					[Parameter(Mandatory=$false,Position=1)]
-					[ValidateNotNullorEmpty()]
-					[string]$BalloonTipTitle,
-					[Parameter(Mandatory=$false,Position=2)]
-					[ValidateSet('Error','Info','None','Warning')]
-					$BalloonTipIcon, # Don't strongly type variable as System.Drawing; assembly not loaded yet in asynchronous scriptblock so will throw error
-					[Parameter(Mandatory=$false,Position=3)]
-					[ValidateNotNullorEmpty()]
-					[int32]$BalloonTipTime,
-					[Parameter(Mandatory=$false,Position=4)]
-					[ValidateNotNullorEmpty()]
-					[string]$Script:LogoIcon
-				)
-				
-				## Load assembly containing class System.Windows.Forms and System.Drawing
-				Add-Type -AssemblyName 'System.Windows.Forms' -ErrorAction 'Stop'
-				Add-Type -AssemblyName 'System.Drawing' -ErrorAction 'Stop'
-				
-				[Windows.Forms.ToolTipIcon]$BalloonTipIcon = $BalloonTipIcon
-				$script:notifyIcon = New-Object -TypeName 'System.Windows.Forms.NotifyIcon' -Property @{
-					BalloonTipIcon = $BalloonTipIcon
-					BalloonTipText = $BalloonTipText
-					BalloonTipTitle = $BalloonTipTitle
-					Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList $Script:LogoIcon
-					Text = -join $BalloonTipText[0..62]
-					Visible = $true
-				}
-				
-				## Display the balloon tip notification asynchronously
-				$script:NotifyIcon.ShowBalloonTip($BalloonTipTime)
-				
-				## Keep the asynchronous PowerShell process running so that we can dispose of the balloon tip icon
-				Start-Sleep -Milliseconds ($BalloonTipTime)
-				$script:notifyIcon.Dispose()
-			}
-			
-			## Invoke a separate PowerShell process passing the script block as a command and associated parameters to display the balloon tip notification asynchronously
-			Try {
-				Execute-Process -Path "$PSHOME\powershell.exe" -Parameters "-ExecutionPolicy Bypass -NoProfile -NoLogo -WindowStyle Hidden -Command & {$notifyIconScriptBlock} '$BalloonTipText' '$BalloonTipTitle' '$BalloonTipIcon' '$BalloonTipTime' '$Script:LogoIcon'" -NoWait -WindowStyle 'Hidden' -CreateNoWindow
-			}
-			Catch { }
-		}
-		## Otherwise create the balloontip icon synchronously
-		Else {
-			Write-Log -Message "Display balloon tip notification with message [$BalloonTipText]." -Source ${CmdletName}
-			[Windows.Forms.ToolTipIcon]$BalloonTipIcon = $BalloonTipIcon
-			$script:notifyIcon = New-Object -TypeName 'System.Windows.Forms.NotifyIcon' -Property @{
-				BalloonTipIcon = $BalloonTipIcon
-				BalloonTipText = $BalloonTipText
-				BalloonTipTitle = $BalloonTipTitle
-				Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList $Script:LogoIcon
-				Text = -join $BalloonTipText[0..62]
-				Visible = $true
-			}
-			
-			## Display the balloon tip notification
-			$script:NotifyIcon.ShowBalloonTip($BalloonTipTime)
+    Begin {
+        ## Get the name of this function and write header
+        [String]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+        Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+    }
+    Process {
+        
+        # Disable toast and fallback to balloon tip if OS version is not Windows 10 or newer
+        if ($UseToast -ieq $true) { If ($OSVersionMajor -lt 10) { Write-log "Fallback to balloon tip, because toast notofocation is not supported on this OS version" ; $UseToast =$false} }
 
-		}
-	}
-	End {
-		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
-	}
+        ## Skip balloon if in silent mode, disabled in the config or presentation is detected
+        $presentationDetected = Test-PowerPoint
+        If (($Script:deployModeSilent) -or (-not $Global:configShowBalloonNotifications) -or $presentationDetected) {
+            Write-Log -Message "Bypassing Show-BalloonTip [Mode:$Script:deployMode, Config Show Balloon Notifications:$Global:configShowBalloonNotifications, Presentation Detected:$presentationDetected]. BalloonTipText:$BalloonTipText" -Source ${CmdletName}
+            Return
+        }
+        ## Dispose of previous balloon
+        If ($script:notifyIcon) {
+            Try {
+                $script:notifyIcon.Dispose()
+            }
+            Catch {
+            }
+        }
+
+        If ($UseToast -ieq  $False) {
+            ## NoWait - Create the balloontip icon asynchronously
+            If ($NoWait) {
+                Write-Log -Message "Displaying balloon tip notification asynchronously with message [$BalloonTipText]." -Source ${CmdletName}
+                ## Create a script block to display the balloon notification in a new PowerShell process so that we can wait to cleanly dispose of the balloon tip without having to make the deployment script wait
+                ## Scriptblock text has to be as short as possible because it is passed as a parameter to powershell
+                ## Don't strongly type parameter BalloonTipIcon as System.Drawing assembly not loaded yet in asynchronous scriptblock so will throw error
+                [ScriptBlock]$notifyIconScriptBlock = {
+                    Param(
+                        [Parameter(Mandatory = $true, Position = 0)]
+                        [ValidateNotNullOrEmpty()]
+                        [String]$BalloonTipText,
+                        [Parameter(Mandatory = $false, Position = 1)]
+                        [ValidateNotNullorEmpty()]
+                        [String]$BalloonTipTitle,
+                        [Parameter(Mandatory = $false, Position = 2)]
+                        [ValidateSet('Error', 'Info', 'None', 'Warning')]
+                        $BalloonTipIcon = 'Info',
+                        [Parameter(Mandatory = $false, Position = 3)]
+                        [ValidateNotNullorEmpty()]
+                        [Int32]$BalloonTipTime,
+                        [Parameter(Mandatory = $false, Position = 4)]
+                        [ValidateNotNullorEmpty()]
+                        [String]$AppDeployLogoIcon
+                    )
+                    Add-Type -AssemblyName 'System.Windows.Forms', 'System.Drawing' -ErrorAction 'Stop'
+                    $BalloonTipIconText = [String]::Concat($BalloonTipTitle, ' - ', $BalloonTipText)
+                    If ($BalloonTipIconText.Length -gt 63) {
+                        $BalloonTipIconText = [String]::Concat($BalloonTipIconText.Substring(0, 60), '...')
+                    }
+                    [Windows.Forms.ToolTipIcon]$BalloonTipIcon = $BalloonTipIcon
+                    $script:notifyIcon = New-Object -TypeName 'System.Windows.Forms.NotifyIcon' -Property @{
+                        BalloonTipIcon  = $BalloonTipIcon
+                        BalloonTipText  = $BalloonTipText
+                        BalloonTipTitle = $BalloonTipTitle
+                        Icon            = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($Script:LogoIcon)
+                        Text            = $BalloonTipIconText
+                        Visible         = $true
+                    }
+
+                    $script:notifyIcon.ShowBalloonTip($BalloonTipTime)
+                    Start-Sleep -Milliseconds ($BalloonTipTime)
+                    $script:notifyIcon.Dispose() }
+
+                ## Invoke a separate PowerShell process passing the script block as a command and associated parameters to display the balloon tip notification asynchronously
+                Try {
+                    Execute-Process -Path "$PSHOME\powershell.exe" -Parameters "-ExecutionPolicy Bypass -NoProfile -NoLogo -WindowStyle Hidden -Command & {$notifyIconScriptBlock} `'$BalloonTipText`' `'$BalloonTipTitle`' `'$BalloonTipIcon`' `'$BalloonTipTime`' `'$Script:LogoIcon`'" -NoWait -WindowStyle 'Hidden' -CreateNoWindow
+                }
+                Catch {
+                }
+            }
+            ## Otherwise create the balloontip icon synchronously
+            Else {
+                Write-Log -Message "Displaying balloon tip notification with message [$BalloonTipText]." -Source ${CmdletName}
+                ## Prepare Text - Cut it if longer than 63 chars
+                $BalloonTipIconText = [String]::Concat($BalloonTipTitle, ' - ', $BalloonTipText)
+                If ($BalloonTipIconText.Length -gt 63) {
+                    $BalloonTipIconText = [String]::Concat($BalloonTipIconText.Substring(0, 60), '...')
+                }
+                ## Create the BalloonTip
+                [Windows.Forms.ToolTipIcon]$BalloonTipIcon = $BalloonTipIcon
+                $script:notifyIcon = New-Object -TypeName 'System.Windows.Forms.NotifyIcon' -Property @{
+                    BalloonTipIcon  = $BalloonTipIcon
+                    BalloonTipText  = $BalloonTipText
+                    BalloonTipTitle = $BalloonTipTitle
+                    Icon            = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList ($Script:LogoIcon)
+                    Text            = $BalloonTipIconText
+                    Visible         = $true
+                }
+                ## Display the balloon tip notification
+                $script:notifyIcon.ShowBalloonTip($BalloonTipTime)
+            }
+        }
+        Else {
+            $toastAppID = $PackagingFrameworkName
+            $toastAppDisplayName = $PackagingFrameworkName
+            $toastLogo = $LogoSquare
+            [scriptblock]$toastScriptBlock  = {
+                Param(
+                    [Parameter(Mandatory = $true, Position = 0)]
+                    [ValidateNotNullOrEmpty()]
+                    [String]$BalloonTipText,
+                    [Parameter(Mandatory = $false, Position = 1)]
+                    [ValidateNotNullorEmpty()]
+                    [String]$BalloonTipTitle,                                 
+                    [Parameter(Mandatory = $false, Position = 2)]
+                    [ValidateNotNullorEmpty()]
+                    [String]$toastLogo,
+                    [Parameter(Mandatory = $false, Position = 3)]
+                    [ValidateNotNullorEmpty()]
+                    [String]$toastAppID,
+                    [Parameter(Mandatory = $false, Position = 4)]
+                    [ValidateNotNullorEmpty()]
+                    [String]$toastAppDisplayName
+                )
+            
+                # Check for required entries in registry for when using Powershell as application for the toast
+                # Register the AppID in the registry for use with the Action Center, if required
+                $regPathToastNotificationSettings = 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings'
+                $regPathToastApp = 'Registry::HKEY_CURRENT_USER\Software\Classes\AppUserModelId'
+
+                # Create the registry entries if they don't exist
+                If (-not (Test-Path -Path "$regPathToastNotificationSettings\$toastAppId")) {
+                    $null = New-Item -Path "$regPathToastNotificationSettings\$toastAppId" -Force
+                }
+                # Make sure the app used with the action center is enabled
+                If ((Get-ItemProperty -Path "$regPathToastNotificationSettings\$toastAppId" -Name 'ShowInActionCenter' -ErrorAction 'SilentlyContinue').ShowInActionCenter -ne '1') {
+                    $null = New-ItemProperty -Path "$regPathToastNotificationSettings\$toastAppId" -Name 'ShowInActionCenter' -Value 1 -PropertyType 'DWORD' -Force
+                }
+                If ((Get-ItemProperty -Path "$regPathToastNotificationSettings\$toastAppId" -Name 'Enabled' -ErrorAction 'SilentlyContinue').Enabled -ne '1') {
+                    $null = New-ItemProperty -Path "$regPathToastNotificationSettings\$toastAppId" -Name 'Enabled' -Value 1 -PropertyType 'DWORD' -Force
+                }
+                If (!(Get-ItemProperty -Path "$regPathToastNotificationSettings\$toastAppId" -Name 'SoundFile' -ErrorAction 'SilentlyContinue')) {
+                    $null = New-ItemProperty -Path "$regPathToastNotificationSettings\$toastAppId" -Name 'SoundFile' -PropertyType 'STRING' -Force
+                }
+                # Create the registry entries if they don't exist
+                If (-not (Test-Path -Path "$regPathToastApp\$toastAppId")) {
+                    $null = New-Item -Path "$regPathToastApp\$toastAppId" -Force
+                }
+                #If (!(Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'DisplayName' -ErrorAction 'SilentlyContinue')) {
+                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'DisplayName' -Value "$($toastAppDisplayName)" -PropertyType 'STRING' -Force
+                #}
+                #If ((Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'ShowInSettings' -ErrorAction 'SilentlyContinue').ShowInSettings -ne '0') {
+                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'ShowInSettings' -Value 0 -PropertyType 'DWORD' -Force
+                #}
+                #If (!(Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconUri' -ErrorAction 'SilentlyContinue')) {
+                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconUri' -Value $toastLogo -PropertyType 'ExpandString' -Force
+                #}
+                #If (!(Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconBackgroundColor' -ErrorAction 'SilentlyContinue')) {
+                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconBackgroundColor' -Value 0 -PropertyType 'ExpandString' -Force
+                #}                
+                
+                [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+                [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+                ## Gets the Template XML so we can manipulate the values
+                $Template = [Windows.UI.Notifications.ToastTemplateType]::ToastImageAndText01
+                [xml] $ToastTemplate = ([Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent($Template).GetXml())
+                [xml] $ToastTemplate = @"
+<toast launch="app-defined-string">
+    <visual>
+        <binding template="ToastImageAndText02">
+            <text id="1">$BalloonTipTitle</text>
+            <text id="2">$BalloonTipText</text>
+            <image id="1" src="file://$toastLogo" />  
+        </binding>
+    </visual>
+</toast>
+"@
+
+                $ToastXml = New-Object -TypeName Windows.Data.Xml.Dom.XmlDocument
+                $ToastXml.LoadXml($ToastTemplate.OuterXml)
+
+                $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($toastAppId)
+                $notifier.Show($toastXml)
+
+            }
+            # Display Toast Notification by calling the script blog
+            Write-Log -Message "Displaying toast notification with message [$BalloonTipText]." -Source ${CmdletName}
+            Invoke-Command -ScriptBlock $toastScriptBlock -ArgumentList $BalloonTipText, $BalloonTipTitle, $toastLogo, $toastAppID, $toastAppDisplayName
+        }
+    }
+    End {
+        Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+    }
 }
 #endregion
 
@@ -16119,7 +16305,7 @@ Function Test-Package {
 		#  Get the current date
 		[ValidateNotNullorEmpty()]
 		[Parameter(Mandatory = $True)]
-		[string]$path
+		[string]$Path
     )
  	Begin {
 		## Get the name of this function and write header
@@ -16208,9 +16394,9 @@ Function Test-Package {
                 [String]$PackageFolder = $file.Directory
                 $PackageFolderName = $PackageFolder.split("\")[-1]
                 $PackageName = Split-Path $PackageFolderName -Leaf
+                if (-not(Test-Path -path "$PackageFolder\$PackageName.ps1")) { continue } # skip not existing ones
                 Write-Log "Performing package check on [$PackageFolder\$PackageName]" -Source ${CmdletName}
                     
-                    #[string]$PackageLink="file://$PackageFolder\"
                     [string]$PackageLink="$PackageFolder\"
 
                     # Read PS1 file
@@ -18505,7 +18691,8 @@ Function Write-Log {
 			$ScriptSource = ''
 		}
 		
-
+        # Overwrite WroteHost parameter if DisableWriteHost is set
+        if ($Global:DisableWriteHost -ieq $true) { $WriteHost =$false }
 
 		## Create script block for generating CMTrace.exe compatible log entry
 		[scriptblock]$CMTraceLogString = {
@@ -18695,8 +18882,8 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA7qnPN+RQbsOgv
-# GOR9RrrKniu5egktlhzxYYPbGDW7WqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBK1y7dOXnGNhTH
+# Cqbq63zhqHLk8ut9efUguupNsiYGsKCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -18906,38 +19093,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAPmg7hYeeFC7H75uTAMdwUakmcOsaXwXwM
-# 68Ss0BUQaDANBgkqhkiG9w0BAQEFAASCAgBKTXR3tN+YvLZbpHQUb/NnIElZOZcL
-# Sb0zfp8kfPlAWGpa9UPmbqikn7eU5Z/bjJjEj+yMU2SJIGuuxvrWdHUXVHyMORfx
-# /3srQJjl+dbVJ68nJeVlRCdywIZMMXv9csSW4784yzCZ/TlXQDN2bsaMH8la7N0o
-# gSdgwP1TAsygC3DG51AZmlhNJJE41SdmkYTuyhflNWAISe2q5OO8SOHV7+j3BnoL
-# s6VtP1o3kd9d8iHkKiA3KbrrLmJRPDh6+1Nm4OuCTEbyG48dMIkVR3TjM7OcDuaB
-# 7/hU5rVlwJrYenebT/YRmgeb1Ovdxa3mgLD7iUy2/WuAPpZ+HWcAIjy5SNU4qxF0
-# jNAzrnCZ1QqsPDbF0bx+tlDOlxHtFEa40U2wbxBiRwy5mGMTiwKCOs0Q3GoFkOdC
-# a/hEkXL7VpkKmdHuXl34jccxfF8NsnU4cg6jY6KRHSg1pHEKK5i0YAfExW//L6fZ
-# TTQIQqZ8eIs/42NLfPjfuSAQpVyIRPWZpTNCLxzb3UeoVIgg2GxjroIaEpooZ7Tn
-# 6gz4r6eh03rWp/EZlupgaf3jaMAObbc/o20YFrMYq7c5mH7IBBu23eLbXG3uPSB5
-# s5tFsCsXzNCSyEQ3Rak0gJYszmlJrMHtBPjx65gmgqhGQSdhnV+3u9w6wHxeH2yU
-# vjgV3oE4tHmsa6GCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCB3eul/DW5z7Kj7qh6cMGESSZcanwYqePM2
+# 9duWHbKf7TANBgkqhkiG9w0BAQEFAASCAgBd086+mRNarX+UgSmAf8yBmL5nYqhe
+# VBfrUPYIRrS1WndPVsEqThptKzE0Lya9YIDCzv6FMhDsDZyKQUaI6X1BXWirbQEB
+# rkVfmkRJHL/0ucjxYbZXlXJ2AMREAThXk+PLmueYyPEqO6EBlrqmaENuFsLGgdO8
+# uHPDC0OyHzwpeYy+M5vEICVdhF1tOZ1wLoa+oQB3lU2wYP7+lxa9waDjo+0acoFD
+# c/8wqfVrkvStPYK4YhD/b5/WQlso4cS+zZoVYrENmc9x+tzm1vxbb2Ymcy/g+uMp
+# zDWYC5pyu7kVeiOoQblwg/8dvSGo5i5Ky0e0TzKlMgDAWvQGXPD61lhqmU1nxn4d
+# qY4IGgWQxwk9gseNOEvaEhJab/6FyKvhqDDsES9xyX19OYXMeJLevN/YlEAtrE6F
+# Dj72rKRV6DnpyqZbok2FK/3Z/Yyugu0TknRKnLoGeRGKagka33R9KnqrPquWJVWf
+# nZlz7IKO1CxhlS/2LEc11DEOqKw6/1/VIa01koQo00fsiNmA5HhJCU9Er65Ce/Xh
+# H+MA8R7vPFfILlROoZ5TVv/eTX0sBuzpvWj05/yEqKIlfzbXVjbQzvo+82o+Ev6A
+# yvTu7kPIVeOv9N1Gpt5twQsfMiIZBGUj6Ns7vomj3mBDtBevc+4xajU11XzEB72j
+# KAM92tgAfXeV6qGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAzMDcxMDI3NTVaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAzMTYxMzU4NDNaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDDgqIXIhqCOv8wdPMhKVdJPChXCU/xHw1t4xDi8tqXr28HZxO36
-# dB35Y4CHNyhVo/owgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDCq7ouZNVfgp+RYyeLE1s5HpQoL9no/X46VWks6I+OIhQMIByqH
+# 4+jQyalP6QysGXMwgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# vUO8ks1oUDAWnnldJ+mMJNzze93v/VAa1mK6nolrCqucX1jJ/VztWjuzkHkqmiF7
-# dXcnKLKSuRDTRHRai2iKsAd1PhsM8GRSWZSIwZg+bybCNTqqQLUjoMBEF1pXikjJ
-# p9Cof1SGaoAftdp+P4UxEFVO9bAU/75QbyyItfoM2Js6sgsKJEAphlUAl63zSbrn
-# WDn6jdpRyKzq4BU8KwLTgAqnxbr04MfRU8pCUTtl5G+z96uBC+nUarn2f3p9GKvp
-# TL6qtRyaMstdPFMPca4rSp5zcLEIL/AGosTwIpUGkWe1qPXvgr7hMvoRtd9JS4Qp
-# rqxt0Qv3SEKGyAL8f//itSRuuwuj5mEoy7UnjfCnlHW0ZufOFOuIQPP83gUZqNRN
-# e657sfO64ARSL+5erG6gUxh47m48np0HvofPeyVmFjsXBwC/m3jOi38i8+RD3WSJ
-# SpVLuX+Yn31AJ2K4KTKwIUHeR3qQazrYbFqIlZQBiI4k6C4vlX5lUBZ3zTzNo3f/
-# 1HO2UlgXz6wRT5marEKAQ2B1LNymTT0VtE5DY9SfSMA2Jb30fSg890gNDDQs00nn
-# lRbYSwiI90bsoLkYTSaSVLp5PQwWdf1dc/G2Apq4wyJmw0noYnyVdxZVxE3my0GZ
-# yF/9B9GzZQu6hLMPqgkbgE137dlyIi3LyIv2HHGePhU=
+# eCzMJG4cj6CGKSfQzNhfP5cBi6ZOkg4r/yACSC6o4qcG/W5z0O5EBtz3PfAxrugu
+# MVmyuil4X/RuQ9eX40y2A57J4Gkk/3kq6vLfFD6uyyENiZS/Wgk0Tyj9WI4sjKtF
+# W2yygbHTkxadjVPlgsU+V+AHGZc6SJWjparfsb318+rdS94LQcYI73ETZZcg4HAD
+# /YGA9vTRR4aR8JctF4/1r788A4j8/79Zc9Gfm1RVuF5buOU97KOvqmupYnwOi9cA
+# 5cA8/K3mY2vBleQE4x7CgEaI0lNVAGyuwtwX+2JZ7RRQrj92sKWZbtZZxM59YAyn
+# wuj+9MLlCB4RzykgLYMA5qUaXtkxc2NUde0F0W/pYQKaA/AOG1t5blUgznwftntL
+# GS3VEHfAzi0/rc8E4hD8A3vjszl2xW/3eZkloyTQ5+BdYTd4ztMSGOzfcTKk+Uzh
+# 75jALDerlz+PngdYkuNJyKw7wVajvR4JD5Lv5iuosBZ9OZFcwe+T2d8YrVT1ODwp
+# 38S/qfkS+WfTpo/chpAdbj/2jgFHdc3pn4Bnfhi5jDPVEK1nELeaUBbbSdwXn4ag
+# k2GuN5oiJn8Wf1N3mtbMBMQWm4HPcHbncIOK1rqA/I27MMuzRD/ht/e5i/i4f+6j
+# Na5/dHS1Jz3wD8r4Eaqh/KRgasofmdnGJIYKDxdrfRM=
 # SIG # End signature block

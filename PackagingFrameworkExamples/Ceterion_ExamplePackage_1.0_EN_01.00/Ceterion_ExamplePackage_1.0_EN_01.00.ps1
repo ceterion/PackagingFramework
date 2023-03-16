@@ -107,6 +107,25 @@ Try {
         Write-Log "IsAtMostWin2019=$IsAtMostWin2019"
         Write-Log "IsAtMostWin2022=$IsAtMostWin2022"
 
+        # Office C2R Details
+        Write-Log "### Office C2R ###" 
+        Write-Log "OfficeVersion=$OfficeVersion"
+        Write-Log "OfficeVersionMajor=$OfficeVersionMajor"
+        Write-Log "OfficeVersionMinor=$OfficeVersionMinor"
+        Write-Log "OfficeVersionBuild=$OfficeVersionBuild"
+        Write-Log "OfficeVersionRevision=$OfficeVersionRevision"
+        Write-Log "OfficeBitness=$OfficeBitness"
+        Write-Log "OfficeCDNBaseURL=$OfficeCDNBaseURL"
+        Write-Log "OfficeChannel=$OfficeChannel"
+    
+        # OS Version Deatils
+        Write-Log "### OSVersion Deatils ###"
+        Write-Log "OSVersion=$OSVersion"
+        Write-Log "OSVersionMajor=$OSVersionMajor"
+        Write-Log "OSVersionMinor=$OSVersionMinor"
+        Write-Log "OSVersionBuild=$OSVersionBuild"
+        Write-Log "OSVersionRevision=$OSVersionRevision"
+
         # Various Get-Parameter examples
         Get-Parameter 'TestParam'
         Get-Parameter 'TestParamBool'
