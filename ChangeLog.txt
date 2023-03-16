@@ -360,7 +360,7 @@ General:
 New variable OfficeVersion, OfficeBitness, OfficeCDNBaseURL & OfficeChannel to get details from Offlice 365 C2R installations
 New variable OSVersionMajor, OSVersionMinor & OSVersionBuild (as a supplement to OSVersion)
 The config value configShowBalloonNotifications has changed form data type string to boolean and from script to global scope. This allows you to overwrite this config value at package runtime when needed via $Global:configShowBalloonNotifications=$false or $true
-Addition registry brading at HKLM\Software\PackagingFramework with information aboput the last package, like LastPackageName, LastPackageExitCode, LastPackageDate, LastPackageDeploymentType, LastPackageGUID
+Addition registry branding at HKLM\Software\PackagingFramework with information aboput the last package, like LastPackageName, LastPackageExitCode, LastPackageDate, LastPackageDeploymentType, LastPackageGUID
 
 Updated Cmdlets:
 ----------------
