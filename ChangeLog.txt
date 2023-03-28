@@ -365,7 +365,16 @@ Addition registry branding at HKLM\Software\PackagingFramework with information 
 Updated Cmdlets:
 ----------------
 Remove-FirewallRuleFromJson The default parameters can now overwritten via $Global:DefaultFirewallRuleProgram<ParameterName> variables like in Add-FirewallRuleFromJsoncmdlet 
-Show-BalloonTip             Has now support for toast notification. Win 10 and newer only, fallback to BalloonTip on older OS versions. Behavior can be controlled via InstallationUIShowBalloonNotificationsUseToast parameter in the package.json file and via cmdlet -UseToast parameter. Customizable PackagingFrameworkLogo.png logo file.
+Show-BalloonTip             Has now support for toast notification. Win 10 and newer only, fallback to BalloonTip on older OS versions. Behavior can be controlled via InstallationUIShowBalloonNotificationsUseToast parameter in the package.json file and via cmdlet -UseToast parameter.
 Test-Package                The path parameter can now be used to specify an individual package, previously only a parent folder was supported that included multiple packages.
 
+Version 1.0.17.0
+################
+
+Updated Cmdlets:
+----------------
+Test-DSMPackage             The missing "NetInstall" subkey has been added
+Add-FirewallRuleFromJson    Added expand variable support for simple syntax mode
+Initialize-Script           Can now called from a PowerShell profile script without errors
+Show-BalloonTip             Toast notification improved, support for Info, Warning & Error icons similar to balloon tip mode
 

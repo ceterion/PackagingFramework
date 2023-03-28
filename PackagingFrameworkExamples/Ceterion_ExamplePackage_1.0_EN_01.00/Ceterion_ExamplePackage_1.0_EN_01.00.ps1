@@ -248,6 +248,18 @@ Try {
 
         # Display a custom ballon tip
         Show-BalloonTip -BalloonTipText 'My custom ballon tip' -BalloonTipTitle 'My Package'
+        Start-Sleep -Seconds 2
+
+        # Display Toast Notification with Custom Text & Icon
+        Start-Sleep -Seconds 2
+        Show-BalloonTip -BalloonTipText "Toast Notification with Info Icon" -BalloonTipTitle "Toast Notification" -BalloonTipIcon Info -BalloonTipTime 2000 -UseToast:$true
+        Start-Sleep -Seconds 2
+        Show-BalloonTip -BalloonTipText "Toast Notification with Warning Icon" -BalloonTipTitle "Toast Notification" -BalloonTipIcon Warning -BalloonTipTime 2000 -UseToast:$true
+        Start-Sleep -Seconds 2
+        Show-BalloonTip -BalloonTipText "Toast Notification with Error Icon" -BalloonTipTitle "Toast Notification" -BalloonTipIcon Error -BalloonTipTime 2000 -UseToast:$true
+        Start-Sleep -Seconds 2
+        Show-BalloonTip -BalloonTipText "Toast Notification with None Icon" -BalloonTipTitle "Toast Notification" -BalloonTipIcon None -BalloonTipTime 2000 -UseToast:$true
+        Start-Sleep -Seconds 2
 
 
     #endregion GUI

@@ -1,4 +1,4 @@
-<#
+<#IN
 .SYNOPSIS
 	This modul contains the functions and logic engine for the Packaging Framework.
 .DESCRIPTION
@@ -587,6 +587,10 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                     # Process each permission param from json in simple string syntax (Only file or folder or registry path)
                     if ($FWRule -is [String]) {
                         Write-Log "Process firewall rule in string syntax" -DebugMessage
+                            
+                        # Expand environment variable and powershellvariables in value
+                        If(![string]::IsNullOrEmpty($FWRule)) { $FWRule = Expand-Variable -InputString $FWRule -VarType all }
+
                         $FWHash = @{}
                         $FWHash.Add('Program',$FWRule) 
                     }
@@ -5084,8 +5088,6 @@ Function Initialize-Script {
     ## Variables: Module Dependency Files (incl. if exists check)
     [string]$Script:LogoIcon = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.ico'
     [string]$Script:LogoBanner = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.png'
-    [string]$Script:LogoSquare = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFrameworkLogo.png'
-    If (-not(Test-Path $Script:LogoSquare)) {$Script:LogoSquare = $Script:LogoBanner} # Fallback to banner logo if square logo is not found
     [string]$ModuleJsonFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.json'  # not global intentionally, only the json object will be clobal, but not the file !
     [string]$Script:CustomTypesFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.cs'
     If (-not (Test-Path -LiteralPath $Script:LogoIcon -PathType 'Leaf')) { Throw 'Packaging Framework icon file not found.' }
@@ -5118,14 +5120,19 @@ Function Initialize-Script {
 	    }
     }
 
-
-
     ## Get package info
     #if(-not($Global:PackageFileName)) { [string]$Global:PackageFileName = [IO.Path]::GetFileNameWithoutExtension($MyInvocation.PSCommandPath)}
     #if(-not($Global:PackageName)) { [string]$Global:PackageName = [IO.Path]::GetFileNameWithoutExtension($MyInvocation.PSCommandPath)}
     [string]$Global:PackageFileName = [IO.Path]::GetFileNameWithoutExtension($MyInvocation.PSCommandPath)
     [string]$Global:PackageName = [IO.Path]::GetFileNameWithoutExtension($MyInvocation.PSCommandPath)
-    
+
+    # Clear PackageName & PackageFileName if Initialize-Script is called form a Powershell profile script and not from a package
+    If ($PackageName.EndsWith("_profile")) { 
+        Write-log "Initialize-Script was called from a profile script"
+        [string]$Global:PackageFileName = $null
+        [string]$Global:PackageName = $null
+    }
+
     # If package name is not defined we assumed module is used outside a package and because of this we disable the logging
     if(!$PackageName) {$Global:DisableLogging = $true}
 
@@ -12111,7 +12118,7 @@ Function Show-BalloonTip {
 .EXAMPLE
     Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText 'Installation Started' -BalloonTipTitle 'Application Name' -BalloonTipTime 1000
 .NOTES
-    For Windows 10 OS and above a Toast notification is displayed in place of a balloon tip. The toast notification does not use the BalloonTipIcon if specified.
+    For Windows 10 OS and above a Toast notification is displayed in place of a balloon tip.
 .LINK
     https://psappdeploytoolkit.com
 #>
@@ -12234,9 +12241,115 @@ Function Show-BalloonTip {
             }
         }
         Else {
+
+            # Get icon helper function
+            function Get-Icon
+            {
+                Param([string]$SourceFile,[string]$OutFile,[int]$Size=128,[string]$Type="png",[int]$Index)
+	            Begin {	
+	                $code = '
+                        using System;
+                        using System.Drawing;
+                        using System.Runtime.InteropServices;
+	                    using System.IO;
+    
+                        namespace System {
+                            public class IconExtractor {
+                                public static Icon Extract(string file, int number, bool largeIcon) {
+                                    IntPtr large;
+                                    IntPtr small;
+                                    ExtractIconEx(file, number, out large, out small, 1);
+                                    try  { return Icon.FromHandle(largeIcon ? large : small); }
+                                    catch  { return null; }
+                                }
+                                [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+                                private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
+                            }
+                        }
+	
+	                    public class PngIconConverter {
+                            public static bool Convert(System.IO.Stream input_stream, System.IO.Stream output_stream, int size, bool keep_aspect_ratio = false) {
+                                System.Drawing.Bitmap input_bit = (System.Drawing.Bitmap)System.Drawing.Bitmap.FromStream(input_stream);
+                                if (input_bit != null) {
+                                    int width, height;
+                                    if (keep_aspect_ratio) {
+                                        width = size;
+                                        height = input_bit.Height / input_bit.Width * size;
+                                    }
+                                    else {
+                                        width = height = size;
+                                    }
+                                    System.Drawing.Bitmap new_bit = new System.Drawing.Bitmap(input_bit, new System.Drawing.Size(width, height));
+                                    if (new_bit != null) {
+                                        System.IO.MemoryStream mem_data = new System.IO.MemoryStream();
+                                        new_bit.Save(mem_data, System.Drawing.Imaging.ImageFormat.Png);
+                                        System.IO.BinaryWriter icon_writer = new System.IO.BinaryWriter(output_stream);
+                                        if (output_stream != null && icon_writer != null) {
+                                            icon_writer.Write((byte)0);
+                                            icon_writer.Write((byte)0);
+                                            icon_writer.Write((short)1);
+                                            icon_writer.Write((short)1);
+                                            icon_writer.Write((byte)width);
+                                            icon_writer.Write((byte)height);
+                                            icon_writer.Write((byte)0);
+                                            icon_writer.Write((byte)0);
+                                            icon_writer.Write((short)0);
+                                            icon_writer.Write((short)32);
+                                            icon_writer.Write((int)mem_data.Length);
+                                            icon_writer.Write((int)(6 + 16));
+						                    icon_writer.Write(mem_data.ToArray());
+						                    icon_writer.Flush();
+                                            return true;
+                                        }
+                                    }
+						            return false;
+					            }
+					            return false;
+				            }	
+				            public static bool Convert(string input_image, string output_icon, int size, bool keep_aspect_ratio = false) {
+					            System.IO.FileStream input_stream = new System.IO.FileStream(input_image, System.IO.FileMode.Open);
+					            System.IO.FileStream output_stream = new System.IO.FileStream(output_icon, System.IO.FileMode.OpenOrCreate);
+					            bool result = Convert(input_stream, output_stream, size, keep_aspect_ratio);
+					            input_stream.Close();
+					            output_stream.Close();
+					            return result;
+				            }
+			            }
+                    '
+		            Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing, System.IO -ErrorAction SilentlyContinue
+                }
+                Process {
+		            $tempfile = "$env:temp\tempicon.png"
+		            $basename = [io.path]::GetFileNameWithoutExtension($SourceFile)
+		            $icon = [System.IconExtractor]::Extract($SourceFile, $index, $true)
+		            if ($icon -ne $null) {
+			            $filepath = "$OutFile"
+			            $bmp = $icon.ToBitmap()
+			            try { 
+				            $bmp.Save($tempfile,"png")
+				            [PngIconConverter]::Convert($tempfile,$outfile,$size,$true) | Out-Null
+				            Remove-Item -Path $tempfile -ErrorAction SilentlyContinue				
+				            $bmp.Dispose()
+				            $icon.Dispose()				
+			            }
+			            catch {
+				            throw "Failed to get icon"
+			            }
+		            }
+                }
+            }
+
+            # Extract large custom icon file 
+            if ($BalloonTipIcon -ieq 'Error') { Get-Icon -SourceFile "$env:windir\System32\imageres.dll" -OutFile "$env:TEMP\Toast.png" -Size 128 -Type png -Index 93 }
+            elseif ($BalloonTipIcon -ieq 'Info') { Get-Icon -SourceFile "$env:windir\System32\imageres.dll" -OutFile "$env:TEMP\Toast.png" -Size 128 -Type png -Index 76 }
+            elseif ($BalloonTipIcon -ieq 'None') { Get-Icon -SourceFile "$env:windir\System32\imageres.dll" -OutFile "$env:TEMP\Toast.png" -Size 128 -Type png -Index 1 }
+            elseif ($BalloonTipIcon -ieq 'Warning') { Get-Icon -SourceFile "$env:windir\System32\imageres.dll" -OutFile "$env:TEMP\Toast.png" -Size 128 -Type png -Index 79 }
+            
             $toastAppID = $PackagingFrameworkName
             $toastAppDisplayName = $PackagingFrameworkName
-            $toastLogo = $LogoSquare
+            $toastLogo = $LogoIcon             # We use the small Package Framework icon as Logo for the toast notification title bar
+            $toastLogoLarge = "$env:TEMP\Toast.png"  # Large icon inside the toast notifcation
+
             [scriptblock]$toastScriptBlock  = {
                 Param(
                     [Parameter(Mandatory = $true, Position = 0)]
@@ -12279,18 +12392,10 @@ Function Show-BalloonTip {
                 If (-not (Test-Path -Path "$regPathToastApp\$toastAppId")) {
                     $null = New-Item -Path "$regPathToastApp\$toastAppId" -Force
                 }
-                #If (!(Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'DisplayName' -ErrorAction 'SilentlyContinue')) {
-                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'DisplayName' -Value "$($toastAppDisplayName)" -PropertyType 'STRING' -Force
-                #}
-                #If ((Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'ShowInSettings' -ErrorAction 'SilentlyContinue').ShowInSettings -ne '0') {
-                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'ShowInSettings' -Value 0 -PropertyType 'DWORD' -Force
-                #}
-                #If (!(Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconUri' -ErrorAction 'SilentlyContinue')) {
-                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconUri' -Value $toastLogo -PropertyType 'ExpandString' -Force
-                #}
-                #If (!(Get-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconBackgroundColor' -ErrorAction 'SilentlyContinue')) {
-                    $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconBackgroundColor' -Value 0 -PropertyType 'ExpandString' -Force
-                #}                
+                $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'DisplayName' -Value "$($toastAppDisplayName)" -PropertyType 'STRING' -Force
+                $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'ShowInSettings' -Value 0 -PropertyType 'DWORD' -Force
+                $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconUri' -Value $toastLogo -PropertyType 'ExpandString' -Force
+                $null = New-ItemProperty -Path "$regPathToastApp\$toastAppId" -Name 'IconBackgroundColor' -Value 0 -PropertyType 'ExpandString' -Force
                 
                 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
                 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
@@ -12304,7 +12409,7 @@ Function Show-BalloonTip {
         <binding template="ToastImageAndText02">
             <text id="1">$BalloonTipTitle</text>
             <text id="2">$BalloonTipText</text>
-            <image id="1" src="file://$toastLogo" />  
+            <image id="1" src="file://$toastLogoLarge" />  
         </binding>
     </visual>
 </toast>
@@ -12318,7 +12423,8 @@ Function Show-BalloonTip {
 
             }
             # Display Toast Notification by calling the script blog
-            Write-Log -Message "Displaying toast notification with message [$BalloonTipText]." -Source ${CmdletName}
+            Write-Log -Message "Displaying toast notification with message [$BalloonTipText] and icon [$BalloonTipIcon]." -Source ${CmdletName}
+            
             Invoke-Command -ScriptBlock $toastScriptBlock -ArgumentList $BalloonTipText, $BalloonTipTitle, $toastLogo, $toastAppID, $toastAppDisplayName
         }
     }
@@ -15900,7 +16006,7 @@ Function Test-DSMPackage {
 
             # Vars            
             $Found = $null
-            if ($Is64BitProcess) { $DSMInstalledAppsRegKeyPath = "HKLM:\SOFTWARE\WOW6432Node\NetSupport\Installed Apps" } else { $DSMInstalledAppsRegKeyPath = "HKLM:\SOFTWARE\NetSupport\Installed Apps" }
+            if ($Is64BitProcess) { $DSMInstalledAppsRegKeyPath = "HKLM:\SOFTWARE\WOW6432Node\NetSupport\NetInstall\Installed Apps" } else { $DSMInstalledAppsRegKeyPath = "HKLM:\SOFTWARE\NetSupport\NetInstall\Installed Apps" }
             
             # Check for DSM package GUIDs
             foreach ($Item in $GUID)
@@ -17522,7 +17628,7 @@ Function Update-FolderPermission {
 				Catch [System.Management.Automation.MethodInvocationException] {
 					Try {
                         $Global:Error.Remove($Global:Error[0])
-                        Write-log "ErrorCount InFunction after Remove $($global:Error.count)"
+                        Write-log "ErrorCount InFunction after Remove $($global:Error.count)" -DebugMessage
 						$AccountSID = New-Object System.Security.Principal.SecurityIdentifier($Trustee)
 						$NTAccountName = $AccountSID.Translate([System.Security.Principal.NTAccount])
 
@@ -18882,8 +18988,8 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBK1y7dOXnGNhTH
-# Cqbq63zhqHLk8ut9efUguupNsiYGsKCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCpMQbSZTMbRMHt
+# EdE8gNshthGWnxjYRseHU2ZRb/PKvKCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -19093,38 +19199,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCB3eul/DW5z7Kj7qh6cMGESSZcanwYqePM2
-# 9duWHbKf7TANBgkqhkiG9w0BAQEFAASCAgBd086+mRNarX+UgSmAf8yBmL5nYqhe
-# VBfrUPYIRrS1WndPVsEqThptKzE0Lya9YIDCzv6FMhDsDZyKQUaI6X1BXWirbQEB
-# rkVfmkRJHL/0ucjxYbZXlXJ2AMREAThXk+PLmueYyPEqO6EBlrqmaENuFsLGgdO8
-# uHPDC0OyHzwpeYy+M5vEICVdhF1tOZ1wLoa+oQB3lU2wYP7+lxa9waDjo+0acoFD
-# c/8wqfVrkvStPYK4YhD/b5/WQlso4cS+zZoVYrENmc9x+tzm1vxbb2Ymcy/g+uMp
-# zDWYC5pyu7kVeiOoQblwg/8dvSGo5i5Ky0e0TzKlMgDAWvQGXPD61lhqmU1nxn4d
-# qY4IGgWQxwk9gseNOEvaEhJab/6FyKvhqDDsES9xyX19OYXMeJLevN/YlEAtrE6F
-# Dj72rKRV6DnpyqZbok2FK/3Z/Yyugu0TknRKnLoGeRGKagka33R9KnqrPquWJVWf
-# nZlz7IKO1CxhlS/2LEc11DEOqKw6/1/VIa01koQo00fsiNmA5HhJCU9Er65Ce/Xh
-# H+MA8R7vPFfILlROoZ5TVv/eTX0sBuzpvWj05/yEqKIlfzbXVjbQzvo+82o+Ev6A
-# yvTu7kPIVeOv9N1Gpt5twQsfMiIZBGUj6Ns7vomj3mBDtBevc+4xajU11XzEB72j
-# KAM92tgAfXeV6qGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAUelOSuuKZUbB+5tjz2QCcuEKfDct9Opf0
+# PzIRBQAiuTANBgkqhkiG9w0BAQEFAASCAgCJBJV218tOMPCdVYfLKCR5qhQfTpUr
+# KeshGvAFUeoe1W+RZT3qBtw2xdvz53dB90N3pQVsN79wX8WpZhx9Pw8KTaLoK/Iy
+# s2RUuzK/EPfhW2P2k8CrR/F05vffjvKro/9gBEA8EpnWdolMfr+lvWvJKpR01Xhy
+# /SAXHkx5f5uIZYfKMVQXEs/t/nwwVqIowrjsCtbc1Ox8hCL6fwgeLIn1CTXfnDJB
+# NaJOWnrZeUTlBciWmxlsPQa9cxohavxkIcDK+QI7tSUdNw16FQQQ6TU/TThqjJZo
+# xP2OBgOQky0m1o5J+Z8GKlSEchWy1VcH0+gnFXy65v210Wxk2vPYhrwLmr3xIqMp
+# lmhei9EZpAP4gO5M94F7EfjWs4JAnDA03SYZ+Ca5Yf7Upwy6lZnuXcWhrZsxzjTK
+# JQGUVZC8c8fIygEZVUCimBEmRG0PqrxBhGwnah7hTwR3MxV0CXyUZSYTTzZl3Hqa
+# q+Y+icmc13pfbFFmyeHBv6lE/5NwCU36C2JWc7nGda0Fp9uaypwyoQcmSev45OJT
+# AiQExVY9b5Ofn/MzrBl/jdO/8TqLeNG/NPNDe7Bnze/JnRFKRn9ThPvHqxG3AWL+
+# 0E8NyFpj+XD7zDcZTGEIQsnyAppCwtPV1mY5STLV79h6NqFgPh2M5HhR/i81SK79
+# T6LZ5a9kxUKQ+6GCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAzMTYxMzU4NDNaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAzMjgxMjI1MDNaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDCq7ouZNVfgp+RYyeLE1s5HpQoL9no/X46VWks6I+OIhQMIByqH
-# 4+jQyalP6QysGXMwgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDA7hlHw00klq6oH0MqT7BnDBXQ3aZ48sJm0+jvtflLsFQtmCZfk
+# Y2LN4Cp5oLv5ChswgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# eCzMJG4cj6CGKSfQzNhfP5cBi6ZOkg4r/yACSC6o4qcG/W5z0O5EBtz3PfAxrugu
-# MVmyuil4X/RuQ9eX40y2A57J4Gkk/3kq6vLfFD6uyyENiZS/Wgk0Tyj9WI4sjKtF
-# W2yygbHTkxadjVPlgsU+V+AHGZc6SJWjparfsb318+rdS94LQcYI73ETZZcg4HAD
-# /YGA9vTRR4aR8JctF4/1r788A4j8/79Zc9Gfm1RVuF5buOU97KOvqmupYnwOi9cA
-# 5cA8/K3mY2vBleQE4x7CgEaI0lNVAGyuwtwX+2JZ7RRQrj92sKWZbtZZxM59YAyn
-# wuj+9MLlCB4RzykgLYMA5qUaXtkxc2NUde0F0W/pYQKaA/AOG1t5blUgznwftntL
-# GS3VEHfAzi0/rc8E4hD8A3vjszl2xW/3eZkloyTQ5+BdYTd4ztMSGOzfcTKk+Uzh
-# 75jALDerlz+PngdYkuNJyKw7wVajvR4JD5Lv5iuosBZ9OZFcwe+T2d8YrVT1ODwp
-# 38S/qfkS+WfTpo/chpAdbj/2jgFHdc3pn4Bnfhi5jDPVEK1nELeaUBbbSdwXn4ag
-# k2GuN5oiJn8Wf1N3mtbMBMQWm4HPcHbncIOK1rqA/I27MMuzRD/ht/e5i/i4f+6j
-# Na5/dHS1Jz3wD8r4Eaqh/KRgasofmdnGJIYKDxdrfRM=
+# ZwWQoMX23k4PaYWantvssb61C3PzZ9SfF2UpPGnB94MLi4EGpJJtrCfxLx9cdpar
+# B9Ji7UAS7tEyR6JFItQxQPt//UL3fmz6rdLhOHRZmYqPT49y0Y6q9LAnZE961kLI
+# VJ3+kpuyJ0MtpD2BvywL7fBQRAClGVooUzDP2vE1FVXuNz1h2DocCHZxYBlqD29u
+# 9O0uaGrlT7cRLRb+asYTHnzEgbcyd0JU81tlL9TUJz2kRV3eNhMngAfVStAxc5Ja
+# Q2GgPQU2zRg/JLf4DwtMOvCgPR6Y3vNAQHDcsZPv+GsbI1wGFCuQPo3vTDM3it3V
+# l80O94chuB6wQfEWefDdc60POC4A/LGtjBJ1WTOd+ZVGWiaia82gUIFZ1QjaU1Y/
+# JWZmE/wuAEntAL7/PcCgPADn4ZpV5ab45Zn54zkf8VMoF7/XR4Fiq9BSRO4jLje1
+# Dn9rso2YDb4IfWtjTAfMcTqxKLPJIZ87jegaBglNvMun+8gPur1/0RruwXioJew/
+# +qyhA5+YTgJny+ekknono1PZen9oYfEvuZLmS3nIBnRVFQeWm7K+vQtbbx9SttN1
+# OrI8qYPoUO6lyDysgPttrM5Vdgq4a21fj/draQtB0EzcNhNQfuNxPN1QpjJFSImh
+# 6dAkLTA30Y/l2SWq6ZW3EL5cN6/9TlsGZfpGR9kxtjk=
 # SIG # End signature block
