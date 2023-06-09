@@ -1,4 +1,4 @@
-<#IN
+<#
 .SYNOPSIS
 	This modul contains the functions and logic engine for the Packaging Framework.
 .DESCRIPTION
@@ -69,13 +69,13 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
     .PARAMETER ContinueOnError
 	    Continue if an error is encountered. Default: $false.
     .EXAMPLE
-	    Add-AddRemovePrograms -Name 'My custom app' -DisplayVersion '1.0.0.0' -Vendor 'Contoso Inc.'
+	    Add-AddRemovePrograms -Name 'My custom app' -DisplayVersion '1.0.0.0' -Publisher 'Contoso Inc.'
 	    Set a Add/Remove Programs registry entry for a custom app
     .EXAMPLE
-	    Add-AddRemovePrograms -Name 'My second custom app' -DisplayVersion '2.0.0.0' -Vendor 'Contoso Inc.' -NoModify -NoRepair -NoRemove
+	    Add-AddRemovePrograms -Name 'My second custom app' -DisplayVersion '2.0.0.0' -Publisher 'Contoso Inc.' -NoModify -NoRepair -NoRemove
 	    Set a Add/Remove Programs registry entry for a custom app with some optional parameters
     .EXAMPLE
-	    Add-AddRemovePrograms -Name 'My third custom app' -DisplayVersion '3.0.0.0' -Vendor 'Contoso Inc.' -UninstallString 'C:\MyApp\Uninstall.exe' - QuietUninstallString 'C:\MyApp\Uninstall.exe /Silent'
+	    Add-AddRemovePrograms -Name 'My third custom app' -DisplayVersion '3.0.0.0' -Publisher 'Contoso Inc.' -UninstallString 'C:\MyApp\Uninstall.exe' - QuietUninstallString 'C:\MyApp\Uninstall.exe /Silent'
         Set a Add/Remove Programs registry entry for a custom app with uninstall string
     .NOTES
 	    Created by ceterion AG
@@ -1222,17 +1222,29 @@ Function Add-PermissionFromJson {
                     # Expand environment variable and powershell variables in value
                     If(![string]::IsNullOrEmpty($Permission)) { $Permission = Expand-Variable -InputString $Permission -VarType all}
 
+                    # Overwrite built-in defaults with global defaults if global default exists as global variable
+                    if ($Global:DefaultPermissionAction) { $DefaultPermissionAction = $Global:DefaultPermissionAction } else { $DefaultPermissionAction = 'Add' }
+                    if ($Global:DefaultPermissionTrustee) { $DefaultPermissionTrustee = $Global:DefaultPermissionTrustee } else { $DefaultPermissionTrustee = 'S-1-5-11' }
+                    if ($Global:DefaultPermissionRegistryPermission) { $DefaultPermissionRegistryPermission = $Global:DefaultPermissionRegistryPermission } else { $DefaultPermissionRegistryPermission = 'WriteKey' }
+                    if ($Global:DefaultPermissionFileSystemPermission) { $DefaultPermissionFileSystemPermission = $Global:DefaultPermissionFileSystemPermission } else { $DefaultPermissionFileSystemPermission = 'Modify' }
+                    if ($Global:DefaultPermissionRegistryPermissionSet) { $DefaultPermissionRegistryPermissionSet = $Global:DefaultPermissionRegistryPermissionSet } else { <#nothing#> }
+                    if ($Global:DefaultPermissionFileSystemPermissionSet) { $DefaultPermissionFileSystemPermissionSet = $Global:DefaultPermissionFileSystemPermissionSet } else { <#nothing#> }
+
                     # Filesystem vs Registry
                     if ( ($Permission.StartsWith('HKLM',"CurrentCultureIgnoreCase")) -or ($Permission.StartsWith('HKCU',"CurrentCultureIgnoreCase"))  -or ($Permission.StartsWith('HKEY',"CurrentCultureIgnoreCase")) ) {
                         ### Registry ###
-                        
+
                         # Default built-in values if only the path is specified
                         $InheritanceHash.Add('Action','Disable') 
                         $InheritanceHash.Add('Path',$Permission) 
                         
-                        $PermissionHash.Add('Action','Add') 
-                        $PermissionHash.Add('Trustee','S-1-5-11') 
-                        $PermissionHash.Add('Permissions','WriteKey') 
+                        if ($DefaultPermissionRegistryPermissionSet){
+                            $PermissionHash.Add('PermissionSet',$DefaultPermissionRegistryPermissionSet) 
+                        } else {
+                            $PermissionHash.Add('Trustee',"$DefaultPermissionTrustee") 
+                            $PermissionHash.Add('Permissions',"$DefaultPermissionRegistryPermission") 
+                        }
+                        $PermissionHash.Add('Action',"$DefaultPermissionAction") 
                         $PermissionHash.Add('Key',$Permission) 
                         
                         # Execute cmdlets with hash params
@@ -1244,9 +1256,14 @@ Function Add-PermissionFromJson {
 
                         # Default built-in values if only the path is specified
                         $InheritanceHash.Add('Action','Disable') 
-                        $PermissionHash.Add('Action','Add') 
-                        $PermissionHash.Add('Trustee','S-1-5-11') 
-                        $PermissionHash.Add('Permissions','Modify') 
+
+                        if ($DefaultPermissionFileSystemPermissionSet){
+                            $PermissionHash.Add('PermissionSet',$DefaultPermissionFileSystemPermissionSet) 
+                        } else {
+                            $PermissionHash.Add('Trustee',"$DefaultPermissionTrustee") 
+                            $PermissionHash.Add('Permissions',"$DefaultPermissionFileSystemPermission") 
+                        }
+                        $PermissionHash.Add('Action',"$DefaultPermissionAction") 
 
                         # Check if string is a folder path or a file path
                         if (Test-Path -Path $Permission -PathType Container) {
@@ -1267,7 +1284,10 @@ Function Add-PermissionFromJson {
                         # Execute cmdlets with hash params
                         Set-Inheritance @InheritanceHash
                         if ($PermissionHash.Filename) {
+
                             Update-FilePermission @PermissionHash
+
+
                         } else {
                             Update-FolderPermission @PermissionHash
                         }
@@ -5716,6 +5736,8 @@ Function Install-DeployPackageService {
     Switch parameter that indicates that the service should be uninstalled 
 .PARAMETER ExecutePackage
     Switch parameter that indicates that the service is executed. This is an internal parameter use by the service and should not be used directly.
+.PARAMETER ServiceCredential
+    Specifies the username and password to run the service as a credential object. If not specified integrated authentication is used
 .PARAMETER ServiceFolder
     Service files install folder, default is $env:ProgramFiles\ceterion\DeployPackageService
 .PARAMETER ServiceLogFolder
@@ -5841,12 +5863,13 @@ Function Install-DeployPackageService {
                     $ScheduledTaskAction = New-ScheduledTaskAction -Execute "$env:WinDir\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NonInteractive -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""& {Install-DeployPackageService -ExecutePackage}""" -WorkingDirectory "$ServiceFolder" -ErrorAction Stop
                     $ScheduledTaskTrigger = New-ScheduledTaskTrigger -AtStartup -ErrorAction Stop
                     if (($IsAtLeastWin10) -or ($IsAtLeastWin2016)) {
-                        $ScheduledTaskTrigger.Delay = 'PT1M' # 1 minite startup delay, to give some time for domain authentication before starting the task with a domain user, works only on new OS versions
+                        $ScheduledTaskTrigger.Delay = 'PT1M' # 1 minute startup delay, to give some time for domain authentication before starting the task with a domain user, works only on new OS versions
                     }
                     $ScheduledTaskSettingsSet = New-ScheduledTaskSettingsSet -ErrorAction Stop
-                    $ScheduledTask = New-ScheduledTask -Action $ScheduledTaskAction  -Trigger $ScheduledTaskTrigger -Settings $ScheduledTaskSettingsSet
+                    $ScheduledTaskPrincipal = New-ScheduledTaskPrincipal -UserID $ServiceUser -LogonType ServiceAccount -RunLevel Highest -ErrorAction Stop
+                    $ScheduledTask = New-ScheduledTask -Action $ScheduledTaskAction -Trigger $ScheduledTaskTrigger -Settings $ScheduledTaskSettingsSet -Principal $ScheduledTaskPrincipal
                     if (($ServiceUser) -and ( $ServicePassword)){
-                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -Password $ServicePassword -ErrorAction Stop  -Force
+                        Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -Password $ServicePassword -ErrorAction Stop -Force
                     }
                     elseif ($ServiceUser){
                         Register-ScheduledTask -TaskName 'DeployPackageService' -InputObject $ScheduledTask -User $ServiceUser -ErrorAction Stop -Force
@@ -15972,10 +15995,10 @@ Function Test-DSMPackage {
     Bool
 .EXAMPLE
     Check for a DSM package by GUID, returns $true if found
-    Test-DSMPackage -GUID "E5565EC5-6D27-4322-B26D-ED0F75BF86FC"
+    Test-DSMPackage -GUID "{E5565EC5-6D27-4322-B26D-ED0F75BF86FC}"
 .EXAMPLE
 	Check for multiple DSM package by GUID, returns $true if at least one of the packages is found, otherwise returns $false
-    Test-DSMPackage -GUID  "E5565EC5-6D27-4322-B26D-ED0F75BF86FC","12E187FE-46DC-461A-9BB6-770AF988C5CB"
+    Test-DSMPackage -GUID  "{E5565EC5-6D27-4322-B26D-ED0F75BF86FC}","{12E187FE-46DC-461A-9BB6-770AF988C5CB}"
 .EXAMPLE
     Check for a DSM package by Name, returns $true if found
     Test-DSMPackage -Name "Notepad"
@@ -18370,11 +18393,11 @@ Function Update-RegistryPermission {
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $false.
 .EXAMPLE
-	Update-RegistryPermission -Action "Add" -PermissionType "Allow" -AppliesTo "ThisKeyAndSubkeys" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "Read"
+	Update-RegistryPermission -Action "Add" -PermissionType "Allow" -AppliesTo "ThisKeyAndSubkeys" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadKey"
 	Update-RegistryPermission -Action "Replace" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "FullControl"
 	Update-RegistryPermission -Action "ReplaceAll" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "FullControl"
 	Update-RegistryPermission -Action "ReplaceAll" -Key "HKEY_CURRENT_USER\Test\Test1" -PermissionSets @{'[Domainname]\[Groupname]'='ReadKey,WriteKey';'[Domainname]\[Username]'='FullControl'}
-	Update-RegistryPermission -Action "Remove" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "Read"
+	Update-RegistryPermission -Action "Remove" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]" -Permissions "ReadKey"
 	Update-RegistryPermission -Action "Delete" -Key "HKEY_CURRENT_USER\Test\Test1" -Trustee "[Domainname]\[Groupname]"
 .NOTES
 	Created by ceterion AG
@@ -18988,8 +19011,8 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCpMQbSZTMbRMHt
-# EdE8gNshthGWnxjYRseHU2ZRb/PKvKCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAA3tqErpEF5Tuw
+# PNFuLpgiae0GB4BD0xx1WiISijy2IKCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -19199,38 +19222,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAUelOSuuKZUbB+5tjz2QCcuEKfDct9Opf0
-# PzIRBQAiuTANBgkqhkiG9w0BAQEFAASCAgCJBJV218tOMPCdVYfLKCR5qhQfTpUr
-# KeshGvAFUeoe1W+RZT3qBtw2xdvz53dB90N3pQVsN79wX8WpZhx9Pw8KTaLoK/Iy
-# s2RUuzK/EPfhW2P2k8CrR/F05vffjvKro/9gBEA8EpnWdolMfr+lvWvJKpR01Xhy
-# /SAXHkx5f5uIZYfKMVQXEs/t/nwwVqIowrjsCtbc1Ox8hCL6fwgeLIn1CTXfnDJB
-# NaJOWnrZeUTlBciWmxlsPQa9cxohavxkIcDK+QI7tSUdNw16FQQQ6TU/TThqjJZo
-# xP2OBgOQky0m1o5J+Z8GKlSEchWy1VcH0+gnFXy65v210Wxk2vPYhrwLmr3xIqMp
-# lmhei9EZpAP4gO5M94F7EfjWs4JAnDA03SYZ+Ca5Yf7Upwy6lZnuXcWhrZsxzjTK
-# JQGUVZC8c8fIygEZVUCimBEmRG0PqrxBhGwnah7hTwR3MxV0CXyUZSYTTzZl3Hqa
-# q+Y+icmc13pfbFFmyeHBv6lE/5NwCU36C2JWc7nGda0Fp9uaypwyoQcmSev45OJT
-# AiQExVY9b5Ofn/MzrBl/jdO/8TqLeNG/NPNDe7Bnze/JnRFKRn9ThPvHqxG3AWL+
-# 0E8NyFpj+XD7zDcZTGEIQsnyAppCwtPV1mY5STLV79h6NqFgPh2M5HhR/i81SK79
-# T6LZ5a9kxUKQ+6GCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCBltix3TpEL3hlm1hpn0NqSeahoZ5uJyCUs
+# 5mnzWPeWrjANBgkqhkiG9w0BAQEFAASCAgDBRv6dJnr8f9Fk1khnxvbNJyyYJyp9
+# MFE6umOBQVDIwHPT/tbt062ueoMMw5A+N9V0KHaaK9ghPGfhC14wWZ5PGKkMZBqR
+# NJ3oYXnPONurXP+elEMsivKsdY4N9SZlGVoVDKNu5VEYGf30tRBc7pdOjkzDKISu
+# GuSR7Tjt6T+jNPar6QG6bb5VzokFxJRsGhcDhTeljHjg6k562BOrcALiD8lwCjJS
+# v/kSoh5KmMxP2z9pxyQ3DXJSXlLCxHTNhqC3s2A7dERZNoRvdU8ekmruJcLn03r2
+# 6h0BdZd62sUeeU3LdrTO9vFtQFOSTInM1BFM9qigCsHajMfGJGcmrgOqM7CmlkZo
+# wXdhybPlhf9oRCETeQ9YQ1GzVHSpmjcH9Mf+7iI+3CzrOPt8FeE99sV4NuvdjF1m
+# mXUq234P8Ib9KZ5ZeE+aipJX9t0HJiaEJSJkVSVXkIVjHi5bTZCfAt5JdpEmT17z
+# TQ5itmE/LXgfGfBmJH0MeaSgttK9DMPWSX0A+O7htBrlSIhNZWH9fZ+gtnKg2ptt
+# 3rvB+7beJVSwH9hBio/b7kZxoiNgbRJlC5BKMKA5ge32d06bctNPeuvTZPMo1Bs1
+# A22VPwJd8JOOEMTcWKXuarJEeePYg9MX0AwtPLyOEwEDKNtMYFptC8NsJhOJDF6Z
+# II3/e0KG8644naGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzAzMjgxMjI1MDNaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzA2MDkyMDI2NTJaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDA7hlHw00klq6oH0MqT7BnDBXQ3aZ48sJm0+jvtflLsFQtmCZfk
-# Y2LN4Cp5oLv5ChswgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDAN/R6GSt58CzSPgSjO5rQ7aX4+VIZf5D0P42Iq/w7SPpXNXxBU
+# q2jFkl45jsby4W0wgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# ZwWQoMX23k4PaYWantvssb61C3PzZ9SfF2UpPGnB94MLi4EGpJJtrCfxLx9cdpar
-# B9Ji7UAS7tEyR6JFItQxQPt//UL3fmz6rdLhOHRZmYqPT49y0Y6q9LAnZE961kLI
-# VJ3+kpuyJ0MtpD2BvywL7fBQRAClGVooUzDP2vE1FVXuNz1h2DocCHZxYBlqD29u
-# 9O0uaGrlT7cRLRb+asYTHnzEgbcyd0JU81tlL9TUJz2kRV3eNhMngAfVStAxc5Ja
-# Q2GgPQU2zRg/JLf4DwtMOvCgPR6Y3vNAQHDcsZPv+GsbI1wGFCuQPo3vTDM3it3V
-# l80O94chuB6wQfEWefDdc60POC4A/LGtjBJ1WTOd+ZVGWiaia82gUIFZ1QjaU1Y/
-# JWZmE/wuAEntAL7/PcCgPADn4ZpV5ab45Zn54zkf8VMoF7/XR4Fiq9BSRO4jLje1
-# Dn9rso2YDb4IfWtjTAfMcTqxKLPJIZ87jegaBglNvMun+8gPur1/0RruwXioJew/
-# +qyhA5+YTgJny+ekknono1PZen9oYfEvuZLmS3nIBnRVFQeWm7K+vQtbbx9SttN1
-# OrI8qYPoUO6lyDysgPttrM5Vdgq4a21fj/draQtB0EzcNhNQfuNxPN1QpjJFSImh
-# 6dAkLTA30Y/l2SWq6ZW3EL5cN6/9TlsGZfpGR9kxtjk=
+# CpTflsvyvf1f29c8aPzGNnJEQJ63cjJrEpOd5KRHUhS3ZZ37e0MMtji5m5qy82sa
+# Mh70E3afZnY9gO45IVq5b9BexzfCHBigeGc6oltejtX27Khku3/Cta/5/yxTCVBm
+# i1ApbYgwM147SWT8L80FkfeOovdg8gP3KfzY6bIeRBf0L806b2URlDK1PXyb0JEt
+# UC3gIPceTgEuOHHzA9+oFzfydX0gRPCYj739vBU8jhKjiVzXNuADEltwAU/JNHW5
+# dJHSGQElLECgcoVBS2INKJc8IJ+Al78mfrEUKu0WKV831PmeftK8L9sOAWU4bxc0
+# LBOQgoHTJiyEpEjxrr7WZ2flalsECEC49/sbozRncPlv9t7yvqQQzBijW+uJ+RI4
+# 9kFa+VgOAfpPtMViRmlx8v/yFkp9jcO8IIDYcGBZlWuqvsJbabQCs1VNGtqKbbis
+# umPtxP3ubvWftGHcWpuVJk9C8YpYu6g+q/58+C62zySDOjtFcJZG+YpZdnfCwDRi
+# 05pfjphTIyrV0JgYGQpEpCizLG7lhnPnMbpJ2MgzNMut+arlBnCB+GMSQbk/SOi6
+# 2c5lgnO/rj0/z3TOFbSRC9PdeUI4Hkggw+DBSKmZm+wiioZU8n921aJYuKfJeFpP
+# kEzxeWiOuLiun2vdVu4yfI5BbpvGtABw2+cxeAB6MdU=
 # SIG # End signature block

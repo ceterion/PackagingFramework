@@ -859,6 +859,16 @@ Try {
         # Example how to set multiple permissions from the 'Permissions' section of the package json file
         Add-PermissionFromJson
 
+        # Example 1 how to overwrite the built-in defauls of Add-PermissionFromJson (Hint: can be added to the PackagingFrameworkExtension.psm1)
+        $Global:DefaultPermissionAction = 'Add'
+        $Global:DefaultPermissionTrustee = 'S-1-5-11' # Authenticated users
+        $Global:DefaultPermissionRegistryPermission = 'WriteKey' # Registry
+        $Global:DefaultPermissionFileSystemPermission = 'Modify' # FileSystem
+
+        # Example 2 how to overwrite the built-in defaults of Add-PermissionFromJson using a permission set  (Hint: can be added to the PackagingFrameworkExtension.psm1)
+        $Global:DefaultPermissionAction = 'ReplaceAll'
+        $Global:DefaultPermissionRegistryPermissionSet = @{"[domain]\[group]"='ReadKey';'S-1-5-18'='FullControl';'S-1-5-32-544'='FullControl'} # Registry, User Group Read, System & Admin Full Control
+        $Global:DefaultPermissionFileSystemPermissionSet = @{"[domain]\[group]"='ReadAndExecute';'S-1-5-18'='FullControl';'S-1-5-32-544'='FullControl'} # File System, User Group Read, System & Admin Full Control
 
 
     #endregion Security
@@ -1198,8 +1208,8 @@ Try {
 
         ### Check for DSM packages ###
 
-        if (Test-DSMPackage -GUID "E5565EC5-6D27-4322-B26D-ED0F75BF86FC") {Show-DialogBox "Package found!" }
-        if (Test-DSMPackage -GUID "E5565EC5-6D27-4322-B26D-ED0F75BF86FC","E5565EC5-6D27-4322-B26D-ED0F75BF86FX") {Show-DialogBox "Package found!" }
+        if (Test-DSMPackage -GUID "{E5565EC5-6D27-4322-B26D-ED0F75BF86FC}") {Show-DialogBox "Package found!" }
+        if (Test-DSMPackage -GUID "{E5565EC5-6D27-4322-B26D-ED0F75BF86FC}","{E5565EC5-6D27-4322-B26D-ED0F75BF86FX}") {Show-DialogBox "Package found!" }
         if (Test-DSMPackage -Name "PackageNameA") {Show-DialogBox "Package found!" }
         if (Test-DSMPackage -Name "PackageNameA","PackageNameB") {Show-DialogBox "Package found!" }
         if (Test-DSMPackage -Name "PackageNameC") {Show-DialogBox "Package found!" }
