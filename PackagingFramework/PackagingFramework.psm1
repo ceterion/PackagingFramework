@@ -33,6 +33,10 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 ##*=============================================
 
 
+
+
+
+
 #region Function Add-AddRemovePrograms
     Function Add-AddRemovePrograms {
     <#
@@ -201,6 +205,279 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 	    }
     }
     #endregion Function Add-AddRemovePrograms
+
+#region Function Add-AppLockerRule
+    Function Add-AppLockerRule {
+    <#
+    .SYNOPSIS
+	    Add a local AppLocker rule
+    .DESCRIPTION
+	    Add a local AppLocker rule
+        For detailed information about the parameters please refer to https://learn.microsoft.com/en-us/powershell/module/applocker/
+        Please note, currently only EXE, DLL and Script rules are supportet. MSI and AppX rules are NOT supported yet
+    .PARAMETER RuleNamePrefix
+        Specifies the Rule Name Prefix of the rule
+    .PARAMETER Action
+        Specifies the action allow or deny. Default: Allow
+    .PARAMETER Path
+        Specifies a paths to the files or folder from which the file information is retrieved.
+    .PARAMETER RuleType
+        Specifies the type of rules to create from the file information. Publisher, path, or hash rules can be created from the file information. Default: path
+    .PARAMETER FileType
+        Specifies the generic file type for which to search. All files having the appropriate file name extension will be included. The acceptable values for this parameter are: Exe, Dll, WindowsInstaller, Script, Appx. Default: Exe
+    .PARAMETER User
+        Specifies the user or group to which the rules are applied. Default is Authenticated Users
+    .PARAMETER Optimize
+        Specifies that similar rules will be grouped together. Default: $true.
+    .PARAMETER XmlToLog
+        Specifies whether the XML file should be created in the log folder. Default: $false.
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+	    Add-AppLockerRule -Path 'C:\Windows\Notepad.exe'
+    .EXAMPLE
+	    Add-AppLockerRule -Action Allow -RuleNamePrefix 'Notepad' -Path 'C:\Windows\Notepad.exe' -RuleType 'Hash' -FileTyes 'exe' -User 'MyDomain\MyUserGroup' -Optimize 
+    .EXAMPLE
+        Add-AppLockerRule -Action Allow -RuleNamePrefix '7-Zip' -Path 'C:\Program Files\7-Zip' -RuleType Hash -FileType @('exe','dll','Script') -User 'MyDomain\MyUserGroup' -Optimize
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+		    [Parameter(Mandatory=$false)]
+		    [string]$RuleNamePrefix=$DefaultAppLockerRuleNamePrefix,
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Allow','Deny')]
+		    [string]$Action = $DefaultAppLockerAction,
+            [Parameter(Mandatory=$true)]
+            [ValidateNotNullorEmpty()]
+		    [string]$Path,
+		    [Parameter(Mandatory=$false)]
+		    [ValidateSet('Publisher','Path','Hash')]
+		    [string]$RuleType = $DefaultAppLockerRuleType,
+		    [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [array]$FileType = $DefaultAppLockerFileType,
+		    [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+		    [string]$User = $DefaultAppLockerUser,
+		    [Parameter(Mandatory=$false)]
+    	    [switch]$Optimize = $DefaultAppLockerOptimize,
+		    [Parameter(Mandatory=$false)]
+    	    [switch]$XmlToLog=$DefaultAppLockerXmlToLog,
+		    [Parameter(Mandatory=$false)]
+		    [switch]$ContinueOnError=$DefaultAppLockerContinueOnError
+
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+                
+                # Log header
+                Write-Log -message "Start adding AppLocker rule for Path [$Path]" -Source ${CmdletName}
+
+                # Built-in default if nothing is specified
+                if (-not($Global:DefaultAppLockerSleepinMS)) {$Global:DefaultAppLockerSleepinMS=500}
+
+                if (-not($RuleNamePrefix)) { if ($PackageName) { $RuleNamePrefix = $PackageName } else { $RuleNamePrefix = $((new-guid).Guid) } } else { Write-log "RuleNamePrefix is [$RuleNamePrefix]" -Source ${CmdletName} -DebugMessage}
+                if (-not($Action)) {write-log "No Action is specified, fallback to [Allow]" -Source ${CmdletName} -DebugMessage ;$Action='Allow'} else { Write-log "Action is [$Action]" -Source ${CmdletName} -DebugMessage}
+                if (-not($RuleType)) {write-log "No RuleType is specified, fallback to [Path]" -Source ${CmdletName} -DebugMessage ; $RuleType='Path'} else { Write-log "RuleType is [$RuleType]" -Source ${CmdletName} -DebugMessage}
+                if (-not($FileType)) {write-log "No FileType is specified, fallback to [Exe]" -Source ${CmdletName} -DebugMessage ; $FileType= @('Exe')} else { Write-log "FileType is [$FileType]" -Source ${CmdletName} -DebugMessage}
+                if (-not($User)) { write-log "No User is specified, fallback to [Everyone (S-1-1-0)]" -Source ${CmdletName} -DebugMessage ; $Global:DisableLogging = $true ; $Global:DisableWriteHost = $True ; $User = $(ConvertTo-NTAccountOrSID  -SID 'S-1-1-0') ; $Global:DisableLogging = $false ; $Global:DisableWriteHost = $false} else { Write-log "User is [$User]" -Source ${CmdletName} -DebugMessage}
+                if (-not($Optimize)) {$Optimize=$true} ; Write-log "Optimize is [$Optimize]" -Source ${CmdletName} -DebugMessage
+                if (-not($XmlToLog)) {$XmlToLog=$true} ; Write-log "XmlToLog is [$XmlToLog]" -Source ${CmdletName} -DebugMessage
+                if (-not($ContinueOnError)) {$ContinueOnError=$false} ; Write-log "ContinueOnError is [$ContinueOnError]" -Source ${CmdletName} -DebugMessage
+
+                # Check if path is directory/wildcard/reachable
+                $isDirectory = (Get-Item $Path -ErrorAction SilentlyContinue) -is [System.IO.DirectoryInfo]
+                if ($Path -match '\*') { $isWildcard = $true } else { $isWildcard = $false }
+                if (Test-Path $Path -ErrorAction SilentlyContinue) { $isReachable = $true } else { $isReachable = $false }
+                Write-log "Path [$Path], isDirectory [$isDirectory], isWildcard [$isWildcard], isReachable [$isReachable]" -Source ${CmdletName} -DebugMessage
+
+                # If Path is not reachable and RuleType is NOT Path, fallback to RuleType Path 
+                if ( ($isReachable -eq $false) -and ($RuleType -ine 'Path') ) { $RuleType = 'Path' ; Write-log "Warning! Path [$Path] is NOT reachable, fallback to RuleType [$RuleType]" -Source ${CmdletName} -Severity 2}
+
+                # Filetype based rules
+                if ($fileType) { Write-log "FileType [$fileType]" -Source ${CmdletName} -DebugMessage }
+                foreach($FileTypeItem in $fileType)
+                {
+                    $fileInformation=$null
+                    $newPolicy=$null
+                    if($isDirectory)
+                    {
+                        # Get file information for all files that must be added to the new rule
+                        Write-log "Get AppLocker File Information for Directory [$Path] and FileType [$FileTypeItem]" -Source ${CmdletName}
+                        $fileInformation = Get-AppLockerFileInformation -Directory $Path\ -FileType $FileTypeItem -Recurse -ErrorAction SilentlyContinue -Verbose
+                        # 2nd try via object, this is the fallback for not reachable pathes
+                        if($FileInformation -eq $null) { $FileInformation = New-Object Microsoft.Security.ApplicationId.PolicyManagement.PolicyModel.FileInformation -ArgumentList $Path }
+                        write-log "FileInformation [$fileInformation]" -Source ${CmdletName} -DebugMessage
+                        if($fileInformation -ne $null) 
+                        {
+                            if($Optimize -eq $true) {
+                                # Combine many files one rule
+                                $newPolicy=New-AppLockerPolicy -FileInformation $fileInformation -RuleType $RuleType -User $User -IgnoreMissingFileInformation -RuleNamePrefix $RuleNamePrefix -Optimize -ErrorAction Stop -WarningAction Stop
+                            } else {
+                                # Explicit rule for each file
+                                $newPolicy=New-AppLockerPolicy -FileInformation $fileInformation -RuleType $RuleType -User $User -IgnoreMissingFileInformation -RuleNamePrefix $RuleNamePrefix -ErrorAction Stop  -WarningAction Stop
+                            }
+                            Write-log "PolicyObject [$newPolicy]" -Source ${CmdletName} -DebugMessage
+
+                        } else { if (-not($ContinueOnError)) { Throw "Failed to get FileInformation for Path [$Path]" }  else { Write-log "Failed to get FileInformation for Path [$Path]" -Source ${CmdletName} -Severity 3 } }
+                    
+
+                    }
+                    else 
+                    {
+                        # Get file information for a specific file/path.
+                        Write-log "Get AppLocker File Information for File [$Path] and FileType [$FileTypeItem]" -Source ${CmdletName}
+                        $fileInformation = Get-AppLockerFileInformation -Path $Path -ErrorAction SilentlyContinue # -ErrorAction Stop 
+                        # 2nd try via object, this is the fallback for not reachable pathes
+                        if($FileInformation -eq $null) { $FileInformation = New-Object Microsoft.Security.ApplicationId.PolicyManagement.PolicyModel.FileInformation -ArgumentList $Path }
+                        write-log "FileInformation [$FileInformation]" -Source ${CmdletName} -DebugMessage
+                        if($fileInformation -ne $null){ 
+                            $newPolicy=New-AppLockerPolicy -FileInformation $fileInformation -RuleType $RuleType -User $User -IgnoreMissingFileInformation -RuleNamePrefix $RuleNamePrefix -ErrorAction Stop -WarningAction Stop
+                            Write-log "PolicyObject [$newPolicy]"-Source ${CmdletName} -DebugMessage
+                        } else { if (-not($ContinueOnError)) { Throw "Failed to get FileInformation for Path [$Path]" }  else { Write-log "Failed to get FileInformation for Path [$Path]" -Source ${CmdletName} -Severity 3 } }
+                    } 
+
+                    if($newPolicy -ne $null)
+                    {
+                        # Change rule type to deny rule if requested.
+                        if($Action -ieq "Deny") 
+                        {
+                            foreach($RuleCollection in $newPolicy.RuleCollections)
+                            {
+                                foreach($Rule1 in $RuleCollection) { $Rule1.Action = 'Deny' }
+                            }
+                        }
+            
+                        # Apply the new Policy
+                        Write-log "Save App Locker Policy [$RuleNamePrefix] for FileType [$FileType], Action [$Action], Path [$Path], User [$User]"  -Source ${CmdletName}
+                        Set-AppLockerPolicy -PolicyObject $newPolicy -Merge -ErrorAction Stop
+                        Start-Sleep -Milliseconds $Global:DefaultAppLockerSleepinMS
+                        
+                        # Write XML to log folder (optional)
+                        if ($XmlToLog) {$newPolicy.ToXML() | Out-File "$LogDir\AppLocker_$RuleNamePrefix`_$FileType`_$RuleType.xml"}
+                        
+                    } else {
+                        if (-not($ContinueOnError)) {Throw "Faily to set AppLocker policy because policy object is empty!"} else {Write-log "Faily to set AppLocker policy because policy object is empty!" -Source ${CmdletName} -Severity 3}
+                        
+                    }
+
+                } # foreach filetype
+
+
+
+
+
+            } #try
+		    Catch {
+                    Write-Log -Message "Failed to add AppLocker rule. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to add AppLocker rule.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+#endregion Function Add-AppLockerRule
+
+#region Function Add-AppLockerRuleFromJson
+    Function Add-AppLockerRuleFromJson {
+    <#
+    .SYNOPSIS
+	    Add local AppLocker rules based on the package .json file
+    .DESCRIPTION
+	    Add local AppLocker rules based on the package .json file
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+        Add-AppLockerRuleFromJson
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+        )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+
+                # Log header
+                if ($PackageConfigFile.AppLockerRules) {
+                    Write-Log -Message "Start Add AppLocker Rule From Json" -Source ${CmdletName} 
+                }
+                # Get AppLocker HashTable from JSON
+                ForEach($AppLockerRule in $PackageConfigFile.AppLockerRules){ 
+
+                    # Process each AppLocker Rule from json in object syntax
+                    if ($AppLockerRule -is [PSObject]) {
+                        Write-Log "Process AppLocker rule in object syntax" -Source ${CmdletName} -DebugMessage
+                        $AppLockerHash = @{}
+                        ForEach ($Item in $AppLockerRule.PSObject.Properties) {
+                            Write-Log "$($Item.Name) =  $($Item.Value) | $($Item.Value.gettype())" -Source ${CmdletName} -DebugMessage
+                            
+                            # Expand environment variable and powershellvariables in value
+                            if ($Item.Value -is [string]) { If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all } }
+
+                            # Add item to hash
+                            $AppLockerHash.Add($Item.Name,$Item.Value) 
+                        }
+                    }
+
+                    # Process each permission param from json in simple string syntax (Only file or folder or registry path)
+                    if ($AppLockerRule -is [String]) {
+                        Write-Log "Process AppLocker rule in string syntax" -Source ${CmdletName} -DebugMessage
+                        # Expand environment variable and powershellvariables in value
+                        If(![string]::IsNullOrEmpty($AppLockerRule)) { $AppLockerRule = Expand-Variable -InputString $AppLockerRule -VarType all }
+                        $AppLockerHash = @{}
+                        $AppLockerHash.Add('Path',$AppLockerRule) 
+                    }
+
+                    # Convert true/false strings from JSON to bool
+                    if ($AppLockerHash.Optimize -ieq 'true') { $AppLockerHash.Optimize = $true }
+                    if ($AppLockerHash.Optimize -ieq 'false') { $AppLockerHash.Optimize = $false }
+                    if ($AppLockerHash.Force -ieq 'true') { $AppLockerHash.Force = $true }
+                    if ($AppLockerHash.Force -ieq 'false') { $AppLockerHash.Force = $false }
+                    if ($AppLockerHash.ContinueOnError -ieq 'true') { $AppLockerHash.ContinueOnError = $true } 
+                    if ($AppLockerHash.ContinueOnError -ieq 'false') { $AppLockerHash.ContinueOnError = $false } 
+
+                    # Add AppLocker rule
+                    #$AppLockerHash | Format-Table
+                    Add-AppLockerRule @AppLockerHash
+                }
+            }
+		    Catch {
+                Write-Log -Message "Failed to add AppLocker rules from json. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			If (-not $ContinueOnError) {
+				    Throw "Failed to add AppLocker rules from json.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+#endregion Function Add-AppLockerRuleFromJson
 
 #region Function Add-FirewallRule
     Function Add-FirewallRule {
@@ -650,6 +927,14 @@ Function Add-Font {
 		Try {
                 Write-Log "Installing [$FilePath]" -Source ${CmdletName}
                 
+                
+                # Copy Font file to local temp to avoid issues with network shares
+                if (-not($FilePath.StartsWith($env:SystemDrive))) {
+                    $TempFontFileName =  "$env:TEMP\$(Split-Path $filePath -leaf)"
+                    Copy-File -Path $FilePath -Destination "$TempFontFileName"
+                    $FilePath = $TempFontFileName
+                }
+
                 ##############
                 
                 # Define constants
@@ -1016,6 +1301,7 @@ namespace FontResource
                     {
                         Write-Log "Font [$filePath] installed successfully" -Source ${CmdletName}
                         Set-ItemProperty -path "$($fontRegistryPath)" -name "$($fontName)$($hashFontFileTypes.item($fileExt))" -value "$($fileName)" -type STRING
+                        if ($TempFontFileName) {Remove-item -Path "$TempFontFileName"}
                     }
                 }
                 catch
@@ -5994,7 +6280,7 @@ Function Install-DeployPackageService {
                 $NetworkShareCSVFile = "$NetworkShareDriveLetter`:\$DeployScriptFolder\$CSVFile"
                 $LocalCSVFile = "$ServiceFolder\$CSVFile"
 
-                # Check for network CSV file, abot if nor found
+                # Check for network CSV file, abort if not found
                 if (-not(Test-Path "$NetworkShareCSVFile")) {
                     Write-log "File [$NetworkShareCSVFile] not found!" -Severity 3
                     Return
@@ -6041,6 +6327,12 @@ Function Install-DeployPackageService {
                 
                     # Counter for CSV position
                     $CurrentLine = $CurrentLine + 1
+
+                    # Check if current command is comment line starting with #, if so skip
+                    If ($_.PackageName.trim().StartsWith("#")){
+                        Write-log "PackageName [$($_.PackageName)] is a comment, nothing to process"  -Source ${CmdletName} #-DebugMessage 
+                        Return
+                    }
 
                     # Check if package is not installed yet
                     If ($_.Installed -ne 1) 
@@ -6738,9 +7030,18 @@ Function Invoke-PackageEnd {
 	Skip Firewall Rule From Json
 .PARAMETER SkipPermissionFromJson
 	Skip Permission From Json
+.PARAMETER SkipAppLockerRuleFromJson
+	Skip AppLocker Rule From Json
 .PARAMETER SkipRegistryBranding
 	Skip Registry Branding
+.PARAMETER SkipPackageEndExtension
+	Skip Package End Extension
 .EXAMPLE
+	Invoke-PackageEnd
+.EXAMPLE
+	Invoke-PackageEnd -SkipPackageEndExtension 
+.EXAMPLE
+    $SkipPackageEndExtension = $true
 	Invoke-PackageEnd
 .NOTES
 	Created by ceterion AG
@@ -6752,17 +7053,22 @@ Function Invoke-PackageEnd {
 	( 
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[Switch]$SkipAppConfig = $false,
+		[Switch]$SkipAppConfig = [bool]$Global:SkipAppConfig,
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[Switch]$SkipPermissionFromJson = $false,
+		[Switch]$SkipPermissionFromJson = [bool]$Global:SkipPermissionFromJson,
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[Switch]$SkipFirewallRuleFromJson = $false,
+		[Switch]$SkipFirewallRuleFromJson = [bool]$Global:SkipFirewallRuleFromJson,
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[Switch]$SkipRegistryBranding = $false
-
+		[Switch]$SkipAppLockerRuleFromJson = [bool]$Global:SkipAppLockerRuleFromJson,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipRegistryBranding = [bool]$Global:SkipRegistryBranding,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipPackageEndExtension = [bool]$Global:PackageEndExtension
 	)
 	Begin {
 		## Get the name of this function and write header
@@ -6787,8 +7093,10 @@ Function Invoke-PackageEnd {
             Write-Log "Invoke Package End" -Source ${CmdletName}
  
             # Run PackageEndExtension from Extension (if exists)
-            If ($PackageEndExtension) { 
-                Invoke-Command -ScriptBlock $PackageEndExtension 
+            if ($SkipPackageEndExtension -ne $true) {
+                If ($PackageEndExtension) { 
+                    Invoke-Command -ScriptBlock $PackageEndExtension 
+                }
             }
 
             # App Cofnig Publish
@@ -6823,6 +7131,19 @@ Function Invoke-PackageEnd {
                     Remove-FirewallRuleFromJson
                 }
             }
+
+            # Run AppLockerRuleFromJson
+            if ($SkipAppLockerRuleFromJson -ne $true) {
+                If ($deploymentType -ieq 'Install') {
+                    Add-AppLockerRuleFromJson
+                }
+                If ($deploymentType -ieq 'Uninstall') {
+                    Remove-AppLockerRuleFromJson
+                }
+            }
+
+
+
 
             # Run registry branding
             if ($SkipRegistryBranding -ne $true) {
@@ -6877,6 +7198,11 @@ Function Invoke-PackageStart {
     This cmdlet executes various commands at package end time
 .EXAMPLE
 	Invoke-PackageStart
+.EXAMPLE
+	Invoke-PackageStart -SkipPackageStartExtension 
+.EXAMPLE
+    $SkipPackageStartExtension = $true
+	Invoke-PackageStart
 .NOTES
 	Created by ceterion AG
 .LINK
@@ -6884,7 +7210,10 @@ Function Invoke-PackageStart {
 #>
 	[Cmdletbinding()]
 	param
-	( 
+	(
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[Switch]$SkipPackageStartExtension = [bool]$Global:SkipPackageStartExtension
 	)
 	Begin {
 		## Get the name of this function and write header
@@ -6899,8 +7228,10 @@ Function Invoke-PackageStart {
             Write-Log "Invoke Package Start" -Source ${CmdletName}
 
             # Run PackageStartExtension from Extension (if exists)
-            If ($PackageStartExtension) { 
-                Invoke-Command -ScriptBlock $PackageStartExtension 
+            if ($SkipPackageStartExtension -ne $true) {
+                If ($PackageStartExtension) { 
+                    Invoke-Command -ScriptBlock $PackageStartExtension 
+                }
             }
 
             # Chaneg default value for InstallPhase based on deployment type
@@ -8602,6 +8933,214 @@ ALT+CTRL+F
 	    }
     }
     #endregion Function Remove-AddRemovePrograms
+
+#region Function Remove-AppLockerRule
+    Function Remove-AppLockerRule {
+    <#
+    .SYNOPSIS
+	    Remove a local AppLocker rule
+    .DESCRIPTION
+	    Remove a local AppLocker rule
+    .PARAMETER Name
+        Specifies the name of the rule
+    .PARAMETER Path
+        Specifies the path of the rule
+    .PARAMETER Publisher
+        Specifies the Publisher of the rule
+    .PARAMETER Hash
+        Specifies the Hash of the rule
+    .PARAMETER FileType
+        Specifies the generic file type for which to search. All files having the appropriate file name extension will be included. The acceptable values for this parameter are: Exe, Dll, WindowsInstaller, Script, Appx. Default: Exe
+    .EXAMPLE
+	    Remove-AppLockerRule -Name "Notepad: %WINDIR%\NOTEPAD.EXE"
+    .EXAMPLE
+	    Remove-AppLockerRule -Name "Notepad*"
+    .EXAMPLE
+	    Remove-AppLockerRule -Path "%WINDIR%\NOTEPAD.EXE"
+    .EXAMPLE
+	    Remove-AppLockerRule -Publisher "MICROSOFT® WINDOWS® OPERATING SYSTEM\O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US\NOTEPAD.EXE,10.0.22621.1-10.0.22621.1"
+    .EXAMPLE
+	    Remove-AppLockerRule -Hash "SHA256 0xBB36F06560DB07A6973C0B50023862B8D2684E17E6C9DA2C2AAC60C6B8FD1580"
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+
+		    [Parameter(Mandatory=$true,ParameterSetName='Name')]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Name,
+		    [Parameter(Mandatory=$true,ParameterSetName='Path')]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Path,
+		    [Parameter(Mandatory=$true,ParameterSetName='Publisher')]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Publisher,
+		    [Parameter(Mandatory=$true,ParameterSetName='Hash')]
+		    [ValidateNotNullorEmpty()]
+		    [string]$Hash,
+		    [Parameter(Mandatory=$false)]
+		    [array[]]$FileType = @('Exe','Dll','Script')  # Not yet supported @('Exe','Dll','WindowsInstaller','Appx','Script')
+	    )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+                
+                # Log Header
+                If($Name){ Write-log "Start Remove AppLocker rule with Name [$Name]..."  -Source ${CmdletName} -DebugMessage}
+                ElseIf ($Path){ Write-log "Start Remove AppLocker rule with Path [$Path]..."  -Source ${CmdletName} -DebugMessage}
+                ElseIf ($Publisher){ Write-log "Start Remove AppLocker rule with Publisher [$Publisher]..."  -Source ${CmdletName} -DebugMessage}
+                ElseIf ($Hash){ Write-log "Start Remove AppLocker rule with Hash [$Hash]..."  -Source ${CmdletName} -DebugMessage}
+                Else { Write-log "Skip Remove AppLocker rule, no parameter specified..." -Source ${CmdletName} -DebugMessage ; Return }
+
+                # Get all AppLocker Policies as an object (to modify it later)
+                $LocalAppLockerPolicy = Get-AppLockerPolicy -local  ;  Write-log "AppLocker Rules: $($LocalAppLockerPolicy.RuleCollections.name)" -Source ${CmdletName} -DebugMessage
+                
+                # Process each FileType aka RuleCollectionType
+                foreach ($RuleCollectionType in $FileType)
+                {
+                 
+                    # Get RuleCollection
+                    Write-log "Get Rule Collections for RuleCollectionType [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage
+                    try { $RuleCollection = $LocalAppLockerPolicy.GetRuleCollection("$RuleCollectionType") } catch {write-log "Rule Collection is empty" -Source ${CmdletName} -DebugMessage}
+                    if ($RuleCollection.count -le 0) {Write-log "No App Locker Rules in Rule Collection [$RuleCollectionType] found, skip" -Source ${CmdletName} -DebugMessage ; Continue } else { Write-Log "A total of [$($RuleCollection.Count)] Rules in Rule Collection [$RuleCollectionType] found" -Source ${CmdletName} -DebugMessage}
+
+                    # Filter Rules by Name
+                    if ($Name) {
+                        Write-Log -message "Search for AppLoacker rule by name [$Name] in Rule Collection [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage
+                        if ($name -match '\*') {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.name -ilike $name} 
+                        } else {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.name -ieq $name} 
+                        }
+                    }
+
+                    # Filter Rules by Path
+                    if ($Path) {
+                        Write-Log -message "Search for AppLocker rule by path [$path] in Rule Collection [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage
+                        if ($Publisher -match '\*') {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.PathConditions.path.path -ilike $path}
+                        } else {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.PathConditions.path.path -ieq $path}
+                        }
+
+
+                    }
+
+                    # Filter Rules by Publisher
+                    if ($Publisher) {
+                        Write-Log -message "Search for AppLocker rule by Publisher [$Publisher] in Rule Collection [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage 
+                        if ($Publisher -match '\*') {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.PublisherConditions -ilike $Publisher} 
+                        } else {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.PublisherConditions -ieq $Publisher} 
+                        }
+                    }
+
+                    # Filter Rules by Hash
+                    if ($Hash) {
+                        Write-Log -message "Search for AppLocker rule by Hash [$Hash] in Rule Collection [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage 
+                        if ($Hash -match '\*') {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.HashConditions -ilike $Hash} 
+                        } else {
+                            $AppLockerRule=$RuleCollection | Where-Object {$_.HashConditions -ieq $Hash} 
+                        }
+                    }
+
+                    # Remove rule from collection and save policy without this removed item
+                    if (($AppLockerRule) -and ($RuleCollection)) {
+                        Write-log "Found [$($AppLockerRule.Count)] matching AppLocker rules [$($AppLockerRule.Name)] for RuleCollectionType [$RuleCollectionType] " -Source ${CmdletName}
+
+                        # Remove all matching AppLocker IDs for the Rule Collection 
+                        foreach ($item in $AppLockerRule) { 
+                            Write-log "Delete [$($item.Name)] with ID [$($item.Id)]" -Source ${CmdletName}
+                            $RuleCollection.Delete($item.Id) 
+                        }
+
+                        # Save AppLockerPolicy with modified Rule Collection 
+                        Write-log "Save modified Local AppLocker Policy" -Source ${CmdletName}
+                        Set-AppLockerPolicy -PolicyObject $LocalAppLockerPolicy
+                        Start-Sleep -Milliseconds $Global:DefaultAppLockerSleepinMS
+
+                    } else {
+                        Write-log "No matching AppLocker rules found for Rule Collection Type [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage
+                    }
+                    
+                }
+
+            }
+		    Catch {
+                    Write-Log -Message "Failed to remove AppLocker rule. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			    If (-not $ContinueOnError) {
+				    Throw "Failed to remove AppLocker rule.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+#endregion Function Add-AppLockerRule
+
+#region Function Remove-AppLockerRuleFromJson
+    Function Remove-AppLockerRuleFromJson {
+    <#
+    .SYNOPSIS
+	    Remove local AppLocker rules based on the package .json file
+    .DESCRIPTION
+	    Remove local AppLocker rules based on the package .json file
+    .PARAMETER ContinueOnError
+	    Continue if an error is encountered. Default: $false.
+    .EXAMPLE
+        Remove-AppLockerRuleFromJson
+    .NOTES
+	    Created by ceterion AG
+    .LINK
+	    http://www.ceterion.com
+    #>
+	    [CmdletBinding()]
+	    Param (
+		    [Parameter(Mandatory=$false)]
+		    [ValidateNotNullorEmpty()]
+		    [switch]$ContinueOnError
+        )
+	
+	    Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	    }
+	    Process {
+		    Try {
+
+                # Log header
+                if ($PackageConfigFile.AppLockerRules) {
+                    Write-Log -Message "Start Remove local AppLocker Rule From Json" -Source ${CmdletName} 
+                }
+
+                # Remove all starting with PackageName
+                Remove-AppLockerRule -Name "$PackageName*"
+
+            }
+		    Catch {
+                Write-Log -Message "Failed to remove AppLocker rules from json.`n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    		    If (-not $ContinueOnError) {
+				    Throw "Failed to remove AppLocker rules from json.: $($_.Exception.Message)"
+			    }
+		    }
+	    }
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+    }
+#endregion Function Remove-AppLockerRuleFromJson
 
 #region Function Remove-EnvironmentVariable
 Function Remove-EnvironmentVariable {
@@ -19007,12 +19546,12 @@ Function Write-FunctionHeaderOrFooter {
 
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAA3tqErpEF5Tuw
-# PNFuLpgiae0GB4BD0xx1WiISijy2IKCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCC2H28XIhJTd10
+# +2V7QY48E/4RpsAnSy4cwDugw7kYBqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -19222,38 +19761,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-Font,
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCBltix3TpEL3hlm1hpn0NqSeahoZ5uJyCUs
-# 5mnzWPeWrjANBgkqhkiG9w0BAQEFAASCAgDBRv6dJnr8f9Fk1khnxvbNJyyYJyp9
-# MFE6umOBQVDIwHPT/tbt062ueoMMw5A+N9V0KHaaK9ghPGfhC14wWZ5PGKkMZBqR
-# NJ3oYXnPONurXP+elEMsivKsdY4N9SZlGVoVDKNu5VEYGf30tRBc7pdOjkzDKISu
-# GuSR7Tjt6T+jNPar6QG6bb5VzokFxJRsGhcDhTeljHjg6k562BOrcALiD8lwCjJS
-# v/kSoh5KmMxP2z9pxyQ3DXJSXlLCxHTNhqC3s2A7dERZNoRvdU8ekmruJcLn03r2
-# 6h0BdZd62sUeeU3LdrTO9vFtQFOSTInM1BFM9qigCsHajMfGJGcmrgOqM7CmlkZo
-# wXdhybPlhf9oRCETeQ9YQ1GzVHSpmjcH9Mf+7iI+3CzrOPt8FeE99sV4NuvdjF1m
-# mXUq234P8Ib9KZ5ZeE+aipJX9t0HJiaEJSJkVSVXkIVjHi5bTZCfAt5JdpEmT17z
-# TQ5itmE/LXgfGfBmJH0MeaSgttK9DMPWSX0A+O7htBrlSIhNZWH9fZ+gtnKg2ptt
-# 3rvB+7beJVSwH9hBio/b7kZxoiNgbRJlC5BKMKA5ge32d06bctNPeuvTZPMo1Bs1
-# A22VPwJd8JOOEMTcWKXuarJEeePYg9MX0AwtPLyOEwEDKNtMYFptC8NsJhOJDF6Z
-# II3/e0KG8644naGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAkIGTcuxkBAFL7UVw269jbR0XnTnkP6AQU
+# bttUZ5HiITANBgkqhkiG9w0BAQEFAASCAgCESvi4dQBFlk6YA86g31yynQBKOR/4
+# aDKErwEV81rcG4nIBjd133SGMbF90MwxwV33P+Yp20fpizwFkgmfQyOoQplx0S2O
+# 7d8FQaSMnd7+zMZ6E/sFq8NPwFjgMTaN0wBNoQ41Ok4sunFAPO3QYfDZMRa0f3zH
+# Oe2aL8SWHdSv1ZBf7mvmrhkAB7wCqcLMCIID4lUt5N9qqRkc7/JYMnqcwpPSrnX/
+# 7IkesJ9DgDsA5HGU/TSn2ELyPIqoNYovfWMB8q9WfTlxsfTkLaynExT0OC+WsmLC
+# aiAER5GjfJA+h9AnsmHB3tlegRiqDRTFGxnPYvsA2LbCci9U1HCJ8/eIf7h32Kx9
+# Seb4kl7iRVKdjqsLIVvnTXMoFHEP7yzHMr3gBIp58cdDPGdsaSIWNnF/ASlkjYYA
+# tH0XlOODoOJa+qVS9uLojpdoqemZrj9Gx4Kjz+hllfAGdl6aKyyN8RyWVPC2QyMU
+# XKIOP3cPjz1wuwJDfYmsDMXm/nkrVQIIOFWu96g8o+PDsQDW/KI9rrdAyXYMogjy
+# XJGBjxJXsxQC3jHoRilt6OS9Hz1r8n3h76kceIe/iTV1/vhmSx9QVzuBj7/UEf+V
+# ai6IW8vCcLSIMwfkp3NyKQxmAv/ye0fi2OuvRq4humdGWbGovWASYHOPQDrydeTF
+# 1/EMV5kRHiDaJKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzA2MDkyMDI2NTJaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzA3MzEyMTM1NDdaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDAN/R6GSt58CzSPgSjO5rQ7aX4+VIZf5D0P42Iq/w7SPpXNXxBU
-# q2jFkl45jsby4W0wgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDBmdX9qDBwfGTbJay3z3fTvdQfL2avMJ9LJlF6PdNDr3jTrDmqD
+# XFZwaOUAkB4QKQowgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# CpTflsvyvf1f29c8aPzGNnJEQJ63cjJrEpOd5KRHUhS3ZZ37e0MMtji5m5qy82sa
-# Mh70E3afZnY9gO45IVq5b9BexzfCHBigeGc6oltejtX27Khku3/Cta/5/yxTCVBm
-# i1ApbYgwM147SWT8L80FkfeOovdg8gP3KfzY6bIeRBf0L806b2URlDK1PXyb0JEt
-# UC3gIPceTgEuOHHzA9+oFzfydX0gRPCYj739vBU8jhKjiVzXNuADEltwAU/JNHW5
-# dJHSGQElLECgcoVBS2INKJc8IJ+Al78mfrEUKu0WKV831PmeftK8L9sOAWU4bxc0
-# LBOQgoHTJiyEpEjxrr7WZ2flalsECEC49/sbozRncPlv9t7yvqQQzBijW+uJ+RI4
-# 9kFa+VgOAfpPtMViRmlx8v/yFkp9jcO8IIDYcGBZlWuqvsJbabQCs1VNGtqKbbis
-# umPtxP3ubvWftGHcWpuVJk9C8YpYu6g+q/58+C62zySDOjtFcJZG+YpZdnfCwDRi
-# 05pfjphTIyrV0JgYGQpEpCizLG7lhnPnMbpJ2MgzNMut+arlBnCB+GMSQbk/SOi6
-# 2c5lgnO/rj0/z3TOFbSRC9PdeUI4Hkggw+DBSKmZm+wiioZU8n921aJYuKfJeFpP
-# kEzxeWiOuLiun2vdVu4yfI5BbpvGtABw2+cxeAB6MdU=
+# tll5HlEKdwTJ2JiqVzSuWA2VInmhyU78SoYOZPfO8Ipo+tLog7ITWqBQSYxy/pf6
+# mAYCPSD9jgSS5fLu4NsiLlRTIMp5Nt90wB6CAYqVOlk2tjWb1blcegcUkYDEEoDS
+# 31iM9HMQUuCSXZ6rruPArBY4Y2a70Z8MCB9Dp6uUNHigI7fxk5KXomj3dai8yl3z
+# 4tih0PlKnR28pWn2e5ueSzxlDo2Zt2pLyLqyw3d4wvGa/iDHJYfDLT7LfGscp+Ch
+# 7koV9OIMTh1adtSbZDJcH17PkEPsEqjhpoHJlhNoiq74qJAj35QkJfNgooC0to7w
+# pimdm/A9yUHv4ZA8xpgex8bJsX4EefHMuqehwaUmQIU7g7QO/2Qgy0DMXoCaqGfe
+# Cmas5a2XSUaP/fyM4wDIWEO2aSoTf0M7HIS3HgOaOxqM5C5ufoG+8Sb52jvDAulH
+# 818n82QNVD65pKGtdgYFdiXWam2qciJ8SmHW1/qx/AAKUFk9Ya6/qLGaf1iqgNVf
+# NVjMgPEy9BBTTeE/ji29ipY5jov5tScn3DoWWsoha5A0ARyTuUwm9U90cMzKqq/E
+# 9LTRczQAjHLGaEq4VdpjRAgLSZcK2XEkOKmhmNhWxyCnrSzi+AuDxLeXKVk6bPL5
+# FHc8/evT2q+9npdnSOoxes+yJo8WLyT6OnkLmyD+XKI=
 # SIG # End signature block

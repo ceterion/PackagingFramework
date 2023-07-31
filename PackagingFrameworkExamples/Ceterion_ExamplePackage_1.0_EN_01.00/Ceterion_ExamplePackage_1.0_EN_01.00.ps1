@@ -867,8 +867,8 @@ Try {
 
         # Example 2 how to overwrite the built-in defaults of Add-PermissionFromJson using a permission set  (Hint: can be added to the PackagingFrameworkExtension.psm1)
         $Global:DefaultPermissionAction = 'ReplaceAll'
-        $Global:DefaultPermissionRegistryPermissionSet = @{"[domain]\[group]"='ReadKey';'S-1-5-18'='FullControl';'S-1-5-32-544'='FullControl'} # Registry, User Group Read, System & Admin Full Control
-        $Global:DefaultPermissionFileSystemPermissionSet = @{"[domain]\[group]"='ReadAndExecute';'S-1-5-18'='FullControl';'S-1-5-32-544'='FullControl'} # File System, User Group Read, System & Admin Full Control
+        $Global:DefaultPermissionRegistryPermissionSet = @{'[domain]\[group]'='ReadKey';'S-1-5-18'='FullControl';'S-1-5-32-544'='FullControl'} # Registry, User Group Read, System & Admin Full Control
+        $Global:DefaultPermissionFileSystemPermissionSet = @{'[domain]\[group]'='ReadAndExecute';'S-1-5-18'='FullControl';'S-1-5-32-544'='FullControl'} # File System, User Group Read, System & Admin Full Control
 
 
     #endregion Security
@@ -901,6 +901,52 @@ Try {
         Remove-FirewallRule -DisplayName "Notepad Test 5"
 
     #endregion Firewall
+
+    #region AppLocker
+
+
+    # App Locker Rule Example with exe path only
+    Add-AppLockerRule -Path 'C:\Windows\Notepad.exe'
+
+    # App Locker Rule Example with exe path only
+    Add-AppLockerRule -Path 'C:\Windows\Regedit.exe' -User 'andreas-pc\andre' -RuleType Hash -Optimize -RuleNamePrefix "Regedit"
+
+    # App Locker Rule Example with wildcard
+    Add-AppLockerRule -Path 'C:\Program Files\7-Zip\' -RuleType Hash -FileType @('Exe','Dll','Script')
+
+    # App Locker Rule Example with not existing UNC path, with RuleType Hash fallback to Path
+    Add-AppLockerRule -Path '\\NotExisting\Share$\*\NotExisting.exe' -RuleType Path
+
+    # Remove App Locker Rule with Name Example
+    Remove-ApplockerRule -Name "Regedit*" 
+
+    # Remove App Locker Rule with Path Example
+    Remove-ApplockerRule -Path "%WINDIR%\NOTEPAD.EXE"
+    
+    # Remove App Locker Rule with Publisher Example
+    Remove-ApplockerRule -Publisher "MICROSOFT® WINDOWS® OPERATING SYSTEM\O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US*"
+
+    # Remove App Locker Rule with Hash Example
+    Remove-ApplockerRule -Hash "SHA256 0xBB36F06560DB07A6973C0B50023862B8D2684E17E6C9DA2C2AAC60C6B8FD1580"
+
+    # Add Applocker Roles from JSON Example
+    Add-AppLockerRuleFromJson
+
+    # Remove Applocker Roles from JSON Example
+    Remove-AppLockerRuleFromJson
+
+    # Override AppLocker Defaults Example (this is optinal, can be placed into the PackageStartExtension) 
+    $DefaultAppLockerRuleNamePrefix = "$PackageName"
+    $DefaultAppLockerAction = 'Allow'
+    $DefaultAppLockerRuleType = 'Hash'
+    $DefaultAppLockerFileType = @('Exe','Dll','Script')
+    $DefaultAppLockerUser = $(ConvertTo-NTAccountOrSID  -SID 'S-1-5-11')
+    $DefaultAppLockerOptimize = $true
+    $DefaultAppLockerXmlToLog = $false
+    $DefaultAppLockerContinueOnError = $false
+    $DefaultAppLockerSleepinMS = 500
+
+    #endregion AppLocker
 
     #region ActiveSetup
 
@@ -1206,6 +1252,7 @@ Try {
         Remove-AddRemovePrograms -Name "My Custom Test App 1"
         Remove-AddRemovePrograms -Name "My Custom Test App 2"
 
+
         ### Check for DSM packages ###
 
         if (Test-DSMPackage -GUID "{E5565EC5-6D27-4322-B26D-ED0F75BF86FC}") {Show-DialogBox "Package found!" }
@@ -1213,6 +1260,20 @@ Try {
         if (Test-DSMPackage -Name "PackageNameA") {Show-DialogBox "Package found!" }
         if (Test-DSMPackage -Name "PackageNameA","PackageNameB") {Show-DialogBox "Package found!" }
         if (Test-DSMPackage -Name "PackageNameC") {Show-DialogBox "Package found!" }
+
+
+        ### Invoke-PackageStart/Invoke-PackageEnd ###
+
+        # Skip Invoke-PackageStart/Invoke-PackageEnd functions Example
+        $SkipAppConfig = $true
+        $SkipPermissionFromJson = $true
+        $SkipFirewallRuleFromJson = $true
+        $SkipAppLockerRuleFromJson = $true
+        $SkipRegistryBranding = $true
+        $SkipPackageEndExtension = $true
+        $SkipPackageStartExtension = $true
+
+
 
     #endregion Misc
     

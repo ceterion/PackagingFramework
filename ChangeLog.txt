@@ -389,5 +389,21 @@ Add-AddRemovePrograms        Online help improvment, correction of the examples,
 Install-DeployPackageService The schedule task is now using the RunLevel=Highest parameter as default
 Add-PermissionsFromJson      Added PermissionSet support and default parameters can now overwritten via $Global:DefaultPermission<ParameterName> variables, this allows you permission rules with only the path/key parameter in the .json.
 
+Version 1.0.19.0
+################
+
+Updated Cmdlets:
+----------------
+Add-Font                     Improvment, works now with font files on network shares
+Install-DeployPackageService Improvment, supports now # comment lines in .csv files 
+
+New Cmdlets:
+------------
+Add-AppLockerRule            Cmdlet to add local AppLocker rules
+Add-AppLockerRuleFromJson    Cmdlet to automaticaly add local AppLocker rules based on entries in the package.json file, automatical used when package is installed
+Remove-AppLockerRule         Cmdlet to remove local AppLocker rules
+Remove-AppLockerRuleFromJson Cmdlet to automaticaly remove local AppLocker rules based on entries in the package.json file, automatical used when package is uninstalled
+Invoke-PackageEnd            Added support for Add/Remove-FirewallRuleFromJson and Cmdlet "Skip.." Parameters can now overwritten via $Global:Skip<ParameterName> variables, this allows you to skip selected functions of the cmdlet
+Invoke-PackageStart          Cmdlet "Skip.." Parameters can now overwritten via $Global:Skip<ParameterName> variables, this allows you to skip selected functions of the cmdlet
 
 
