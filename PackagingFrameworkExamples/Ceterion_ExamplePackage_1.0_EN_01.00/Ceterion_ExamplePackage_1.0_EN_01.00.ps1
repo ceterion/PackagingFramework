@@ -936,15 +936,15 @@ Try {
     Remove-AppLockerRuleFromJson
 
     # Override AppLocker Defaults Example (this is optinal, can be placed into the PackageStartExtension) 
-    $DefaultAppLockerRuleNamePrefix = "$PackageName"
-    $DefaultAppLockerAction = 'Allow'
-    $DefaultAppLockerRuleType = 'Hash'
-    $DefaultAppLockerFileType = @('Exe','Dll','Script')
-    $DefaultAppLockerUser = $(ConvertTo-NTAccountOrSID  -SID 'S-1-5-11')
-    $DefaultAppLockerOptimize = $true
-    $DefaultAppLockerXmlToLog = $false
-    $DefaultAppLockerContinueOnError = $false
-    $DefaultAppLockerSleepinMS = 500
+    $Global:DefaultAppLockerRuleNamePrefix = "$PackageName"
+    $Global:DefaultAppLockerAction = 'Allow'
+    $Global:DefaultAppLockerRuleType = 'Hash'
+    $Global:DefaultAppLockerFileType = @('Exe','Dll','Script')
+    $Global:DefaultAppLockerUser = $(ConvertTo-NTAccountOrSID  -SID 'S-1-5-11')
+    $Global:DefaultAppLockerOptimize = $true
+    $Global:DefaultAppLockerXmlToLog = $false
+    $Global:DefaultAppLockerContinueOnError = $false
+    $Global:DefaultAppLockerSleepinMS = 500
 
     #endregion AppLocker
 
@@ -1265,13 +1265,13 @@ Try {
         ### Invoke-PackageStart/Invoke-PackageEnd ###
 
         # Skip Invoke-PackageStart/Invoke-PackageEnd functions Example
-        $SkipAppConfig = $true
-        $SkipPermissionFromJson = $true
-        $SkipFirewallRuleFromJson = $true
-        $SkipAppLockerRuleFromJson = $true
-        $SkipRegistryBranding = $true
-        $SkipPackageEndExtension = $true
-        $SkipPackageStartExtension = $true
+        $Global:SkipAppConfig = $true
+        $Global:SkipPermissionFromJson = $true
+        $Global:SkipFirewallRuleFromJson = $true
+        $Global:SkipAppLockerRuleFromJson = $true
+        $Global:SkipRegistryBranding = $true
+        $Global:SkipPackageEndExtension = $true
+        $Global:SkipPackageStartExtension = $true
 
 
 

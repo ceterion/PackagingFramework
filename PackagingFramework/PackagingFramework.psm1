@@ -32,11 +32,6 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 ##* FUNCTION LISTINGS (sorted from A - Z)
 ##*=============================================
 
-
-
-
-
-
 #region Function Add-AddRemovePrograms
     Function Add-AddRemovePrograms {
     <#
@@ -205,7 +200,7 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 	    }
     }
     #endregion Function Add-AddRemovePrograms
-
+   
 #region Function Add-AppLockerRule
     Function Add-AppLockerRule {
     <#
@@ -228,7 +223,7 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
     .PARAMETER User
         Specifies the user or group to which the rules are applied. Default is Authenticated Users
     .PARAMETER Optimize
-        Specifies that similar rules will be grouped together. Default: $true.
+        Specifies that similar rules will be grouped together. Default: $false
     .PARAMETER XmlToLog
         Specifies whether the XML file should be created in the log folder. Default: $false.
     .PARAMETER ContinueOnError
@@ -278,101 +273,180 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
 		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
 	    }
 	    Process {
+
 		    Try {
                 
                 # Log header
-                Write-Log -message "Start adding AppLocker rule for Path [$Path]" -Source ${CmdletName}
+                Write-Log -message "Start adding AppLocker [$RuleType] rule for Path [$Path]" -Source ${CmdletName}
 
                 # Built-in default if nothing is specified
-                if (-not($Global:DefaultAppLockerSleepinMS)) {$Global:DefaultAppLockerSleepinMS=500}
-
-                if (-not($RuleNamePrefix)) { if ($PackageName) { $RuleNamePrefix = $PackageName } else { $RuleNamePrefix = $((new-guid).Guid) } } else { Write-log "RuleNamePrefix is [$RuleNamePrefix]" -Source ${CmdletName} -DebugMessage}
-                if (-not($Action)) {write-log "No Action is specified, fallback to [Allow]" -Source ${CmdletName} -DebugMessage ;$Action='Allow'} else { Write-log "Action is [$Action]" -Source ${CmdletName} -DebugMessage}
-                if (-not($RuleType)) {write-log "No RuleType is specified, fallback to [Path]" -Source ${CmdletName} -DebugMessage ; $RuleType='Path'} else { Write-log "RuleType is [$RuleType]" -Source ${CmdletName} -DebugMessage}
-                if (-not($FileType)) {write-log "No FileType is specified, fallback to [Exe]" -Source ${CmdletName} -DebugMessage ; $FileType= @('Exe')} else { Write-log "FileType is [$FileType]" -Source ${CmdletName} -DebugMessage}
-                if (-not($User)) { write-log "No User is specified, fallback to [Everyone (S-1-1-0)]" -Source ${CmdletName} -DebugMessage ; $Global:DisableLogging = $true ; $Global:DisableWriteHost = $True ; $User = $(ConvertTo-NTAccountOrSID  -SID 'S-1-1-0') ; $Global:DisableLogging = $false ; $Global:DisableWriteHost = $false} else { Write-log "User is [$User]" -Source ${CmdletName} -DebugMessage}
-                if (-not($Optimize)) {$Optimize=$true} ; Write-log "Optimize is [$Optimize]" -Source ${CmdletName} -DebugMessage
+                if (-not($RuleNamePrefix)) { if ($PackageName) { $RuleNamePrefix = $PackageName } else { $RuleNamePrefix = $((new-guid).Guid) } } else { Write-log "RuleNamePrefix is [$RuleNamePrefix]" -Source ${CmdletName} -DebugMessage }
+                if (-not($Action)) {write-log "No Action is specified, fallback to [Allow]" -Source ${CmdletName} -DebugMessage ;$Action='Allow'} else { Write-log "Action is [$Action]" -Source ${CmdletName} -DebugMessage }
+                if (-not($RuleType)) {write-log "No RuleType is specified, fallback to [Path]" -Source ${CmdletName} -DebugMessage ; $RuleType='Path'} else { Write-log "RuleType is [$RuleType]" -Source ${CmdletName} -DebugMessage }
+                if (-not($FileType)) {write-log "No FileType is specified, fallback to [Exe]" -Source ${CmdletName} -DebugMessage ; $FileType= @('Exe')} else { Write-log "FileType is [$FileType]" -Source ${CmdletName} -DebugMessage } 
+                if (-not($User)) { write-log "No User is specified, fallback to [Everyone (S-1-1-0)]" -Source ${CmdletName} -DebugMessage ; $Global:DisableLogging = $true ; $Global:DisableWriteHost = $True ; $User = $(ConvertTo-NTAccountOrSID  -SID 'S-1-1-0') ; $Global:DisableLogging = $false ; $Global:DisableWriteHost = $false} else { Write-log "User is [$User]" -Source ${CmdletName} -DebugMessage} 
+                if (-not($Optimize)) {$Optimize=$false} ; Write-log "Optimize is [$Optimize]" -Source ${CmdletName} -DebugMessage
                 if (-not($XmlToLog)) {$XmlToLog=$true} ; Write-log "XmlToLog is [$XmlToLog]" -Source ${CmdletName} -DebugMessage
                 if (-not($ContinueOnError)) {$ContinueOnError=$false} ; Write-log "ContinueOnError is [$ContinueOnError]" -Source ${CmdletName} -DebugMessage
 
-                # Check if path is directory/wildcard/reachable
-                $isDirectory = (Get-Item $Path -ErrorAction SilentlyContinue) -is [System.IO.DirectoryInfo]
-                if ($Path -match '\*') { $isWildcard = $true } else { $isWildcard = $false }
-                if (Test-Path $Path -ErrorAction SilentlyContinue) { $isReachable = $true } else { $isReachable = $false }
-                Write-log "Path [$Path], isDirectory [$isDirectory], isWildcard [$isWildcard], isReachable [$isReachable]" -Source ${CmdletName} -DebugMessage
+                ########################
+                # Path & Hash Rules
+                ########################
+                                   
+                if ( ($RuleType -ieq 'Path') -or ($RuleType -ieq 'Hash') ) {
 
-                # If Path is not reachable and RuleType is NOT Path, fallback to RuleType Path 
-                if ( ($isReachable -eq $false) -and ($RuleType -ine 'Path') ) { $RuleType = 'Path' ; Write-log "Warning! Path [$Path] is NOT reachable, fallback to RuleType [$RuleType]" -Source ${CmdletName} -Severity 2}
+                    # Check if path has wildcard
+                    if ($Path -match '\*') { $isWildcard = $true ; Write-log "Path conmtains a wildcard" -Source ${CmdletName} -DebugMessage } else { $isWildcard = $false ; Write-log "Path conmtains no wildcard" -Source ${CmdletName} -DebugMessage }
 
-                # Filetype based rules
-                if ($fileType) { Write-log "FileType [$fileType]" -Source ${CmdletName} -DebugMessage }
-                foreach($FileTypeItem in $fileType)
-                {
-                    $fileInformation=$null
-                    $newPolicy=$null
-                    if($isDirectory)
-                    {
-                        # Get file information for all files that must be added to the new rule
-                        Write-log "Get AppLocker File Information for Directory [$Path] and FileType [$FileTypeItem]" -Source ${CmdletName}
-                        $fileInformation = Get-AppLockerFileInformation -Directory $Path\ -FileType $FileTypeItem -Recurse -ErrorAction SilentlyContinue -Verbose
-                        # 2nd try via object, this is the fallback for not reachable pathes
-                        if($FileInformation -eq $null) { $FileInformation = New-Object Microsoft.Security.ApplicationId.PolicyManagement.PolicyModel.FileInformation -ArgumentList $Path }
-                        write-log "FileInformation [$fileInformation]" -Source ${CmdletName} -DebugMessage
-                        if($fileInformation -ne $null) 
-                        {
-                            if($Optimize -eq $true) {
-                                # Combine many files one rule
-                                $newPolicy=New-AppLockerPolicy -FileInformation $fileInformation -RuleType $RuleType -User $User -IgnoreMissingFileInformation -RuleNamePrefix $RuleNamePrefix -Optimize -ErrorAction Stop -WarningAction Stop
-                            } else {
-                                # Explicit rule for each file
-                                $newPolicy=New-AppLockerPolicy -FileInformation $fileInformation -RuleType $RuleType -User $User -IgnoreMissingFileInformation -RuleNamePrefix $RuleNamePrefix -ErrorAction Stop  -WarningAction Stop
-                            }
-                            Write-log "PolicyObject [$newPolicy]" -Source ${CmdletName} -DebugMessage
+                    # Check if path has AppLocker variables, resolve them (Note IsDirectory check and Get-AppLockerFileInformation needs the sesolved path)
+                    if ($Path -match '%') {
+                        Write-log "Path inclues a variable" -Source ${CmdletName} -DebugMessage
+                        $isVariable = $true
+                        Write-log "Path before AppLocker variables are resolved [$Path]" -Source ${CmdletName} -DebugMessage
+                        $PathResolved = $Path
+                        $PathResolved = $PathResolved.TrimEnd('\')
+                        $PathResolved = $PathResolved.TrimEnd('\*')
+                        $PathResolved = $PathResolved -Replace('%WINDIR%',$WinDir)
+                        $PathResolved = $PathResolved -Replace('%OSDRIVE%',$SystemDrive)
+                        # System32 32bit vs 64bit
+                        $tmpPathResolved = $PathResolved -Replace('%SYSTEM32%',$SysDir)
+                        if ((Test-path -Path $tmpPathResolved)) { $PathResolved = $tmpPathResolved } else { $PathResolved = $PathResolved -Replace('%SYSTEM32%',"$WinDir\SysWOW64") }
+                        # ProgramFiles 32bit vs 64bit
+                        $tmpPathResolved = $PathResolved -Replace('%PROGRAMFILES%',$PROGRAMFILES)
+                        if ((Test-path -Path $tmpPathResolved)) { $PathResolved = $tmpPathResolved } else { $PathResolved = $PathResolved -Replace('%PROGRAMFILES%',"$ProgramFilesX86") }
+                        $path=$PathResolved
+                        Write-log "Path after AppLocker variables are resolved [$Path]" -Source ${CmdletName} -DebugMessage
+                     } else { $isVariable = $false ; Write-log "Path inclues no variable" -Source ${CmdletName} -DebugMessage }
 
-                        } else { if (-not($ContinueOnError)) { Throw "Failed to get FileInformation for Path [$Path]" }  else { Write-log "Failed to get FileInformation for Path [$Path]" -Source ${CmdletName} -Severity 3 } }
+                    # Check if path is reachable
+                    if (Test-Path $Path -ErrorAction SilentlyContinue) { $isReachable = $true ; Write-log "Path is reachable" -Source ${CmdletName} -DebugMessage } else { $isReachable = $false ; Write-log "Path is not reachable" -Source ${CmdletName} -DebugMessage}
+
+                    # Check if path is directory or file 
+                    if($isReachable -eq $true) {
+                        $isDirectory = (Get-Item $Path -ErrorAction SilentlyContinue) -is [System.IO.DirectoryInfo]
+                        if ($isDirectory -eq $true) { Write-log "Path is a directory" -Source ${CmdletName} -DebugMessage } else { Write-log "Path is no directory" -Source ${CmdletName} -DebugMessage }
+                    } else {
                     
-
+                        # Wenn Pfad nicht erreichbar, und dadurch nicht mit Get-Item überprüfbar, Feststellen ob es ein Verzeichnis oder Datei ist, durch pürfen dr Pfad eine durch AppLocker unterstützte FileExtensions hat.
+                        $SupportedExtension=@('.exe','.ps1','.vbs','.bat','.cmd','.js','.msi','.dll')
+                        Write-log "Check if path ends with an AppLocker supported file exitension, supported ones are [$SupportedExtension]" -Source ${CmdletName} -DebugMessage
+                        $Extension = ([System.IO.Path]::GetExtension($Path)).ToLower()
+                        if ($Extension) {
+                            Write-log "File Extension from Path is [$Extension]" -Source ${CmdletName} #-DebugMessage
+                            if($Extension -in $SupportedExtension) { Write-log "File Extension is a supported one, we asmue path contains a path to a file" -Source ${CmdletName} -DebugMessage ;  $isDirectory=$false } else { Write-log "No supported File Extension found, asume path contains a folder path" -Source ${CmdletName} -DebugMessage ; $isDirectory=$true }
+                        } else { Write-log "No supported file extension found, asume path contains a folder path" -Source ${CmdletName} -DebugMessage ;  $isDirectory=$true }
                     }
-                    else 
-                    {
-                        # Get file information for a specific file/path.
-                        Write-log "Get AppLocker File Information for File [$Path] and FileType [$FileTypeItem]" -Source ${CmdletName}
-                        $fileInformation = Get-AppLockerFileInformation -Path $Path -ErrorAction SilentlyContinue # -ErrorAction Stop 
-                        # 2nd try via object, this is the fallback for not reachable pathes
-                        if($FileInformation -eq $null) { $FileInformation = New-Object Microsoft.Security.ApplicationId.PolicyManagement.PolicyModel.FileInformation -ArgumentList $Path }
-                        write-log "FileInformation [$FileInformation]" -Source ${CmdletName} -DebugMessage
-                        if($fileInformation -ne $null){ 
-                            $newPolicy=New-AppLockerPolicy -FileInformation $fileInformation -RuleType $RuleType -User $User -IgnoreMissingFileInformation -RuleNamePrefix $RuleNamePrefix -ErrorAction Stop -WarningAction Stop
-                            Write-log "PolicyObject [$newPolicy]"-Source ${CmdletName} -DebugMessage
-                        } else { if (-not($ContinueOnError)) { Throw "Failed to get FileInformation for Path [$Path]" }  else { Write-log "Failed to get FileInformation for Path [$Path]" -Source ${CmdletName} -Severity 3 } }
-                    } 
+                
+                    # Write result summary to log
+                    Write-log "Path [$Path], isDirectory [$isDirectory], isWildcard [$isWildcard], isReachable [$isReachable], isVariable [$isVariable]" -Source ${CmdletName} 
+                   
+                    # If Path is not reachable add a extra warning to the log
+                    if ($isReachable -eq $false) { Write-log "Warning! Path [$Path] is NOT reachable" -Source ${CmdletName} -Severity 2}
 
-                    if($newPolicy -ne $null)
+                    # Filetype based rules
+                    if ($fileType) { Write-log "FileType [$fileType]" -Source ${CmdletName} -DebugMessage } 
+                    
+                    foreach($FileTypeItem in $fileType)
                     {
-                        # Change rule type to deny rule if requested.
-                        if($Action -ieq "Deny") 
-                        {
-                            foreach($RuleCollection in $newPolicy.RuleCollections)
-                            {
-                                foreach($Rule1 in $RuleCollection) { $Rule1.Action = 'Deny' }
+                        $fileInformation=$null ; $newPolicy=$null
+
+                        # Abort if RuleType is Hash and Path is not reachable 
+                        if ( ($isReachable -eq $false) -and ($RuleType -ieq 'Hash') ) { Throw "For PathType [Hash] the path [$Path] must be reachable, but the path is not reachable, abort with error" }
+
+                        # Create AppLockerFileInformationParams hashtable for splatting (will be used later)
+                        $AppLockerFileInformationParams = @{}
+                        if($isDirectory) {  # Note: We us different params for directory & files
+                            $AppLockerFileInformationParams.add("Directory",$Path)
+                            $AppLockerFileInformationParams.add("FileType",$FileTypeItem)
+                            $AppLockerFileInformationParams.add("Recurse",$true)
+                        } else {
+                            $AppLockerFileInformationParams.add("Path",$Path)
+                        }
+
+                        # Create FileInformation object for path via Get-AppLockerFileInformation
+                        Write-log "Get AppLocker File Information for path [$Path] and FileType [$FileTypeItem]" -Source ${CmdletName}
+                        Write-log "AppLockerFileInformationParams: $([string]($AppLockerFileInformationParams.GetEnumerator() | % { "$($_.Key)=$($_.Value)" }))" -Source ${CmdletName} -DebugMessage
+                        try { $FileInformation = Get-AppLockerFileInformation @AppLockerFileInformationParams -ErrorAction SilentlyContinue -Verbose } catch { <# ignore this error #> }
+
+                        # If FileInformation is empty make a 2nd try, but now we use New-Object instaed of using Get-AppLockerFileInformation, this can be necessary when the path is not reachable
+                        if($FileInformation -eq $null) { 
+                            Write-log "Fallback to simple FileInformation object" -Source ${CmdletName} -DebugMessage
+                            # For file
+                            if ( ($isReachable -eq $false) -and ($isDirectory -eq $false)) {
+                                    $FileInformation = New-Object Microsoft.Security.ApplicationId.PolicyManagement.PolicyModel.FileInformation -ArgumentList $Path 
+                            }
+                            # For directory, a dummy.exe is added because FileInformation object allways needs a file
+                            if ( ($isReachable -eq $false) -and ($isDirectory -eq $true)) {
+                                Write-log "Add dummy file name" -Source ${CmdletName} -DebugMessage
+                                switch($FileTypeItem.ToLower()){
+                                    "exe" { $DummyPath = "$path\Dummy.exe" }
+                                    "script" { $DummyPath = "$path\Dummy.vbs" }
+                                    "windowsinstaller" { $DummyPath = "$path\Dummy.msi" }
+                                    "dll" { $DummyPath = "$Path\Dummy.dll" }
+                                    "appx" { $DummyPath = "$Path\Dummy.appx" }
+                                }
+                                $FileInformation = New-Object Microsoft.Security.ApplicationId.PolicyManagement.PolicyModel.FileInformation -ArgumentList $DummyPath
+                                # Enable optimize to replace dummy file name with *
+                                if ($Optimize -eq $false) {$Optimize=$true ; Write-log "Fallback to Optimze=True to replace Dummy file name with *" -Source ${CmdletName} -DebugMessage }
                             }
                         }
+
+                        # Throw error if FileInformation object is still empty
+                        if (-not($FileInformation)) { if (-not($ContinueOnError)) { Throw "Failed to get FileInformation for Path [$Path]" }  else { Write-log "Failed to get FileInformation for Path [$Path]" -Source ${CmdletName} -Severity 3 } } else {write-log "FileInformation [$FileInformation]" -Source ${CmdletName} -DebugMessage }
+
+                        # Create NewAppLockerPolicyParams hashtable for splatting (will be used later)
+                        $NewAppLockerPolicyParams = @{}
+                        $NewAppLockerPolicyParams.add("IgnoreMissingFileInformation",$true)
+                        if($Optimize -eq $true) {$NewAppLockerPolicyParams.add("Optimize",$true)}
+                        if($FileInformation) {$NewAppLockerPolicyParams.add("FileInformation",$FileInformation)}
+                        if($RuleType) {$NewAppLockerPolicyParams.add("RuleType",$RuleType)}
+                        if($User) {$NewAppLockerPolicyParams.add("User",$User)}
+                        if($RuleNamePrefix) {$NewAppLockerPolicyParams.add("RuleNamePrefix",$RuleNamePrefix)}
+
+                        # Create new AppLocker Policy
+                        $newPolicy=New-AppLockerPolicy @NewAppLockerPolicyParams -ErrorAction Stop -WarningAction Stop
+                        Write-log "PolicyObject [$newPolicy]"-Source ${CmdletName} -DebugMessage
+
+                        # Throw error if NewPolicy object is empty
+                        if (-not($NewPolicy)) { if (-not($ContinueOnError)) {Throw "Faily to set AppLocker policy, new policy object is empty!"} else {Write-log "Faily to set AppLocker policy, new policy object is empty!" -Source ${CmdletName} -Severity 3}}
+                        
+                        # Change rule type to deny rule if requested.
+                        if($Action -ieq "Deny"){ foreach($RuleCollection in $NewPolicy.RuleCollections){ foreach($Rule1 in $RuleCollection) { $Rule1.Action = 'Deny' } } }
             
                         # Apply the new Policy
-                        Write-log "Save App Locker Policy [$RuleNamePrefix] for FileType [$FileType], Action [$Action], Path [$Path], User [$User]"  -Source ${CmdletName}
-                        Set-AppLockerPolicy -PolicyObject $newPolicy -Merge -ErrorAction Stop
-                        Start-Sleep -Milliseconds $Global:DefaultAppLockerSleepinMS
+                        Write-log "Save App Locker Policy [$RuleNamePrefix] for FileType [$FileTypeItem], Action [$Action], Path [$Path], User [$User]" -Source ${CmdletName} 
+                        Retry-Command -ScriptBlock { Set-AppLockerPolicy -PolicyObject $newPolicy -Merge -ErrorAction Stop } -Maximum 10 -Delay 250
+                        Write-log "App Locker Policy save successfuly" -Source ${CmdletName}
                         
                         # Write XML to log folder (optional)
-                        if ($XmlToLog) {$newPolicy.ToXML() | Out-File "$LogDir\AppLocker_$RuleNamePrefix`_$FileType`_$RuleType.xml"}
+                        $XmlFileSaved = $false
+                        if ($XmlToLog) {
+                            $FileCounter = 0
+                            while ($XmlFileSaved -eq $false)
+                            {
+                                $XmlFileName = "$LogDir\AppLocker_$RuleNamePrefix`_$FileTypeItem`_$RuleType`_$FileCounter.xml"
+                                if (Test-path -Path $XmlFileName) { $FileCounter++ } else {
+                                    Write-log "Save Xml File [$XmlFileName]" -Source ${CmdletName}
+                                    $NewPolicy.ToXML() | Out-File "$XmlFileName"
+                                    $XmlFileSaved=$True
+                                }
+                            }
+                        }
                         
-                    } else {
-                        if (-not($ContinueOnError)) {Throw "Faily to set AppLocker policy because policy object is empty!"} else {Write-log "Faily to set AppLocker policy because policy object is empty!" -Source ${CmdletName} -Severity 3}
-                        
-                    }
 
-                } # foreach filetype
+                    } # foreach filetype
 
+                } # If RuleType Path or Hash
+
+
+
+                ########################
+                # Publisher Rules
+                ########################
+
+                if ($RuleType -ieq 'Publisher') {
+                    Throw "RuleType [Publisher] is not supported yet"    
+                }
 
 
 
@@ -436,8 +510,19 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                         ForEach ($Item in $AppLockerRule.PSObject.Properties) {
                             Write-Log "$($Item.Name) =  $($Item.Value) | $($Item.Value.gettype())" -Source ${CmdletName} -DebugMessage
                             
-                            # Expand environment variable and powershellvariables in value
-                            if ($Item.Value -is [string]) { If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType all } }
+                            # Convert parameter Optimize & ContinueOnError from string true/false to bool true/false if not already bool
+                            if ( ($Item.Name -ieq "Optimize" ) -or ($Item.Name -ieq "ContinueOnError" ) ){
+                                if ($Item.value -is [STRING]) {
+                                    if ($Item.value -ieq 'true') { 
+                                        Write-Log "Convert parameter [$($Item.Name)] for string [$($Item.value)] to bool [$true]" -Source ${CmdletName} -DebugMessage ; $Item.value =[bool]$true
+                                     } else {
+                                        Write-Log "Convert parameter [$($Item.Name)] for string [$($Item.value)] to bool [$false]" -Source ${CmdletName} -DebugMessage ; $Item.value =[bool]$false
+                                    }
+                                }
+                            }
+
+                            # Expand powershell variables in value (but not environment variable because this can colide with internale AppLocker variable names)
+                            if ($Item.Value -is [string]) { If(![string]::IsNullOrEmpty($Item.Value)) { $Item.Value = Expand-Variable -InputString $Item.Value -VarType powershell } }
 
                             # Add item to hash
                             $AppLockerHash.Add($Item.Name,$Item.Value) 
@@ -452,14 +537,6 @@ $Global:LogDir = "$env:WinDir\Logs\Software"
                         $AppLockerHash = @{}
                         $AppLockerHash.Add('Path',$AppLockerRule) 
                     }
-
-                    # Convert true/false strings from JSON to bool
-                    if ($AppLockerHash.Optimize -ieq 'true') { $AppLockerHash.Optimize = $true }
-                    if ($AppLockerHash.Optimize -ieq 'false') { $AppLockerHash.Optimize = $false }
-                    if ($AppLockerHash.Force -ieq 'true') { $AppLockerHash.Force = $true }
-                    if ($AppLockerHash.Force -ieq 'false') { $AppLockerHash.Force = $false }
-                    if ($AppLockerHash.ContinueOnError -ieq 'true') { $AppLockerHash.ContinueOnError = $true } 
-                    if ($AppLockerHash.ContinueOnError -ieq 'false') { $AppLockerHash.ContinueOnError = $false } 
 
                     # Add AppLocker rule
                     #$AppLockerHash | Format-Table
@@ -2836,29 +2913,29 @@ Function Exit-Script {
 			Write-Log -Message 'Remove deferral history...' -Source ${CmdletName}
 			Remove-RegistryKey -Key $Script:regKeyDeferHistory -Recurse
 		}
-		[string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextComplete"
+		[string]$balloonText = "$Script:DeploymentTypeName $Script:configBalloonTextComplete"
 
 		## Handle reboot prompts on successful script completion
 		If (($AllowRebootPassThru) -and ((($MSIRebootDetected) -or ($exitCode -eq 3010)) -or ($exitCode -eq 1641))) {
 			Write-Log -Message 'A restart has been flagged as required.' -Source ${CmdletName}
-            [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextRestartRequired"
+            [string]$balloonText = "$Script:DeploymentTypeName $Script:configBalloonTextRestartRequired"
 			If (($MSIRebootDetected) -and ($exitCode -ne 1641)) { [int32]$exitCode = 3010 }
 		}
 		Else {
 			[int32]$exitCode = 0
 		}
 		
-		Write-Log -Message "$installName $DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
+		Write-Log -Message "$installName $Script:DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
 		If ($global:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 	}
 	ElseIf (-not $installSuccess) {
-		Write-Log -Message "$installName $DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
+		Write-Log -Message "$installName $Script:DeploymentTypeName completed with exit code [$exitcode]." -Source ${CmdletName}
 		If (($exitCode -eq $Script:configInstallationUIExitCode) -or ($exitCode -eq $Script:configInstallationDeferExitCode)) {
-            [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextFastRetry"
+            [string]$balloonText = "$Script:DeploymentTypeName $Script:configBalloonTextFastRetry"
 			If ($global:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Warning' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 		}
 		Else {
-            [string]$balloonText = "$DeploymentTypeName $Script:configBalloonTextError"
+            [string]$balloonText = "$Script:DeploymentTypeName $Script:configBalloonTextError"
 			If ($global:configShowBalloonNotifications) { Show-BalloonTip -BalloonTipIcon 'Error' -BalloonTipText $balloonText ; Start-Sleep -Seconds 2 }
 		}
 	}
@@ -5771,9 +5848,9 @@ Function Initialize-Script {
 
     # Deployment Type text strings
     Switch ($DeploymentType) {
-	    'Install'   { $DeploymentTypeName = $script:configDeploymentTypeInstall }
-	    'Uninstall' { $DeploymentTypeName = $script:configDeploymentTypeUnInstall }
-	    Default { $DeploymentTypeName = $script:configDeploymentTypeInstall }
+	    'Install'   { $Script:DeploymentTypeName = $script:configDeploymentTypeInstall }
+	    'Uninstall' { $Script:DeploymentTypeName = $script:configDeploymentTypeUnInstall }
+	    Default { $Script:DeploymentTypeName = $script:configDeploymentTypeInstall }
     }
 
     ## Check current permissions and exit if not running with Administrator rights
@@ -7068,7 +7145,7 @@ Function Invoke-PackageEnd {
 		[Switch]$SkipRegistryBranding = [bool]$Global:SkipRegistryBranding,
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[Switch]$SkipPackageEndExtension = [bool]$Global:PackageEndExtension
+		[Switch]$SkipPackageEndExtension = [bool]$Global:SkipPackageEndExtension
 	)
 	Begin {
 		## Get the name of this function and write header
@@ -8678,6 +8755,7 @@ $TemplateFile | Out-File -FilePath "$Path\$Name\$Name.ps1" -Encoding utf8
   "DetectionMethods": [ ],
   "Dependencies": [ ],
   "Supersedence": [ ],
+  "AppLockerRules": [ ],
   "FirewallRules": [ ],
   "Parameters": { },
   "Permissions": [ ],
@@ -9066,8 +9144,8 @@ ALT+CTRL+F
 
                         # Save AppLockerPolicy with modified Rule Collection 
                         Write-log "Save modified Local AppLocker Policy" -Source ${CmdletName}
-                        Set-AppLockerPolicy -PolicyObject $LocalAppLockerPolicy
-                        Start-Sleep -Milliseconds $Global:DefaultAppLockerSleepinMS
+                        Retry-Command -ScriptBlock {Set-AppLockerPolicy -PolicyObject $LocalAppLockerPolicy -ErrorAction Stop } -Maximum 10 -Delay 250
+                        Write-log "App Locker Policy save successfuly" -Source ${CmdletName}
 
                     } else {
                         Write-log "No matching AppLocker rules found for Rule Collection Type [$RuleCollectionType]" -Source ${CmdletName} -DebugMessage
@@ -10826,6 +10904,52 @@ Function Resolve-Error {
 	}
 }
 #endregion
+
+#region Function Retry-Command
+
+    # Retry-Command
+    function Retry-Command {
+        [CmdletBinding()]
+        Param(
+            [Parameter(Position=0, Mandatory=$true)]
+            [scriptblock]$ScriptBlock,
+            [Parameter(Position=1, Mandatory=$false)]
+            [int]$Maximum = 5,
+            [Parameter(Position=2, Mandatory=$false)]
+            [int]$Delay = 100
+        )
+
+        Begin {
+		    ## Get the name of this function and write header
+		    [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+            $Counter = 0
+        }
+        Process {
+            do {
+                $Counter++
+                try {
+                    Write-Log "Try to excute ScriptBlock [$ScriptBlock]" -Severity 1 -Source ${CmdletName}
+                    $ScriptBlock.Invoke()
+                    Write-Log "ScriptBlock [$ScriptBlock] executed sucessful" -Severity 1 -Source ${CmdletName}
+                    return
+                } catch {
+                    #Write-Error $_.Exception.InnerException.Message -ErrorAction Continue
+                    Write-Log "ScriptBlock [$ScriptBlock] failed, retry after [$Delay ms]`r`nError details: $($_.Exception.InnerException.Message)" -Severity 2 -Source ${CmdletName}
+                    Start-Sleep -Milliseconds $Delay
+                }
+            } while ($Counter -lt $Maximum)
+            throw "Execution failed multiple times!`r`nError details: $($_.Exception.InnerException.Message)"
+        }
+
+	    End {
+		    Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	    }
+
+
+    }
+
+#endregion Function Retry-Command
 
 #region Function Send-Keys
 Function Send-Keys {
@@ -13300,7 +13424,7 @@ Function Show-InstallationProgress {
 		## Check if the progress thread is running before invoking methods on it
 		If ($script:ProgressSyncHash.Window.Dispatcher.Thread.ThreadState -ne 'Running') {
 			#  Notify user that the software installation has started
-			$balloonText = "$deploymentTypeName $configBalloonTextStart"
+			$balloonText = "$Script:deploymentTypeName $configBalloonTextStart"
 			Show-BalloonTip -BalloonTipIcon 'Info' -BalloonTipText $balloonText
 			#  Create a synchronized hashtable to share objects between runspaces
 			$script:ProgressSyncHash = [hashtable]::Synchronized(@{ })
@@ -19550,8 +19674,8 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # SIG # Begin signature block
 # MIIuPAYJKoZIhvcNAQcCoIIuLTCCLikCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCC2H28XIhJTd10
-# +2V7QY48E/4RpsAnSy4cwDugw7kYBqCCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDWqqwmzrOiABsZ
+# St0Lbnx19XN+auZBBbC6DWfnTSmXZ6CCJnAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -19761,38 +19885,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # BAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQYvy15QxruCqHtkw0htwN
 # QTANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAkIGTcuxkBAFL7UVw269jbR0XnTnkP6AQU
-# bttUZ5HiITANBgkqhkiG9w0BAQEFAASCAgCESvi4dQBFlk6YA86g31yynQBKOR/4
-# aDKErwEV81rcG4nIBjd133SGMbF90MwxwV33P+Yp20fpizwFkgmfQyOoQplx0S2O
-# 7d8FQaSMnd7+zMZ6E/sFq8NPwFjgMTaN0wBNoQ41Ok4sunFAPO3QYfDZMRa0f3zH
-# Oe2aL8SWHdSv1ZBf7mvmrhkAB7wCqcLMCIID4lUt5N9qqRkc7/JYMnqcwpPSrnX/
-# 7IkesJ9DgDsA5HGU/TSn2ELyPIqoNYovfWMB8q9WfTlxsfTkLaynExT0OC+WsmLC
-# aiAER5GjfJA+h9AnsmHB3tlegRiqDRTFGxnPYvsA2LbCci9U1HCJ8/eIf7h32Kx9
-# Seb4kl7iRVKdjqsLIVvnTXMoFHEP7yzHMr3gBIp58cdDPGdsaSIWNnF/ASlkjYYA
-# tH0XlOODoOJa+qVS9uLojpdoqemZrj9Gx4Kjz+hllfAGdl6aKyyN8RyWVPC2QyMU
-# XKIOP3cPjz1wuwJDfYmsDMXm/nkrVQIIOFWu96g8o+PDsQDW/KI9rrdAyXYMogjy
-# XJGBjxJXsxQC3jHoRilt6OS9Hz1r8n3h76kceIe/iTV1/vhmSx9QVzuBj7/UEf+V
-# ai6IW8vCcLSIMwfkp3NyKQxmAv/ye0fi2OuvRq4humdGWbGovWASYHOPQDrydeTF
-# 1/EMV5kRHiDaJKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAF26Qulw5YJogQibstBFpCBVK2VtytC/Xy
+# inSArt/tjTANBgkqhkiG9w0BAQEFAASCAgB0RC2rLr2+KT0pWDouMQJTWZv11L9p
+# GMHesca2UUhoyfI1qPR1EIbPdO7N5UwSsy26uaxXFEc//Eimq5t6Tut6msCq4a3X
+# w+2ZAf2XoXRK8VCZ3V3TzjTduDr3d7rF2tvQQY3C7MUgHGz30Mlda2lvyEXVpM5x
+# /49CfXPHBtBwOYzbU6grBU5roUe4rWWK1ippTdhr8xXN26GQV9AULj8J40I8olBH
+# AMveCOQe/vpd0VUEG45oOAdrTaFClPBJzJ/hiT8MxaGgNXJrveIKvaOVVx5Jy2JM
+# Eqj+O/TXV3v4u9EpAiX2k3DH+N+vJGM1ClE1xnsgTGqfaYJMkr2kBNhTEFxbG/45
+# EYpwq52as+XqbKHe8IhaHmTPKbEH4aZ1DVhBQy1xCpL7k3HnULJVN63fH3noC/Qw
+# 1dep+jYU0syIVpcmCeWjggU7AG9a/9Dr/qp+FZKjV9eC35VuKRe5C+/Oou/kSIJN
+# E+JqqPWU1m2Us4DQ3SiDzkFHxX26X1CAhLuYTJ8qyBptHvKgSl8QOdcKDk1345MY
+# mnZq+SWO1q4mjVyVEr2KV7msZ3uANAiec64pNIUNIovLzT7ODEdIaS1G+muA6Pz5
+# 4bUIJPFq3D2KY0wZduX4Pbqu4uy5+fZCijHW3plP2jUBJ+NuoeYrDuDYujhdZ7y+
+# a2amQ0cY4ef8fKGCBAIwggP+BgkqhkiG9w0BCQYxggPvMIID6wIBATBqMFYxCzAJ
 # BgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAi
 # BgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIQK9SucLnQY1sq6YTI
 # 1nSqMDANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJ
-# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzA3MzEyMTM1NDdaMDcGCyqGSIb3DQEJEAIv
+# EAEEMBwGCSqGSIb3DQEJBTEPFw0yMzA5MTUxNjE3NDdaMDcGCyqGSIb3DQEJEAIv
 # MSgwJjAkMCIEIAO5mmRJdJhKlbbMXYDTRNB0+972yiQEhCvmzw5EIgeKMD8GCSqG
-# SIb3DQEJBDEyBDBmdX9qDBwfGTbJay3z3fTvdQfL2avMJ9LJlF6PdNDr3jTrDmqD
-# XFZwaOUAkB4QKQowgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
+# SIb3DQEJBDEyBDAuKKo45oKAqltLSvsDLedEvCYgKF6Ud+LgfjJVocUjOJljPShb
+# FaAQcnJVwZJdEmowgZ8GCyqGSIb3DQEJEAIMMYGPMIGMMIGJMIGGBBS/T2vEmC3e
 # FQWo78jHp51NFDUAzjBuMFqkWDBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNz
 # ZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1w
 # aW5nIDIwMjEgQ0ECECvUrnC50GNbKumEyNZ0qjAwDQYJKoZIhvcNAQEBBQAEggIA
-# tll5HlEKdwTJ2JiqVzSuWA2VInmhyU78SoYOZPfO8Ipo+tLog7ITWqBQSYxy/pf6
-# mAYCPSD9jgSS5fLu4NsiLlRTIMp5Nt90wB6CAYqVOlk2tjWb1blcegcUkYDEEoDS
-# 31iM9HMQUuCSXZ6rruPArBY4Y2a70Z8MCB9Dp6uUNHigI7fxk5KXomj3dai8yl3z
-# 4tih0PlKnR28pWn2e5ueSzxlDo2Zt2pLyLqyw3d4wvGa/iDHJYfDLT7LfGscp+Ch
-# 7koV9OIMTh1adtSbZDJcH17PkEPsEqjhpoHJlhNoiq74qJAj35QkJfNgooC0to7w
-# pimdm/A9yUHv4ZA8xpgex8bJsX4EefHMuqehwaUmQIU7g7QO/2Qgy0DMXoCaqGfe
-# Cmas5a2XSUaP/fyM4wDIWEO2aSoTf0M7HIS3HgOaOxqM5C5ufoG+8Sb52jvDAulH
-# 818n82QNVD65pKGtdgYFdiXWam2qciJ8SmHW1/qx/AAKUFk9Ya6/qLGaf1iqgNVf
-# NVjMgPEy9BBTTeE/ji29ipY5jov5tScn3DoWWsoha5A0ARyTuUwm9U90cMzKqq/E
-# 9LTRczQAjHLGaEq4VdpjRAgLSZcK2XEkOKmhmNhWxyCnrSzi+AuDxLeXKVk6bPL5
-# FHc8/evT2q+9npdnSOoxes+yJo8WLyT6OnkLmyD+XKI=
+# lFSfXStSZ14j1YhTSHD7PeG0UztjnkSSGBaGtcExDsIweXMk9tRd8LH7sCPsYVf7
+# pFebg4FH0dMF3R9PcyYc4EjSi69LKkdjNTV5yWr/VsPhRAZfCIgbTTBAkPy1LB8i
+# isQg7/mlK+MbxXS/k5tQGdvD8X53eNY9stJMTTk+VfUN0JGgpyhcpEcXdirZ3tPW
+# sOEStpY+sDhY+vsGtS7CpYmkTpd/ilXq9GN3KSON6O/J2muiD/8AiIfwvPSiiBkR
+# uEcZ0fgbb26BZbjUHsU9SwTWEZK5PjZ9nPtZhys0llmfARNG6DGAc8nFR+v2DBwd
+# Zcbv+Iy+cixABYTelMQIY4InqJSMExmUmTLZIagxLr5i9t23FGSVryypJa2EL0FS
+# fLBAvxmVFXTsT4vESh1lvqkPf2VxnYV9I5n+DVwkHYIQjRtkbUFG18IJTtiru79L
+# N27YMMxDQT9Dx+IyAvfiilE9fuXSGu6TqeerTLj/4jubG9AENtq82DuwGZJ1O3dH
+# ULEa6q/8Tbi0/kPkda1+G6G6xpqkY9hcjieIgQEUKVvpt3ZKJL0MjPn/vcANsw0m
+# nx/LfZj8XMRG5YyEa5HU3eTsghsZqpBPujyUoXNeN5JTJzVrXa+V7MCP5FeqIbeP
+# sNpw+fnUYYjOLO0GFd8eVRYRlbFGIZL7h2zY13Vb5Yo=
 # SIG # End signature block

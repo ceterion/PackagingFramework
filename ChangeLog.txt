@@ -407,3 +407,19 @@ Invoke-PackageEnd            Added support for Add/Remove-FirewallRuleFromJson a
 Invoke-PackageStart          Cmdlet "Skip.." Parameters can now overwritten via $Global:Skip<ParameterName> variables, this allows you to skip selected functions of the cmdlet
 
 
+Version 1.0.20.0
+################
+
+General:
+------------ 
+Some examples in the example package are improved.
+Scope issue of variable $DeploymentTypeName fixed.
+
+Updated Cmdlets:
+----------------
+New-Package                  Empty "AppLockerRules" section is now included in the PackageName.json.
+Add-AppLockerRule            Improved AppLocker variable handling, internal usage of splatting, retry logic because of sporadic "in use" problem when adding multiple rules, improved logfile.
+Add-AppLockerRuleFromJson    Improved AppLocker variable handling.
+Remove-AppLockerRule         Retry logic because of sporadic "in use" problem when removing multiple rules.
+
+
