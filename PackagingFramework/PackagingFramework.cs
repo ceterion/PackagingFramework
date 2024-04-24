@@ -1,5 +1,5 @@
-// Date Modified:20.03.2017
-// Version Number: 1.0.0
+// Date Modified: 24.04.2024
+// Version Number: 24.4.0.0
 
 using System;
 using System.Text;

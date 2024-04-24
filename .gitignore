@@ -1,7 +1,7 @@
-PackagingFrameworkSetup/*.exe
 PackagingFrameworkNSISExtensionSetup/*.exe
 PackagingFrameworkDSMExtensionSetup/*.exe
 PackagingFrameworkMECMExtensionSetup/*.exe
 PackagingFrameworkWISEExtensionSetup/*.exe
 PackagingFrameworkWorkspaceOneUEMExtensionSetup/*.exe
+PackagingFrameworkSetup/*.exe
 [Ww]ork/

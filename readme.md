@@ -1,4 +1,4 @@
-# ceterion Packaging Framework 1.0.20.0
+# ceterion Packaging Framework 2404 (24.4.0.0)
 
 
 ## Synopsis

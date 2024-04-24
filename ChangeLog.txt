@@ -1,6 +1,6 @@
 ceterion Packaging Framework - Change Log
-Date: 09 February 2023
-Please feel free and report issues as well as feature requests at http://github.com/ceterion/PackagingFramework
+Date: 23 April 2024
+Please feel free to report issues as well as feature requests at http://github.com/ceterion/PackagingFramework or via email at PackagingFramework@ceterion.com
 
 Version 1.0.0.0 
 ###############
@@ -423,3 +423,14 @@ Add-AppLockerRuleFromJson    Improved AppLocker variable handling.
 Remove-AppLockerRule         Retry logic because of sporadic "in use" problem when removing multiple rules.
 
 
+Version 2404 (24.4.0.0)
+########################
+
+General:
+------------ 
+Version number schema changed to Year.Month.Build.Revision
+
+New Cmdlets:
+----------------
+Start-MSIX                   Cmdlet to install or uninstall MSIX app packages
+Start-AppX                   Cmdlet to install or uninstall AppX app packages
