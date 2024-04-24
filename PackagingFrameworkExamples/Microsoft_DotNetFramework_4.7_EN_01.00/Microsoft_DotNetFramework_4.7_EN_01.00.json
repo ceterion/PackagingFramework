@@ -1,0 +1,23 @@
+{
+  "Package": 
+    {
+      "PackageDate": "10.12.2017",
+      "PackageAuthor": "ceterion AG",
+      "PackageDescription": "Microsoft .NET Framework 4.7",
+      "PackageDisplayName": ".Net Framework",
+      "PackageGUID": "9a9dbfa6-4a92-45ec-a9c8-f4566f8fe555"
+    },
+  
+  "DetectionMethods": [ ],
+  "Dependencies": [ ],
+  "Supersedence": [ ],
+  "Parameters": { },
+  "FirewallRules": [ ],
+  "Permissions": [ ],
+  "Notes": [ 
+    "This package req. the NDP47-KB3186497-x86-x64-AllOS-ENU.exe that can be downloaded from https://www.microsoft.com/de-de/download/details.aspx?id=55167"
+  ],
+  "ChangeLog":[
+      "Version 1.0 initial release"
+  ]    
+}

@@ -1,0 +1,33 @@
+{
+  "Package": 
+    {
+      "PackageDate": "10.10.2017",
+      "PackageAuthor": "ceterion AG",
+      "PackageDescription": "7-Zip x64 16.04",
+      "PackageDisplayName": "7-Zip",
+      "PackageGUID": "09366b72-9466-416c-8245-65f0419320d9"
+    },
+  "Applications": [
+    {
+      "AppName": "7-Zip",
+      "AppCommandLineExecutable": "$ProgramFiles\\7-Zip\\7zFM.exe",
+      "AppWorkingDirectory": "$ProgramFiles\\7-Zip",
+      "AppFolder": "Utilities",
+      "AppCommandLineArguments": "",
+      "AppIconSource": "$ProgramFiles\\7-Zip\\7zFM.exe",
+      "AppAccounts": [ ]
+    }
+  ],
+  "DetectionMethods": [ ],
+  "Dependencies": [ ],
+  "Supersedence": [ ],
+  "FirewallRules": [ ],
+  "Permissions": [ ],
+  "Parameters": { },
+  "Notes": [
+    "This package req. the 7z1604-x64.msi file that can be downloaded from http://www.7-zip.org/download.html"
+    ],
+  "ChangeLog":[
+      "Version 1.0 initial release"
+  ]    
+}
