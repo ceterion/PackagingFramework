@@ -1,8 +1,0 @@
-[Setup]
-Lang=de
-Dir=C:\Program Files (x86)\WinSCP
-Group=(Default)
-NoIcons=0
-SetupType=custom
-Components=main,shellext,pageant,puttygen,transl,transl\eng,transl\ar,transl\ca,transl\ch,transl\chs,transl\cs,transl\de,transl\es,transl\fi,transl\fr,transl\hr,transl\hu,transl\is,transl\it,transl\jp,transl\ko,transl\lt,transl\nl,transl\no,transl\pl,transl\pt,transl\ptg,transl\ro,transl\ru,transl\sk,transl\sv,transl\tr,transl\uk,transl\xxk
-Tasks=urlhandler
