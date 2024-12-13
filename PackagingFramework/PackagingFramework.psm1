@@ -15,7 +15,7 @@
     Get-Help <Command>
     
     To get a full help of all included command use the following PowerShell command:
-    Get-Command -Module PackagingFramework | Get-Help
+    Get-Command -Module PackagingFramework | Get-Helpnstall
 .LINK
 	http://www.ceterion.com
 #>
@@ -1400,6 +1400,185 @@ namespace FontResource
 	}
 }
 #endregion Function Add-Font
+
+#region Function Add-InstallationLogEntry
+Function Add-InstallationLogEntry {
+<#
+.SYNOPSIS
+	Add a line to the installation sequence file 
+.DESCRIPTION
+	Add a line to the installation sequence file 
+.PARAMETER ComputerName
+    Specifies the Comptername to write the entry, default is the local computer name
+.PARAMETER Status
+    Specifies the status icon of the entry, possible values are: Pending, Running, Error, Success, Cancel, Pause
+.PARAMETER Returncode
+    Specifies the returncode, default is 0 
+.PARAMETER Action
+    Specifies the action type, possible values are: COMMENT, REBOOT, DEPLOY, DEPLOY_SCHEDULED, EXECUTE_COMMAND, STOP, PAUSE
+.PARAMETER Command
+    Specifies the command or a comment
+.PARAMETER Start
+    Specifies the start time in FileDateTimeUniversal format, default is the the current time
+.PARAMETER End
+    Specifies the end time in FileDateTimeUniversal format, default is the the current time
+.PARAMETER Position
+    Specifies the position where to add the entry, posible values are Top, End, Current (default)
+.PARAMETER ContinueOnError
+    Continue if an error is encountered. Default: $false
+.EXAMPLE
+	Add-InstallationLogEntry -Action 'COMMENT -Command 'My custom text'
+	Adds a comment line at the current position to the install sequence file
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$ComputerName=$env:COMPUTERNAME,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('Pending','Running','Error','Success','Cancel','Pause')]
+		[Alias('Icon')]
+        [string]$Status='Success',
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[int32]$ReturnCode,
+            
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('COMMENT','REBOOT','DEPLOY','DEPLOY_SCHEDULED','EXECUTE_COMMAND','STOP', 'PAUSE')]
+		[string]$Action = 'COMMENT',
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Command,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Start=$(Get-Date -Format FileDateTimeUniversal),
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$End=$(Get-Date -Format FileDateTimeUniversal),
+
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('Top','Bottom','Current')]
+        [string]$Position ='Current',
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[switch]$ContinueOnError
+
+	)
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+            
+	}
+	Process {
+		Try {
+                
+            Write-Log "Add install log entry action [$Action] with [$Command] and status [$Status] and ReturnCode [$ReturnCode] for computer [$ComputerName] at position [$Position]" -Source ${CmdletName} 
+                
+            # Convert status string to integer
+            switch ($status)
+            {
+                'Pending' {[int]$status = 0 }
+                'Running' {[int]$status = 1 }
+                'Error' {[int]$status = 2 }
+                'Success' {[int]$status = 3 }
+                'Cancel' {[int]$status = 4 }
+                'Pause' {[int]$status = 5 }
+                Default {[int]$status = 0}
+            }
+
+            if($ComputerInstallSequenceFile) {
+                If (Test-path -Path $ComputerInstallSequenceFile -PathType Leaf) {
+                            
+                        # Helper function creat a new install sequence entry object
+                        Function New-InstallSequenceEntry {
+                            $newEntry = New-Object -TypeName psobject
+                            if ($Status) { $newEntry | Add-Member -MemberType NoteProperty -Name Status -Value $Status }
+                            if ($Action) { $newEntry | Add-Member -MemberType NoteProperty -Name Action -Value $Action }
+                            if ($Command) { $newEntry | Add-Member -MemberType NoteProperty -Name Command -Value $Command }
+                            if ($Start) { $newEntry | Add-Member -MemberType NoteProperty -Name Start -Value $Start }
+                            if ($End) { $newEntry | Add-Member -MemberType NoteProperty -Name End -Value $End }
+                            if ($ReturnCode -is [int]) { $newEntry | Add-Member -MemberType NoteProperty -Name ReturnCode -Value $ReturnCode }
+                            Return $newEntry
+                        }
+                            
+                        # Read existing install sequence file (with retry and delay as workaround for file is use)
+                        $InstallSeqObject = Retry-Command -ScriptBlock { 
+                            $InstallSeqObject = Get-Content $ComputerInstallSequenceFile -ErrorAction Stop | ConvertFrom-Json ; Return $InstallSeqObject
+                        } -Maximum 10 -Delay 250 -DisableWriteLog
+
+                        # Copy existing object line by line to a new object and update it
+                        $NewInstallSeqObject = @()
+                        foreach ($Item in $InstallSeqObject) {
+                                
+                            # Add new line to top
+                            if ($Position -ieq "top") {
+                                if($LineAdded -ne $true){
+                                    $newEntry = New-InstallSequenceEntry
+                                    Write-log "Add [$newEntry] at top" -Source ${CmdletName} -DebugMessage
+                                    $NewInstallSeqObject += $newEntry
+                                    $LineAdded=$true
+                                }
+                                $NewInstallSeqObject += $item
+                            }
+
+                            # Add new line at current line (the first line with Status=0)
+                            if ($Position -ieq "current") {
+                                If (($Item.Status -eq 0) -and ($LineAdded -ne $true)) { 
+                                    $LineAdded=$true
+                                    $newEntry = New-InstallSequenceEntry
+                                    Write-log "Add [$newEntry] at current line" -Source ${CmdletName} -DebugMessage
+                                    $NewInstallSeqObject += $newEntry
+                                }
+                                $NewInstallSeqObject += $item
+                            }
+
+                        }
+
+                        # Add new line to bottom
+                        if ($Position -ieq "bottom") {
+                            $newEntry = New-InstallSequenceEntry
+                            Write-log "Add [$newEntry] at bootom" -Source ${CmdletName} -DebugMessage
+                            $NewInstallSeqObject = $InstallSeqObject
+                            $NewInstallSeqObject += $newEntry
+                        }
+
+                        # Write updateed json 
+                        Retry-Command -ScriptBlock { 
+                            $NewInstallSeqObject | ConvertTo-Json | Out-File $ComputerInstallSequenceFile -Encoding utf8 -ErrorAction Stop
+                        } -Maximum 10 -Delay 250 -DisableWriteLog
+                                                    
+                } else {
+                    Write-Log "Skip add install log entry, file [$ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
+                }
+            } else {
+                Write-Log "Skip add install log entry, Parameter [ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
+            }
+        }
+		Catch {
+            Write-Log -Message "Failed to add install log  entry. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    		If (-not $ContinueOnError) {
+				Throw "Failed to add install log entry.: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Add-InstallationLogEntry
 
 #region Function Add-Path
 Function Add-Path {
@@ -4023,134 +4202,187 @@ Function Get-Path {
 Function Get-Parameter {
 <#
 .SYNOPSIS
-	Returns parameter variables
+      Returns parameter variables
 .DESCRIPTION
-	Returns parameter variables from JSON, SCCM or CloudShaper
+      Returns parameter variables from JSON, JSONFolder, SCCM or CloudShaper
 .PARAMETER Parameter
-	The name of the parameter value, e.g. InstallDir (mandatory)
+      The name of the parameter value, e.g. InstallDir (optional), if not specified all parameters are returned
 .PARAMETER Variable
-	Variable name where to store the value (optional)
+      Variable name where to store the value (optional)
 .PARAMETER Source
-	Source where to look for parameters, possible values are Json, SCCM, CloudShaper and All, Default is Json (optional)
+      Source where to look for parameters, possible values are Json, JsonFolder, SCCM, CloudShaper and All, Default is All (optional)
 .PARAMETER Section
-	Section where to look for parameters, not valid for SCCM, default for Json is 'Parameters', default for CloudShaper is 'Custom' (optional)
+      Section where to look for parameters, not valid for SCCM and JsonFolder, default for Json is 'Parameters', default for CloudShaper is 'Custom' (optional)
 .PARAMETER Default
-	Default value to return when the parameter is not found or empty (optional)
+      Default value to return when the parameter is not found or empty (optional, only supported for single parameters)
 .PARAMETER Expand
-	Defines if environment or powershell variables in a parameter value should be expanded (optional)
+      Defines if environment or powershell variables in a parameter value should be expanded (optional, only supported for single parameters)
 .PARAMETER SecureParameters
-	Hides the parameter value in the log file, e.g. to suppress passwords in logs
-.PARAMETER NoAutoGeneratedVariable
-	Disable the automatic generated variable, usefull when you whant only to pipe the return value insated of creating a new variable
+      Hides the parameter value in the log file, e.g. to suppress passwords in logs (optional, only supported for single parameters)
+.PARAMETER NoAutoGeneratedVariable 
+      Disable the automatic generated variable, usefull when you whant only to pipe the return value insated of creating a new variable (optional)
 .PARAMETER NoAutoDecrypt
-	Disable the automatic decrypt of encrpted variables
+      Disable the automatic decrypt of encrpted variables (optional, only supported for single parameters)
 .PARAMETER NoWriteOutput
-    Disable the return of the value to StdOut
+      Disable the return of the value to StdOut (optional)
 .PARAMETER Force
-    Force to set parameter value to an existing variable (overwrite existing variable value)
+      Force to set parameter value to an existing variable and overwrite existing variable value (optional)
 .PARAMETER ContinueOnError
-    Continue On Error
+    Continue On Error (optional)
 .EXAMPLE
-	Get-Parameter 'InstallDir'
-	Tries to gets the parameter "InstallDir" from all sources and puts the result into new variable with the name and value of this parameter
+      Get-Parameter 'InstallDir'
+      Gets the parameter "InstallDir" from all sources and puts the result into new variable with the name and value of this parameter
 .EXAMPLE
-	Get-Parameter 'InstallDir' -Source SCCM -Default 'C:\Temp' -Expand
-	Tries to get the parameter "InstallDir" from SCCM and expands variables and or defaults to C:\temp when the parameter is not found.
+      Get-Parameter 'InstallDir' -Source SCCM -Default 'C:\Temp' -Expand
+      Get the parameter "InstallDir" from SCCM and expands variables and or defaults to C:\temp when the parameter is not found.
 .EXAMPLE
-    $Return = Get-Parameter 'TestParam' -NoAutoGeneratedVariable
-    Tries to gets the parameter "InstallDir" from all sources and returns the value to the pipe, no varaiable is generated automaticaly
+      $Return = Get-Parameter 'TestParam' -NoAutoGeneratedVariable
+      Gets the parameter "InstallDir" from all sources and returns the value to the pipe, no varaiable is generated automaticaly
+.EXAMPLE
+      Get-Parameter
+      Get all parameters and automatic generated variables (currently only supportet for JsonFolder parameters)
+.EXAMPLE
+      $AllParameter = Get-Parameter -NoAutoGeneratedVariable
+      Get all parameters and store them in a single hashtable variable
 .NOTES
-	Created by ceterion AG
+      Created by ceterion AG
 .LINK
-	http://www.ceterion.com
+      http://www.ceterion.com
 #>
-	[CmdletBinding()]
-	Param (
-		#  Get the current date
-		[Parameter(Mandatory = $True)]
-		[ValidateNotNullorEmpty()]
-		[string]$Parameter,
+      [CmdletBinding()]
+      Param (
+            #  Get the current date
+            [Parameter(Mandatory = $False)]
+            [ValidateNotNullorEmpty()]
+            [string]$Parameter = '*',
 
-		[Parameter(Mandatory = $False)]
-		[ValidateNotNullorEmpty()]
-		[string]$Variable,
+            [Parameter(Mandatory = $False)]
+            [ValidateNotNullorEmpty()]
+            [string]$Variable,
 
-		[Parameter(Mandatory=$False)]
-		[ValidateSet('All','Json','SCCM','CloudShaper')]
-		[string]$Source = 'All',
+            [Parameter(Mandatory=$False)]
+            [ValidateSet('All','Json','JsonFolder','SCCM','CloudShaper')]
+            [string]$Source = 'All',
 
-		[Parameter(Mandatory=$False)]
-        [ValidateNotNullorEmpty()]
-		[string]$Section,
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullorEmpty()]
+            [string]$Section,
 
-		[Parameter(Mandatory=$False)]
-		[string]$Default,
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullorEmpty()]
+            [string]$ComputerName=$env:ComputerName,
+        
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullorEmpty()]
+            [string]$RootFolder,
+        
+            [Parameter(Mandatory=$False)]
+            [string]$Default,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$Expand,
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$Expand,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$SecureParameters,
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$SecureParameters,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$NoAutoGeneratedVariable,
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$NoAutoGeneratedVariable,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$NoAutoDecrypt,
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$NoAutoDecrypt,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$NoWriteOutput,
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$NoWriteOutput,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$Force,
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$Force,
 
-		[Parameter(Mandatory=$false)]
-		[ValidateNotNullorEmpty()]
-		[switch]$ContinueOnError
-	)
-	
-	Begin {
-		## Get the name of this function and write header
-		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
-		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
-	}
-	Process {
-		Try {
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$ContinueOnError
+      )
+      
+      Begin {
+            ## Get the name of this function and write header
+            [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+        
+            # Nested helper function to loop through parent folders until you reach the root folder
+            Function Get-DeploymentSettingFiles {
+                param(
+                    [Parameter(Mandatory = $True)]
+                    [ValidateNotNullorEmpty()]
+                    [string]$Path,
+                    [Parameter(Mandatory = $True)]
+                    [ValidateNotNullorEmpty()]
+                    [string]$Root
+                )
+                $Item = Get-Item -Path $Path
+                if ($Item.FullName -ne $Root) { 
+                    Get-DeploymentSettingFiles -Path $Item.Parent.FullName -Root $Root
+                    "$($Item.FullName)\settings.json"
+                }
+                else
+                {
+                    "$($Item.FullName)\settings.json"
+                }
+            }
+      }
+      Process {
+            Try {
 
             # Init return variable with NULL
             $Return = $null
+            
+            # Use InfrastructureShare as root folder if no root folder is specified
+            if ($InfrastructureShare) { if (-not($RootFolder)) {$RootFolder = $InfrastructureShare } }
 
-            # Default Section (if not specified. Note: Sections are only for JSON and CloudShaper but not for SCCM)
-            If([string]::IsNullOrEmpty($Section)) {
-                If (($Source -ieq "Json") -or ($Source -ieq "All") ){$Section = 'Parameters'}
-                If ($Source -ieq "CloudShaper") {$Section = 'Custom'}
-            }
+            # Debug Log
+            Write-log "-------------------------------" -Source ${CmdletName} -DebugMessage
+            Write-log "Parameter: $Parameter" -Source ${CmdletName} -DebugMessage
+            Write-log "Variable: $Variable" -Source ${CmdletName} -DebugMessage
+            Write-log "Source: $Source" -Source ${CmdletName} -DebugMessage
+            Write-log "Section: $Section" -Source ${CmdletName} -DebugMessage
+            Write-log "ComputerName: $ComputerName" -Source ${CmdletName} -DebugMessage
+            Write-log "RootFolder: $RootFolder" -Source ${CmdletName} -DebugMessage
+            Write-log "Default: $Default" -Source ${CmdletName} -DebugMessage
+            Write-log "Expand: $Expand" -Source ${CmdletName} -DebugMessage
+            Write-log "SecureParameters: $SecureParameters" -Source ${CmdletName} -DebugMessage
+            Write-log "NoAutoGeneratedVariable: $NoAutoGeneratedVariable" -Source ${CmdletName} -DebugMessage
+            Write-log "NoAutoDecrypt: $NoAutoDecrypt" -Source ${CmdletName} -DebugMessage
+            Write-log "NoWriteOutput: $NoWriteOutput" -Source ${CmdletName} -DebugMessage
+            Write-log "Force: $Force" -Source ${CmdletName} -DebugMessage
+            Write-log "ContinueOnError: $ContinueOnError" -Source ${CmdletName} -DebugMessage
+            Write-log "-------------------------------" -Source ${CmdletName} -DebugMessage
 
-           
             # Get parameter from package JSON file
             If (($Source -ieq "All") -or ($Source -ieq "Json")) {
+                # Default section name 
+                If([string]::IsNullOrEmpty($Section)) {$Section = 'Parameters' ; $ResetSection=$true }
+
                 If(![string]::IsNullOrEmpty($PackageConfigFile.$Section.$Parameter))
                 {
                     $TempReturn = $PackageConfigFile.$Section.$Parameter
                     If(![string]::IsNullOrEmpty($TempReturn)) {  
                         $Return = $TempReturn
-                        If (-not $SecureParameters) {Write-Log "${CmdletName} [$Parameter] found in JSON with value [$Return]" -Source ${CmdletName}} else {Write-Log "${CmdletName} [$Parameter] found in JSON with value: [********]" -Source ${CmdletName}}
+                        If (-not $SecureParameters) {Write-Log "${CmdletName} [$Parameter] found in package JSON file with value [$Return]" -Source ${CmdletName}} else {Write-Log "${CmdletName} [$Parameter] found in package JSON file with value: [********]" -Source ${CmdletName}}
                     }
                     else
                     {
-                        Write-Log "${CmdletName} [$Parameter] NOT found in JSON" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        Write-Log "${CmdletName} [$Parameter] NOT found in package JSON file" -Severity 2 -DebugMessage -Source ${CmdletName}
                     }
                 }
                 else
                 {
-                    Write-Log "${CmdletName} [$Parameter] NOT found in JSON" -Severity 2 -DebugMessage -Source ${CmdletName}
+                    Write-Log "${CmdletName} [$Parameter] NOT found in package JSON file" -Severity 2 -DebugMessage -Source ${CmdletName}
                 }
+                if ($ResetSection -eq $true) {Remove-variable Section -Force}
             }
 
             # Get parameter from SCCM
@@ -4159,6 +4391,14 @@ Function Get-Parameter {
                 {
                     $TempReturn = $SMSTSEnvironment.Value($Parameter)
                     If(![string]::IsNullOrEmpty($TempReturn))  {  
+                        If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                        {
+                            Write-Log "${CmdletName} Return value [$Return] will be overwritten with [$TempReturn]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                        ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                        {
+                            Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
                         $Return = $TempReturn
                         If (-not $SecureParameters) {Write-Log "${CmdletName} [$Parameter] found in SCCM with value [$Return]" -Source ${CmdletName}} else {Write-Log "${CmdletName} [$Parameter] found in SCCM with value: [********]" -Source ${CmdletName}}
                     }
@@ -4178,7 +4418,10 @@ Function Get-Parameter {
 
             # Get parameter from CloudShaper (aka visionapp.ini Custom section)
             If (($Source -ieq "All") -or ($Source -ieq "CloudShaper")) {
-            
+                
+                # Default section Name
+                If([string]::IsNullOrEmpty($Section)) {$Section = 'Custom' ; $ResetSection=$true }
+
                 # Get visionapp.ini path from registry
                 If ($Is64Bit){
                     if(Test-Path -Path "HKLM:\Software\WOW6432Node\visionapp")
@@ -4198,6 +4441,14 @@ Function Get-Parameter {
                 {
                     $TempReturn = Get-IniValue -FilePath $visionappIni -Section $Section -Key $Parameter -SuppressLog
                     If(![string]::IsNullOrEmpty($TempReturn)) {  
+                        If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                        {
+                            Write-Log "${CmdletName} Return value [$Return] will be overwritten with [$TempReturn]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                        ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                        {
+                            Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
                         $Return = $TempReturn
                         If (-not $SecureParameters) {Write-Log "${CmdletName} [$Parameter] in section [$Section] found in visionapp.ini with value [$Return]" -Source ${CmdletName}} else {Write-Log "${CmdletName} [$Parameter] in section [$Section] found in visionapp.ini with value [********]" -Source ${CmdletName}}                
                     }
@@ -4210,63 +4461,220 @@ Function Get-Parameter {
                 {
                     Write-Log "${CmdletName} [$Parameter] NOT found in visionapp.ini" -Severity 2 -DebugMessage -Source ${CmdletName}
                 }
+                if ($ResetSection -eq $true) {Remove-variable Section -Force}
+            }
+
+            # Get parameter from JSON folder
+            If (($Source -ieq "All") -or ($Source -ieq "JsonFolder")) {
+                If(![string]::IsNullOrEmpty($RootFolder))
+                {
+                    $SettingsHash = @{}
+                    
+                    # Find COMPUTERNAME.json file (but only once, because this can take some time)
+                    #if (-not($Global:ComputerParameterFile)) {
+                    #    Write-Log "Search recursive for [$env:COMPUTERNAME.json] at [$RootFolder]" -Source ${CmdletName} #-DebugMessage
+                    #    $Global:ComputerParameterFile = (Get-ChildItem "$RootFolder\$env:COMPUTERNAME.json" -Recurse -Depth 32).FullName 
+                    #}
+
+                    # Get settings file from folder structure (but only once)
+                    if (-not $global:ComputerParameterFileWithParents) {
+                        $SettingFiles = Get-DeploymentSettingFiles -Path $(Split-Path -parent -path $ComputerParameterFile)  -Root $RootFolder
+                        $SettingFiles += $ComputerParameterFile
+                        $global:ComputerParameterFileWithParents = $SettingFiles
+                    } else {
+                        $SettingFiles = $global:ComputerParameterFileWithParents
+                    }
+
+                    # Process each setting files
+                    foreach ($SettingFile in $SettingFiles)
+                    {
+                        if (Test-path -Path "$SettingFile") {
+                            Write-Log "Processing settings file [$SettingFile]" -Source ${CmdletName} -DebugMessage
+                            $SettingsFromJson = Retry-Command -ScriptBlock { 
+                                $SettingsFromJson = Get-Content -Path "$SettingFile" -ErrorAction Stop  | ConvertFrom-Json ; $SettingsFromJson
+                            } -Maximum 10 -Delay 250 -DisableWriteLog
+
+                            # Get all section names (if no section is specified)
+                            if ($Section) { [array]$Sections = $section } else { 
+                                $Sections = $SettingsFromJson.PSObject.Properties.Name 
+                                Write-Log "Section name not specified, auto detect section names [$Sections]" -Source ${CmdletName} -DebugMessage
+                                $ResetSection=$true
+                            }
+
+                            foreach ($Section in $Sections)
+                            {
+                                # Enumerate properties and add them to the SettingsHash
+                                Write-Log "Check [$SettingFile] and section [$section] for parameter [$Parameter]" -Source ${CmdletName} -DebugMessage
+                                $SettingsFromJson.$Section.PSObject.Properties | foreach-object {
+                                    $value = $_.value ; $name = $_.name
+                                    # Check if propertiy already exists in object
+                                    if($name){
+                                        Write-Log "Parameter [$Name] with value [$value] found in section [$section] in [$SettingFile] " -Source ${CmdletName} -DebugMessage 
+                                        if ($SettingsHash.$name -eq $null){
+                                            # Add to hashtable
+                                            $SettingsHash.Add($name,$value)
+                                            write-log "Add new setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
+                                        } else {
+                                            # Update value if already exist in hashtable
+                                            write-log "Update setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
+                                            $SettingsHash.$name = $value
+                                        }
+                                    }
+                                }# foreachobject
+                            }
+
+                        }
+                        if ($ResetSection -eq $true) {Remove-Variable Section -Force -ErrorAction SilentlyContinue } 
+                    }
+                    
+                    # Remember parameter object globaly for later use
+                    $Global:ComputerParameter = $SettingsHash
+
+
+                    If(-not($Parameter -ieq "*"))
+                    {
+                        If(![string]::IsNullOrEmpty($SettingsHash.$Parameter))
+                        {
+                            $TempReturn = $SettingsHash.$Parameter
+                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                            {
+                                Write-Log "Return value [$Return] will be overwritten with [$TempReturn]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                            {
+                                Write-Log "Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            $Return = $TempReturn
+                            If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in JSON folder with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in JSON folder with value: [********]" -Source ${CmdletName}}
+
+                        }
+                        else
+                        {
+                            Write-Log "Parameter [$Parameter] NOT found in json folder" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                    }
+                    else
+                    {
+                        If($SettingsHash.Count -ne 0)
+                        {
+                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                            {
+                                Write-Log "${CmdletName} Return value [$Return] will be overwritten with hash table" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                            {
+                                Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            $Return = $SettingsHash
+                            If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in JSON folder with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in JSON folder with value: [********]" -Source ${CmdletName}}
+                            
+                        }
+                        else
+                        {
+                            Write-Log "Parameter [$Parameter] NOT found in json folder" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                    }
+
+                }
+                else
+                {
+                    Write-Log "${CmdletName} Parameter [RootFolder] NOT specified. RootFolder is required for JsonFolder look up." -Severity 2 -DebugMessage -Source ${CmdletName}
+                }
             }
 
 
+
+
             # Return default value when no parameter value is found and default value is specified
-            If([string]::IsNullOrEmpty($Return)) {  
-                If(![string]::IsNullOrEmpty($Default)) {  
-                    $Return = $Default
-                    If (-not $SecureParameters) {Write-Log "${CmdletName} [$Parameter] NOT found, using default value [$Return]" -Source ${CmdletName}} else {Write-Log "${CmdletName} [$Parameter] NOT found, using default value [********]" -Source ${CmdletName}}
+            if (-not([string]::IsNullOrEmpty($Parameter))) {
+                If([string]::IsNullOrEmpty($Return)) {  
+                    If(![string]::IsNullOrEmpty($Default)) {  
+                        $Return = $Default
+                        If (-not $SecureParameters) {Write-Log "${CmdletName} [$Parameter] NOT found, using default value [$Return]" -Source ${CmdletName}} else {Write-Log "${CmdletName} [$Parameter] NOT found, using default value [********]" -Source ${CmdletName}}
+                    }
                 }
             }
             
             # Expand variable
-            If(![string]::IsNullOrEmpty($Return)) {  
-                if ($Expand -eq $True){
-                    $Return = Expand-Variable -InputString $Return
+            if (-not([string]::IsNullOrEmpty($Parameter))) {
+                If(![string]::IsNullOrEmpty($Return)) {  
+                    if ($Expand -eq $True){
+                        $Return = Expand-Variable -InputString $Return
+                    }
                 }
             }
 
             # Auto decrypt value if encrypted (and key exists)
-            If ($NoAutoDecrypt -eq $false){
-                If(![string]::IsNullOrEmpty($Return)) {
-                    $key = (Get-ItemProperty -ErrorAction SilentlyContinue -Path "Registry::HKEY_CURRENT_USER\Software\$PackagingFrameworkName" -name 'Key').Key
-                    If ($key){
-                        If ($Return -match 'ENCRYPTAES256') { $Return = Invoke-Encryption -Action Decrypt -String $Return }
+            if (-not([string]::IsNullOrEmpty($Parameter))) {
+                If ($NoAutoDecrypt -eq $false){
+                    If(![string]::IsNullOrEmpty($Return)) {
+                        $key = (Get-ItemProperty -ErrorAction SilentlyContinue -Path "Registry::HKEY_CURRENT_USER\Software\$PackagingFrameworkName" -name 'Key').Key
+                        If ($key){
+                            If ($Return -match 'ENCRYPTAES256') { $Return = Invoke-Encryption -Action Decrypt -String $Return }
+                        }
                     }
                 }
             }
 
             # Auto-generate a global variable with the value when Variable option is specified
-            If ($NoAutoGeneratedVariable -eq $False)
-            {
-                If(![string]::IsNullOrEmpty($Return)) {  
-                    # User parameter name as variable name when no variable name is specified
-                    If([string]::IsNullOrEmpty($Variable)) {
-                        $Variable = $Parameter
-                    }
-                    # Generate variable
-                    If(![string]::IsNullOrEmpty($Variable)) {
+            If ($NoAutoGeneratedVariable -eq $False) {
+
+                # Single variable (string)
+                if (($Return -is [string]) -or ($Return -is [int]) -or ($Return -is [bool]))  {
+                    Write-Log "Auto-generate a global variable for parameter [$parameter]" -Source ${CmdletName}    
+                    If(![string]::IsNullOrEmpty($Return)) {  
+                        # User parameter name as variable name when no variable name is specified
+                        If([string]::IsNullOrEmpty($Variable)) {
+                            $Variable = $Parameter
+                        }
+                        # Generate variable
+                        If(![string]::IsNullOrEmpty($Variable)) {
                         
-                        
-                        # check if variable already exists
-                        if (Get-Variable $Variable -ErrorAction SilentlyContinue) {
-                            if ($Force -eq $true){
-                                Set-Variable -Name $Variable -Value $Return -Description 'Auto genrated variable by Get-Parameter' -Scope Global -Force
+                            # check if variable already exists
+                            if (Get-Variable $Variable -ErrorAction SilentlyContinue) {
+                                if ($Force -eq $true){
+                                    Set-Variable -Name $Variable -Value $Return -Description 'Auto genrated variable by Get-Parameter' -Scope Global -Force
+                                }
+                                else
+                                {
+                                    Write-log "Parameter [$Parameter] not set to variable [$Variable] because this variable already exists and -force was not specified" -Source ${CmdletName}
+                                }
                             }
                             else
                             {
-                                Write-log "Parameter [$Parameter] not set to variable [$Variable] because this variable already exists and -force was not specified" -Source ${CmdletName}
+                                New-Variable -Name $Variable -Value $Return -Description 'Auto genrated variable by Get-Parameter' -Scope Global -Force
+                            }
+
+                        }
+                    }
+                }                
+
+
+                # Multiple variable (hashtable)
+                if ($Return -is [hashtable]) {
+                    foreach ($item in $return.GetEnumerator())
+                    {
+                        Write-Log "Auto-generate a global variable for parameter [$($item.name)]" -Source ${CmdletName}    
+                        If(![string]::IsNullOrEmpty($item.name)) {  
+                            # check if variable already exists
+                            if (Get-Variable $item.name -ErrorAction SilentlyContinue) {
+                                if ($Force -eq $true){
+                                    Set-Variable -Name $item.name -Value $item.value -Description 'Auto genrated variable by Get-Parameter' -Scope Global -Force
+                                }
+                                else
+                                {
+                                    Write-log "Parameter [$($item.name)] not set to variable [$($item.name)] because this variable already exists and -force was not specified" -Source ${CmdletName}
+                                }
+                            }
+                            else
+                            {
+                                New-Variable -Name $item.name -Value $Item.Value -Description 'Auto genrated variable by Get-Parameter' -Scope Global -Force
                             }
                         }
-                        else
-                        {
-                            New-Variable -Name $Variable -Value $Return -Description 'Auto genrated variable by Get-Parameter' -Scope Global -Force
-                        }
 
-                    }
-                }
+                    }#foreach
+                }#is hashtale
+
             }
 
             # In NoAutoGeneratedVariable is enabled always return value to output
@@ -4276,22 +4684,21 @@ Function Get-Parameter {
             if ($SecureParameters -eq $true) {$NoWriteOutput = $true} 
 
             # Return parameter value to output
-            if ($NoWriteOutput -eq $false)
-            {
-			    Write-Output -InputObject $Return
+            if ($NoWriteOutput -eq $false) {
+                Write-Output -InputObject $Return
             }
 
-		}
-		Catch {
+            }
+            Catch {
                 Write-Log -Message "Failed to get parameter. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
-    			If (-not $ContinueOnError) {
-				Throw "Failed to get parameter.: $($_.Exception.Message)"
-			}
-		}
-	}
-	End {
-		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
-	}
+                  If (-not $ContinueOnError) {
+                        Throw "Failed to get parameter.: $($_.Exception.Message)"
+                  }
+            }
+      }
+      End {
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+      }
 }
 #endregion Function Get-Parameter
 
@@ -5304,6 +5711,62 @@ Function Initialize-Script {
     [string]$Global:IsCitrixAgent=$false ; if(get-service -name BrokerAgent -ErrorAction SilentlyContinue){[string]$Global:IsCitrixAgent=$true}
     [string]$Global:IsCitrixBroker=$false ; if(get-service -name CitrixBrokerService -ErrorAction SilentlyContinue){[string]$Global:IsCitrixBroker=$true}
 
+    # Get ASG/visionapp visionapp.ini variable
+    If ($Is64Bit){ if(Test-Path -Path "HKLM:\Software\WOW6432Node\visionapp")  { [string]$Global:visionappIni = (Get-ItemProperty -Path HKLM:\Software\WOW6432Node\visionapp -Name visionappIniFileName -ErrorAction SilentlyContinue).visionappIniFileName} }
+    else { If(Test-Path -Path "HKLM:\Software\visionapp") { [string]$Global:visionappIni = (Get-ItemProperty -Path HKLM:\Software\visionapp -Name visionappIniFileName -ErrorAction SilentlyContinue).visionappIniFileName } }
+
+    # Get ASG/visionapp ICSService variable
+    [string]$Global:IsICSService=$false ; if(get-service -name ICSService -ErrorAction SilentlyContinue){[string]$Global:IsICSService=$true}
+
+    # Get ceterion Install Agent variable
+    [string]$Global:IsceterionInstallAgent=$false ; if(get-service -name ceterionInstallAgent -ErrorAction SilentlyContinue){[string]$Global:IsceterionInstallAgent=$true}
+
+    # Get ceterion Install Agent InfrastructureShare, ClientLocation, ComputerParameterFile and ComputerInstallSequenceFile vars
+    try {$Global:InfrastructureShare = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'InfrastructureShare' -ErrorAction SilentlyContinue} catch {} # https://github.com/PowerShell/PowerShell/issues/19228
+    try {$Global:ClientLocation = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'ClientLocation' -ErrorAction SilentlyContinue} catch {}
+    If ($Global:InfrastructureShare.ToLower().StartsWith("\\dummy\")) {$Global:InfrastructureShare=$null} # Set to null if dummy
+    if ($Global:InfrastructureShare){
+        Write-Log "InfrastructureShare is [$Global:InfrastructureShare]" -Source ${CmdletName} -DebugMessage
+
+        # If ClientLocation is not found fallback to search ClientLocation at InfrastructureShare
+        if (-not($Global:ClientLocation)){
+            Write-log "Registry key [ClientLocation] at [HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\] not found" -Source ${CmdletName} -DebugMessage
+            Write-Log "Fallback to search for [$ComputerName.json] at [$Global:InfrastructureShare] to find [ClientLocation]" -Source ${CmdletName} -DebugMessage
+            $Global:ComputerParameterFile = (Get-ChildItem "$Global:InfrastructureShare\$ComputerName`.json" -Recurse -Depth 32).FullName 
+            if ($Global:ComputerParameterFile) {
+                $Global:ClientLocation = ("$(Split-path $Global:ComputerParameterFile)" -ireplace ([Regex]::Escape($InfrastructureShare),'')).Trim("\")
+                Write-Log "Found [ClientLocation] at [$Global:ClientLocation]" -Source ${CmdletName} -DebugMessage
+
+            } else {
+                Write-Log "No [$ComputerName.json] file found at [$Global:InfrastructureShare]" -Source ${CmdletName} -DebugMessage
+            }
+        }
+
+        if ($Global:ClientLocation){
+            Write-Log "ClientLocation is [$Global:ClientLocation]" -Source ${CmdletName} -DebugMessage
+            $Global:ComputerParameterFile = "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName.json"
+            if (Test-Path -Path "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName.json") {
+                Write-Log "ComputerParameterFile is [$Global:ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
+            } else {
+                Write-Log "ComputerParameterFile not found at [$Global:ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
+            }
+            $Global:ComputerInstallSequenceFile = "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName`_Install.seq"
+            if (Test-Path -Path "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName`_Install.seq") {
+                Write-Log "ComputerInstallSequenceFile is [$Global:ComputerInstallSequenceFile]" -Source ${CmdletName} -DebugMessage
+            } else {
+                Write-Log "ComputerInstallSequenceFile not found at [$Global:ComputerInstallSequenceFile]" -Source ${CmdletName} -DebugMessage
+            }
+        } else {
+        }
+    } else {
+        Write-log "Registry key [InfrastructureShare] at [HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\] not found"  -Source ${CmdletName} -DebugMessage
+    }
+
+    
+
+
+
+
     #  Get the OS Architecture
     [boolean]$Global:Is64Bit = [boolean]((Get-WmiObject -Class 'Win32_Processor' -ErrorAction 'SilentlyContinue' | Where-Object { $_.DeviceID -eq 'CPU0' } | Select-Object -ExpandProperty 'AddressWidth') -eq 64)
     If ($Global:Is64Bit) { [string]$Global:OSArchitecture = '64-bit' } Else { [string]$Global:OSArchitecture = '32-bit' }
@@ -5471,7 +5934,7 @@ Function Initialize-Script {
     ## Variables: Module Dependency Files (incl. if exists check)
     [string]$Script:LogoIcon = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.ico'
     [string]$Script:LogoBanner = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.png'
-    [string]$ModuleJsonFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.json'  # not global intentionally, only the json object will be clobal, but not the file !
+    [string]$ModuleJsonFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.json'  # not global intentionally, only the json object will be global, but not the file !
     [string]$Script:CustomTypesFile = Join-Path -Path $Global:ModuleRoot -ChildPath 'PackagingFramework.cs'
     If (-not (Test-Path -LiteralPath $Script:LogoIcon -PathType 'Leaf')) { Throw 'Packaging Framework icon file not found.' }
     If (-not (Test-Path -LiteralPath $Script:LogoBanner -PathType 'Leaf')) { Throw 'Packaging Framework logo banner file not found.' }
@@ -5663,10 +6126,6 @@ Function Initialize-Script {
     [string]$Script:configInstallationPromptInstallCompleted = $ModuleConfigFile.Localization.$UILanguage.InstallationPromptInstallCompleted
 	[string]$Script:configInstallationPromptUninstallCompleted = $ModuleConfigFile.Localization.$UILanguage.InstallationPromptUninstallCompleted
 
-
-
-
-
     ## Variables: Files Directory
     [string]$Global:Files = Join-Path -Path $Global:ScriptDirectory -ChildPath 'Files'
     
@@ -5771,6 +6230,9 @@ Function Initialize-Script {
     Write-Log -Message "$PackagingFrameworkName`Extension module version is [$((Get-Module -Name PackagingFrameworkExtension).Version)]" -Source $PackagingFrameworkName 
     Write-Log -Message "$PackagingFrameworkName`Extension module base [$((Get-Module -Name PackagingFrameworkExtension).ModuleBase)]" -Source $PackagingFrameworkName 
 
+    # Write ComputerParameterFile to log (if exists)
+    if ($ComputerParameterFile) { Write-Log "ComputerParameterFile: $ComputerParameterFile" -Source $PackagingFrameworkName }
+
     # Make sure working directory is the script directory
     If (Test-Path -Path $ScriptDirectory -PathType Container){
         Set-Location -Path $ScriptDirectory
@@ -5823,11 +6285,6 @@ Function Initialize-Script {
 	    Write-Log -Message 'No users are logged on to the system.' -Source $PackagingFrameworkName
     }
 
-
-
-
-
-
     ## Check if script is running from a SCCM Task Sequence
     if ($PackageName)  # don't run this when module is imported outside a package
     {
@@ -5843,7 +6300,6 @@ Function Initialize-Script {
 	        $Global:IsSCCMTaskSequence = $false
         }
     }
-    
 
 
     # Deployment Type text strings
@@ -6003,6 +6459,7 @@ Function Initialize-Script {
         }
 
     }
+
             
     # Application and Account variable from JSON
     [Array]$Global:Accounts = $Null
@@ -8736,7 +9193,7 @@ Try {
 	Invoke-PackageEnd ; Exit-Script -ExitCode `$mainExitCode
 
 }
-Catch { [int32]`$mainExitCode = 60001; [string]`$mainErrorMessage = "`$(Resolve-Error)" ; Write-Log -Message `$mainErrorMessage -Severity 3 -Source `$PackagingFrameworkName ; Show-DialogBox -Text `$mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode `$mainExitCode}
+Catch { [int32]`$mainExitCode = 60001 ; if (-not(Get-Module PackagingFramework)) {Write-host "PackagingFramework module failed to load!" ; Exit $mainExitCode } ; [string]`$mainErrorMessage = "`$(Resolve-Error)" ; Write-Log -Message `$mainErrorMessage -Severity 3 -Source `$PackagingFrameworkName ; Show-DialogBox -Text `$mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode `$mainExitCode}
 "@
 # Save the PS1 file
 Write-Log "Create $Name.ps1" -Source "Out-File"
@@ -10916,7 +11373,9 @@ Function Resolve-Error {
             [Parameter(Position=1, Mandatory=$false)]
             [int]$Maximum = 5,
             [Parameter(Position=2, Mandatory=$false)]
-            [int]$Delay = 100
+            [int]$Delay = 100,
+            [Parameter(Position=3, Mandatory=$false)]
+            [switch]$DisableWriteLog = $false
         )
 
         Begin {
@@ -10929,17 +11388,16 @@ Function Resolve-Error {
             do {
                 $Counter++
                 try {
-                    Write-Log "Try to excute ScriptBlock [$ScriptBlock]" -Severity 1 -Source ${CmdletName}
+                    if (-not $DisableWriteLog) { Write-Log "Try to excute ScriptBlock [$ScriptBlock]" -Severity 1 -Source ${CmdletName} }
                     $ScriptBlock.Invoke()
-                    Write-Log "ScriptBlock [$ScriptBlock] executed sucessful" -Severity 1 -Source ${CmdletName}
+                    if (-not $DisableWriteLog) { Write-Log "ScriptBlock [$ScriptBlock] executed sucessful" -Severity 1 -Source ${CmdletName} }
                     return
                 } catch {
-                    #Write-Error $_.Exception.InnerException.Message -ErrorAction Continue
-                    Write-Log "ScriptBlock [$ScriptBlock] failed, retry after [$Delay ms]`r`nError details: $($_.Exception.InnerException.Message)" -Severity 2 -Source ${CmdletName}
+                    if (-not $DisableWriteLog) { Write-Log "ScriptBlock [$ScriptBlock] failed, retry after [$Delay ms]`r`nError details: $($_.Exception.InnerException.Message)" -Severity 2 -Source ${CmdletName} }
                     Start-Sleep -Milliseconds $Delay
                 }
             } while ($Counter -lt $Maximum)
-            throw "Execution failed multiple times!`r`nError details: $($_.Exception.InnerException.Message)"
+            throw "ScriptBlock [$ScriptBlock] failed multiple times!`r`nError details: $($_.Exception.InnerException.Message)"
         }
 
 	    End {
@@ -12440,6 +12898,148 @@ Function Set-MsiProperty {
 }
 #endregion
 
+#region Function Set-Parameter
+Function Set-Parameter {
+<#
+.SYNOPSIS
+        Sets a value for a parameter in the computer parameter json file
+.DESCRIPTION
+        Sets a value for a parameter in the computer parameter json file
+.PARAMETER Parameter
+        The name of the parameter (mandatory)
+.PARAMETER Value
+        Value to set (mandatory)
+.PARAMETER Section
+        Section where to set the parameter (optional)
+.PARAMETER Computer
+        Computer name where to set the parameter, default is the local computer name (optional)
+.PARAMETER ContinueOnError
+    Continue On Error (optional)
+.EXAMPLE
+        Set-Parameter -Parameter 'XDA_INSTALLDIR' -Value 'C:\Program Files\Test'
+        Sets the parameter "XDA_INSTALLDIR" to "C:\Program Files\Test", the section is automaticaly found when the parameter already exists
+.EXAMPLE
+        Set-Parameter -Parameter 'XDA_INSTALLDIR' -Value 'C:\Program Files\Test' -Section 'XenDesktopAgent'
+        Sets the parameter "XDA_INSTALLDIR" to "C:\Program Files\Test" in the section "XenDesktopAgent"
+.LINK
+        http://www.ceterion.com
+#>
+        [CmdletBinding()]
+        Param (
+            #  Get the current date
+            [Parameter(Mandatory = $False)]
+            [ValidateNotNullorEmpty()]
+            [string]$Parameter = '*',
+
+            [Parameter(Mandatory = $False)]
+            [ValidateNotNullorEmpty()]
+            [string]$Value,
+
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullorEmpty()]
+            [string]$Section,
+
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullorEmpty()]
+            [string]$ComputerName=$env:ComputerName,
+        
+            [Parameter(Mandatory=$false)]
+            [ValidateNotNullorEmpty()]
+            [switch]$ContinueOnError
+        )
+      
+        Begin {
+            ## Get the name of this function and write header
+            [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+        
+        }
+        Process {
+            Try {
+
+                Write-Log "Start add parameter value [$Value] to parameter [$parameter] in section [$section] for computer [$ComputerName] " -Source ${CmdletName} 
+
+                # Use default ComputerParameterFile for local computer or search for ComputerParameterFile for other computer
+                if ($ComputerName -ieq $env:ComputerName) {
+                    Write-Log "ComputerParameterFile [$ComputerParameterFile] is used for [$ComputerName]"
+                } else {
+                    Write-Log "Search for ComputerParameterFile for computer [$ComputerName]"
+                    $CustomComputerParameterFile = (Get-ChildItem "$Global:InfrastructureShare\$ComputerName`.json" -Recurse -Depth 32).FullName 
+                    if ($CustomComputerParameterFile) { 
+                        Write-Log "ComputerParameterFile for computer [$ComputerName] found at [$CustomComputerParameterFile]"  
+                        $ComputerParameterFile = $CustomComputerParameterFile 
+                    } else { 
+                        Throw "ComputerParameterFile for computer [$ComputerName] NOT found" 
+                    }
+                }
+
+                # Check prereqs
+                if (-not($ComputerParameterFile)) { Write-Log "Variable [ComputerParameterFile] not found, abort Set-Parameter" -Source ${CmdletName} ; Return}
+                if (-not(Test-path -Path $ComputerParameterFile)) { Write-Log "File [$ComputerParameterFile] not found, abort Set-Parameter" -Source ${CmdletName} ; Return }
+                # Read json
+                Write-Log "Read file [$ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
+                $ComputerParameterObject = Get-Content $ComputerParameterFile | ConvertFrom-Json
+
+
+                # Autodetect section name if not specified
+                if (-not($Section)) {
+                    Write-Log "Section name not specified, auto detect section name" -Source ${CmdletName} -DebugMessage
+                    foreach ($item in $ComputerParameterObject.PSObject.Properties.Name )
+                    {
+                        Write-log "Check for parameter [$parameter] in section [$Item]" -Source ${CmdletName} -DebugMessage
+                        if ($ComputerParameterObject.$Item.$Parameter) {
+                            $Section = $item
+                            Write-log "Parameter [$Parameter] found in Section [$Section]" -Source ${CmdletName} -DebugMessage
+                        }
+                    }
+                }
+
+                # If section name specified, directly add/set parameter value
+                if ($Section) {
+                    # Update existing property
+                    if ($ComputerParameterObject.$Section.$Parameter) {
+                        Write-Log "Parameter [$Parameter] in section [$Section] alreday exists and has currently the value [$($ComputerParameterObject.$Section.$Parameter)]" -Source ${CmdletName} -DebugMessage
+                        $ComputerParameterObject.$Section.$Parameter = $value
+                        Write-Log "Parameter [$Parameter] in section [$Section] has changed from [$($ComputerParameterObject.$Section.$Parameter)] to [$value]" -Source ${CmdletName}
+                    # Add new property
+                    } else {
+                        # Add new property to an existing section
+                        if($ComputerParameterObject.$Section) {
+                            Write-Log "Add new parameter [$Parameter] in section [$Section]" -Source ${CmdletName}
+                            $ComputerParameterObject.$Section | Add-Member -MemberType NoteProperty -Name $Parameter -Value $value
+                        } else {
+                            # Add new property and a new section
+                            Write-Log "Add new parameter [$Parameter] to new section [$Section]" -Source ${CmdletName}
+                            $global:tmpObject = New-Object -TypeName psobject
+                            $tmpObject | Add-Member -MemberType NoteProperty -Name $Parameter -Value $value
+                            $ComputerParameterObject | Add-Member -MemberType NoteProperty -Name $section -value $tmpObject
+                        }
+                    }
+                    # Write updated json 
+                    Write-Log "Write updated file [$ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
+                    Retry-Command -ScriptBlock { 
+                        $ComputerParameterObject | ConvertTo-Json | Out-File $ComputerParameterFile -Encoding utf8 -ErrorAction Stop
+                    } -Maximum 10 -Delay 250 -DisableWriteLog
+                    
+                } else {
+                    Write-log "Unable to set [$Parameter], because parameter or section not found!" -Source ${CmdletName} -Severity 2
+                    Return
+                }
+
+            }
+            Catch {
+                Write-Log -Message "Failed to set parameter. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+                    If (-not $ContinueOnError) {
+                        Throw "Failed to set parameter.: $($_.Exception.Message)"
+                    }
+            }
+        }
+        End {
+            Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+        }
+}
+#endregion Function Get-Parameter
+
 #region Function Set-PinnedApplication
 Function Set-PinnedApplication {
 <#
@@ -12798,7 +13398,7 @@ Function Show-BalloonTip {
 .PARAMETER NoWait
     Create the balloontip asynchronously. Default: $false
 .PARAMETER UseToast
-    Use Toast Notification instead of Balloon Tip (Only Win 10 and newer)
+    Use Toast Notification instead of Balloon Tip (Only Win 10 and newer, only when not running as System)
 .EXAMPLE
     Show-BalloonTip -BalloonTipText 'Installation Started' -BalloonTipTitle 'Application Name'
 .EXAMPLE
@@ -12837,6 +13437,12 @@ Function Show-BalloonTip {
         
         # Disable toast and fallback to balloon tip if OS version is not Windows 10 or newer
         if ($UseToast -ieq $true) { If ($OSVersionMajor -lt 10) { Write-log "Fallback to balloon tip, because toast notofocation is not supported on this OS version" ; $UseToast =$false} }
+
+        # Disable toast for various service accounts
+        if ($UseToast -ieq $true) { If ($IsNetworkServiceAccount -eq $true) { Write-log "Fallback to balloon tip, because toast notofocation is not supported with NetworkServiceAccounton" ; $UseToast =$false} }
+        if ($UseToast -ieq $true) { If ($IsServiceAccount -eq $true) { Write-log "Fallback to balloon tip, because toast notofocation is not supported with ServiceAccount" ; $UseToast =$false} }
+        if ($UseToast -ieq $true) { If ($IsLocalServiceAccount -eq $true) { Write-log "Fallback to balloon tip, because toast notofocation is not supported with LocalServiceAccount" ; $UseToast =$false} }
+        if ($UseToast -ieq $true) { If ($IsLocalSystemAccount -eq $true) { Write-log "Fallback to balloon tip, because toast notofocation is not supported with LocalSystemAccount" ; $UseToast =$false} }
 
         ## Skip balloon if in silent mode, disabled in the config or presentation is detected
         $presentationDetected = Test-PowerPoint
@@ -19914,13 +20520,12 @@ Function Write-FunctionHeaderOrFooter {
 #endregion
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DLL
-
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-InstallationLogEntry, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-Parameter, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DLL
 # SIG # Begin signature block
 # MIIuPQYJKoZIhvcNAQcCoIIuLjCCLioCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBWfw9Noxo6WLhF
-# CS7Tgqp2B9eRfAg2Q21o+Igo1bNaX6CCJnEwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB7tvLxZC3BBmMQ
+# GCIkgk2jrbiMblcgEApNiz/KrmNqDKCCJnEwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -20130,38 +20735,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # VQQDExtDZXJ0dW0gQ29kZSBTaWduaW5nIDIwMjEgQ0ECEGL8teUMa7gqh7ZMNIbc
 # DUEwDQYJYIZIAWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZ
 # BgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYB
-# BAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgkoKfxicegvvDw5I8YH2mgTWaR9hVMdsV
-# W7sG/niejeAwDQYJKoZIhvcNAQEBBQAEggIASj14ppHO4X+Nk+ILVeiNxl8gZCSw
-# Ect/uSQN50EncfhWQF2U8hVIX7t/CzcsMUzSgm38s/mt907mvjlRHNFd+z+cRcmi
-# S3beT8RsPDpNEtbiZXBHCj0Ne/6Ws2pivPA9EO23nhK2sGIsJ6GWeYC9mmKeB6N2
-# altGCd7L4d38WC1EKSdDBFr3r756EPQ/LvP4tPwcG1m8xlmTVRH6PasNVuVse9z3
-# kPEuHg0JEE91zaOHK2vyBA7XJgQ71sCYip4Y5FVYC+D7RLi9AJllLoQPQetT+Hij
-# Peyu1YKA+TNwOA+UAnQhhqpyyPYi3xqrGaV6GJXXzefL8c7T93Bhf8NpzAoNP0in
-# Qt5dmqMirIfkVAaboJ1+Rsb/fAqs6eVWM3IYRctXslbrYAbWLsQ3P6jKkfKJgpcJ
-# 7nZsAbVzavVbKhdB7OK6uVkYAU//DqNi+6siRqpVQOVvZ2wvOkYb5cr8V30qJ9Uw
-# fkn5qCturpGpJ5CQJOe+rbIpWhdMU1MQkzvi4/2NZ7oR/iDmgEOmtxKsN8zIW6/e
-# lisNPjlDlYcvUkClBlIC2C1ihJ0laUPHGOnhBCSgI4P1VTpj+IfkMGMlicBdV8aZ
-# hkXOvsfyBzqI3gNyqTT22JVKS/jBshTWqp5zK8JNduZOWSMu6IIZbHUd1wIsRt9y
-# Bz4coMfhIBOiWEChggQCMIID/gYJKoZIhvcNAQkGMYID7zCCA+sCAQEwajBWMQsw
+# BAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgK8yGjtKTPbVwPWU5+sZGB82QU8diZeOK
+# iQJ9bPhEIlkwDQYJKoZIhvcNAQEBBQAEggIART5hQNUmW1XP/grhgCPY0q6M++n+
+# UbYoXzJwcIlUkM91Cs5XZEPlyWS9MDfODZGtzDmQ3A6V/JcctqcyOWSIlB3GApOR
+# OOwCFgfbceCUnv2fDfelbuvP3ARA2Wn60q86snQuN2ItNjbAqEs37RNDNFJwohJg
+# ym1xTV2tTH1QEYyVTqzHAGBB52tdGPC3IFCNzuHY2wkwmXc1+VQLHxDkuCSOVQoZ
+# nTzms6x1U90viIKWNkFhT0cTJqpTuxBwT1YIrhwhVh628HLWzgYEKOiMTcdLQdb/
+# DaX324Dj+VOP1pLwsLrx5R5VJOpi/MWU43AqzYUaXLPA9yjfYYpBQJqE0+j1GvTw
+# fKAsM9x1cta6F01hzMQ/Dq0T+HAqABdZMToaggk09ympVCz+6gL4A11A7g0IDfdo
+# C4YJwYnu4pw47ptuBpaIPbJQucFepaufvDx9JWc8H22snzYRedna3N8e+UptoDQx
+# LpqY146tR8bQJpdGoUSsTXXjyqNxssiR3ebYT1mIBW6QOTwVNAk98HRxJcrUNLPM
+# G4RzfgWgJzZJRHl5UZrIefS6C+sZSGYx6CjaNQuVmrgQYVs2ODTirrnajgk6iIy7
+# FXWF/fuoFHDGFJXiou1ggKP/h3/q/lTA987776/dhdNhItg+xO8Qw9NqnwNm0B2r
+# G+WT5xM+eTR0vCmhggQCMIID/gYJKoZIhvcNAQkGMYID7zCCA+sCAQEwajBWMQsw
 # CQYDVQQGEwJQTDEhMB8GA1UEChMYQXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQw
 # IgYDVQQDExtDZXJ0dW0gVGltZXN0YW1waW5nIDIwMjEgQ0ECEAnFzPi7Zn1xN6rB
 # WYAGyzEwDQYJYIZIAWUDBAICBQCgggFWMBoGCSqGSIb3DQEJAzENBgsqhkiG9w0B
-# CRABBDAcBgkqhkiG9w0BCQUxDxcNMjQwNDI0MDYyNTQ2WjA3BgsqhkiG9w0BCRAC
+# CRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjEzMTQzMjEyWjA3BgsqhkiG9w0BCRAC
 # LzEoMCYwJDAiBCDqlUux0EC0MUBI2GWfj2FdiHQszOBnkuBWAk1LADrTHDA/Bgkq
-# hkiG9w0BCQQxMgQwS+lgwAVziC87jSeGTLSXdewKZOphYOfvMTbLRcB9bIWuhlp8
-# UduQoN0ki01nO8KkMIGfBgsqhkiG9w0BCRACDDGBjzCBjDCBiTCBhgQUD0+4VR7/
+# hkiG9w0BCQQxMgQwV+j4X1EO3OrNjAfk/PpUAIoS32O4J0D3Gd2Z9iRXSUTGn9WT
+# 3DgCpovliI6FPqgwMIGfBgsqhkiG9w0BCRACDDGBjzCBjDCBiTCBhgQUD0+4VR7/
 # 2Pbef2cmtDwT0Gql53cwbjBapFgwVjELMAkGA1UEBhMCUEwxITAfBgNVBAoTGEFz
 # c2VjbyBEYXRhIFN5c3RlbXMgUy5BLjEkMCIGA1UEAxMbQ2VydHVtIFRpbWVzdGFt
 # cGluZyAyMDIxIENBAhAJxcz4u2Z9cTeqwVmABssxMA0GCSqGSIb3DQEBAQUABIIC
-# ABXnod+PKseo+3LOaudUQzFLFDtk5X2FYrKVA7/JUZN9GiagREfLslurX67EmDYr
-# eVIpeak/AzCzu7pETnMI8EozsgrY8jdMLCE/TFOdE7rxtbTcdz0fc42NWueyS3YL
-# sWwoei1Rz7ZhPD6bqyDWWCM/3sSc81A0dpUrX1ELPV70ZJHAUNOpQw8z4YkjqBu6
-# tfikKK3gEiq3p3/uTj82XyO3YR28u6tpJS6BxGtvArTIc1aDC0Z2ZqKAVLutW/p+
-# 3n0fFNzP7Glv/788dl5OKAvpyvJH3k+xf+ofebJGQ/n0inJqqEZNxwdec0I7eHbj
-# TAo4GoHMCKs9d6ZO+Lf0Z8eoWiTFrzllyuXf4SHKYX0V7inXDqI+1HFZ2xqF5ygM
-# PlYAdKZGCcM5azUjKzDM9xeZRHf6TnvNIIlJKa1pvt7rUIhc4GJrZ1ZTuwIhJmAQ
-# 2P54ML631Wlde2QcATid1jT4o6gZlcYXx5JVmDudkMaHgkiCZHFLkP8132/QFius
-# ziFiHbQJUnFYB3DJ57EsnvNFAIeLzmqPT80GvqlR41aodErKV7kilHMpVKiW6iZr
-# 0mq/oMIvZVEAiPmxznDfNgP+qhVxdzw0hXb2ZzvhQkU7MuTOaIKrk83uh+raXzmI
-# 7MMmg6k/LjSjD8VSzKyY5U6nAyvo77YpgCXxo7OY4aqn
+# ADrA3N7uORHMah5RKhDeVHBzr/YUw4PVhcH0JS2nfTaZ8y9i9MbM1B6D5avFHHeX
+# jrCpi+6VpzO1KB29lRggJCCYp+1cVBoRsRHfUOoV81s3CgtbcurQuAB+MQEWPtzS
+# IN2NhAOQGcUDnyxUMs0IAMJ5L1HR5KkAKZJrJs/um2EPJQ+R6dkLkH+wd+iAW5gF
+# 10nfBTG5AcMdMAzL8nli8DLUdOpXFuKpIb+7UcYZMfDRZ/ejfLu7CeUiJA5zX/c+
+# 8C0C4gEOsF706apgxHAYHF/apGcBch+LCbcDpKIi1tmZZfHjZYR6hDg3ICIjmxlL
+# 5PzHYz6oRj9GS37oO+ARZK8jt6RaJneiuPDB02E9/dg9uaUzft9WwEqbFn2bILDZ
+# o/6xxwoXx0EBZEAJmW3p6NQIJJeG+PRfp2XMevWSziJpJ6Cm5sPoaoi6kKTyWdQ2
+# moCWrsNgpS07A9C4MTIn1e2771ypJPwKNImkpgnOfa5f2zZig1gsYs698PAw7tGA
+# G+O3aB50/Cl+CK0n7ENSeWmUc6kbzdJToWSX9t6R2hiWCQzUnCh3GIYAAruz79s6
+# yf+/mmW7vfjlOkVT0r7E80LRDR1Gm93TgyhXJXlQ8av9TC8A1pyQZ1WYreIhEUXA
+# DE/c6/SJTmcfIB1xGvOX2RphUtXyVlAuARbc20DubEYa
 # SIG # End signature block

@@ -126,7 +126,23 @@ Try {
         Write-Log "OSVersionBuild=$OSVersionBuild"
         Write-Log "OSVersionRevision=$OSVersionRevision"
 
+        # ASG ICS Service
+        Write-log "IsICSService=$IsICSService"
+
+        # ceterion Install Agent
+        Write-log "IsceterionInstallAgent=$IsceterionInstallAgent"
+        
+        # certion cDF vars
+        Write-log "InfrastructureShare=$InfrastructureShare"
+        Write-log "ClientLocation=$ClientLocation"
+        Write-log "ComputerParameterFile=$ComputerParameterFile"
+        Write-log "ComputerInstallSequenceFile=$ComputerInstallSequenceFile"
+        Write-log "ComputerParameterFileWithParents=$ComputerParameterFileWithParents"  # Available after first Get-Parameter
+        Write-log "ComputerParameter=$ComputerParameter"   # Available after first Get-Parameter
+
         # Various Get-Parameter examples
+        Get-Parameter *
+        Get-Parameter 
         Get-Parameter 'TestParam'
         Get-Parameter 'TestParamBool'
         Get-Parameter 'TestParamInteger'
@@ -141,13 +157,26 @@ Try {
         Get-Parameter 'PackageDescription' -Section 'Package' -Source Json -Variable 'TestParamPackageDescription'
         Get-Parameter 'INST_LOG_DIR' -Section 'Install' -Source CloudShaper -Variable 'TestParamInstLogDir'
         Get-Parameter 'TestParam3' -force
+        $AllParams = Get-Parameter -Force -NoWriteOutput
+
+        # Update an existing parameter in a specific section
+        Set-Parameter -Parameter 'XDA_INSTALLDIR' -Section 'XenDesktopAgent' -Value 'C:\Program Files\Test1' 
+
+        # Update an existing parameter without section name (the section is detected automaticaly)
+        Set-Parameter -Parameter 'XDA_INSTALLDIR' -Value 'C:\Program Files\Test2'
+
+        # Add an new parameter in an existing section
+        Set-Parameter -Parameter 'MyNewParameter' -Section 'XenDesktopAgent' -Value 'C:\Program Files\Test3'
+
+        # Add an new parameter to an new section
+        Set-Parameter -Parameter 'MyNewParameter' -Section 'MyNewSection' -Value 'C:\Program Files\Test4'
+
 
         # Example for Get-ParameterFromRegKey
         Get-ParameterFromRegKey -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -Prefix "_" -Force -DetailedLog
     
         # Example how to add parameters via command line
         # Powershell.exe -file .\<PackageName>.ps1 -CustomParameter "AddLocal=ALL;TargetDir=""C:\Program Files\Test"";LicenseKey=12345-67890-ABCDEF"
-
 
         # List all TestParam variables from the example above
         Get-Variable TestParam* -ValueOnly | out-string | Write-Log
@@ -190,6 +219,16 @@ Try {
         Write-Log -Message "bla bla"
         Set-InstallPhase "Uninstallation"
         Write-Log -Message "bla bla"
+
+        # Add cDF install log comment to current line
+        Add-InstallationLogEntry -Action 'COMMENT' -Command 'My custom comment in current line'
+
+        # Add cDF install log comment to the top
+        Add-InstallationLogEntry -Action 'COMMENT' -Command 'My custom comment at top' -Position Top
+
+        # Add cDF install log comment to the top
+        Add-InstallationLogEntry -Action 'COMMENT' -Command 'My custom comment at bottom' -Position Bottom
+
 
     #endregion Logfile
 
@@ -936,15 +975,15 @@ Try {
     Remove-AppLockerRuleFromJson
 
     # Override AppLocker Defaults Example (this is optinal, can be placed into the PackageStartExtension) 
-    $Global:DefaultAppLockerRuleNamePrefix = "$PackageName"
-    $Global:DefaultAppLockerAction = 'Allow'
-    $Global:DefaultAppLockerRuleType = 'Hash'
-    $Global:DefaultAppLockerFileType = @('Exe','Dll','Script')
-    $Global:DefaultAppLockerUser = $(ConvertTo-NTAccountOrSID  -SID 'S-1-5-11')
-    $Global:DefaultAppLockerOptimize = $true
-    $Global:DefaultAppLockerXmlToLog = $false
-    $Global:DefaultAppLockerContinueOnError = $false
-    $Global:DefaultAppLockerSleepinMS = 500
+    $DefaultAppLockerRuleNamePrefix = "$PackageName"
+    $DefaultAppLockerAction = 'Allow'
+    $DefaultAppLockerRuleType = 'Hash'
+    $DefaultAppLockerFileType = @('Exe','Dll','Script')
+    $DefaultAppLockerUser = $(ConvertTo-NTAccountOrSID  -SID 'S-1-5-11')
+    $DefaultAppLockerOptimize = $true
+    $DefaultAppLockerXmlToLog = $false
+    $DefaultAppLockerContinueOnError = $false
+    $DefaultAppLockerSleepinMS = 500
 
     #endregion AppLocker
 
@@ -1265,13 +1304,13 @@ Try {
         ### Invoke-PackageStart/Invoke-PackageEnd ###
 
         # Skip Invoke-PackageStart/Invoke-PackageEnd functions Example
-        $Global:SkipAppConfig = $true
-        $Global:SkipPermissionFromJson = $true
-        $Global:SkipFirewallRuleFromJson = $true
-        $Global:SkipAppLockerRuleFromJson = $true
-        $Global:SkipRegistryBranding = $true
-        $Global:SkipPackageEndExtension = $true
-        $Global:SkipPackageStartExtension = $true
+        $SkipAppConfig = $true
+        $SkipPermissionFromJson = $true
+        $SkipFirewallRuleFromJson = $true
+        $SkipAppLockerRuleFromJson = $true
+        $SkipRegistryBranding = $true
+        $SkipPackageEndExtension = $true
+        $SkipPackageStartExtension = $true
 
 
 
@@ -1401,4 +1440,4 @@ Try {
 	Invoke-PackageEnd ; Exit-Script -ExitCode $mainExitCode
 
 }
-Catch { [int32]$mainExitCode = 60001; [string]$mainErrorMessage = "$(Resolve-Error)" ; Write-Log -Message $mainErrorMessage -Severity 3 -Source $PackagingFrameworkName ; Show-DialogBox -Text $mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode $mainExitCode}
+Catch { [int32]$mainExitCode = 60001 ; if (-not(Get-Module PackagingFramework)) {Write-host "PackagingFramework module failed to load!" ; Exit 0 } ; [string]$mainErrorMessage = "$(Resolve-Error)" ; Write-Log -Message $mainErrorMessage -Severity 3 -Source $PackagingFrameworkName ; Show-DialogBox -Text $mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode $mainExitCode}

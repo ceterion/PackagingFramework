@@ -13,11 +13,11 @@ Icon "PackagingFrameworkSetup.ico"
 UninstallIcon "PackagingFrameworkSetup.ico"
 
 # File properties
-VIProductVersion "24.4.0.0"
+VIProductVersion "24.11.0.0"
 VIAddVersionKey "ProductName" "ceterion Packaging Framework"
 VIAddVersionKey "Comments" "Packaging Framework Setup"
 VIAddVersionKey "FileDescription" "ceterion Packaging Framework Setup"
-VIAddVersionKey "ProductVersion" "24.4.0.0"
+VIAddVersionKey "ProductVersion" "24.11.0.0"
 VIAddVersionKey "LegalCopyright" "ceterion AG"
 VIAddVersionKey "CompanyName" "ceterion AG"
 
@@ -68,7 +68,7 @@ Section "PowerShell Module" Section1
   
   # Create Add/remove software entry
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayName" "ceterion Packaging Framework"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayVersion" "24.4.0.0"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayVersion" "24.11.0.0"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "DisplayIcon" "$\"$INSTDIR\PackagingFramework\PackagingFramework.ico$\""
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "UninstallString" "$\"$INSTDIR\PackagingFramework\uninstall.exe$\""
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ceterion Packaging Framework" "URLInfoAbout" "http://www.ceterion.com"

@@ -1,4 +1,4 @@
-# ceterion Packaging Framework 2404 (24.4.0.0)
+# ceterion Packaging Framework 2411 (24.11.0.0)
 
 
 ## Synopsis
@@ -76,7 +76,7 @@ To create your first own package use the following PowerShell command (example):
 
 ```New-Package -Path C:\Temp -Name 'Microsoft_Office_16.0_EN_01.00'```
 
-To customize the packaging framework to your needs please have a look at the module configuiration file at:
+To customize the packaging framework to your needs please have a look at the module configuration file at:
 
 ```'%ProgramFiles%\WindowsPowerShell\Modules\PackagingFramework\PackagingFramework.json'```
 
@@ -90,5 +90,5 @@ If you have any feedback, comment or question, you can contact us via [packaging
 
 ## License
 
-This Project is licensed with the Microsoft Public License (MS-PL)
-For additional details, see [MS-PL License](/LICENSE.txt)
+This Project is licensed with the GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007
+For additional details, see /LICENSE.txt

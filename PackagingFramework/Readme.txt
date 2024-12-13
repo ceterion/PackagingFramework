@@ -1,6 +1,6 @@
-ceterion Packaging Framework 2404 (24.4.0.0)
+ceterion Packaging Framework 2411 (24.11.0.0)
 
-This packaging framework contains parts of the PowerShell App Deployment Toolkit (Version 3.6.9) project from
+This packaging framework contains parts of the PowerShell App Deployment Toolkit (Version 3.7.0) project from
 http://psappdeploytoolkit.com/ with some modifications and custom extensions.
 The modification includes a conversion from a simple included script into an PowerShell module and it's 
 extended with some additional functions and variables we missed in the original implementation.

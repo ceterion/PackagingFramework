@@ -18,4 +18,4 @@ Try {
 	Invoke-PackageEnd ; Exit-Script -ExitCode $mainExitCode
 
 }
-Catch { [int32]$mainExitCode = 60001; [string]$mainErrorMessage = "$(Resolve-Error)" ; Write-Log -Message $mainErrorMessage -Severity 3 -Source $PackagingFrameworkName ; Show-DialogBox -Text $mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode $mainExitCode}
+Catch { [int32]$mainExitCode = 60001 ; if (-not(Get-Module PackagingFramework)) {Write-host "PackagingFramework module failed to load!" ; Exit 0 } ; [string]$mainErrorMessage = "$(Resolve-Error)" ; Write-Log -Message $mainErrorMessage -Severity 3 -Source $PackagingFrameworkName ; Show-DialogBox -Text $mainErrorMessage -Icon 'Stop' ; Exit-Script -ExitCode $mainExitCode}

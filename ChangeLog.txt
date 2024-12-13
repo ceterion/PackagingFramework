@@ -1,5 +1,5 @@
 ceterion Packaging Framework - Change Log
-Date: 23 April 2024
+Date: 15 November 2024
 Please feel free to report issues as well as feature requests at http://github.com/ceterion/PackagingFramework or via email at PackagingFramework@ceterion.com
 
 Version 1.0.0.0 
@@ -434,3 +434,24 @@ New Cmdlets:
 ----------------
 Start-MSIX                   Cmdlet to install or uninstall MSIX app packages
 Start-AppX                   Cmdlet to install or uninstall AppX app packages
+
+
+Version 2411 (24.11.0.0)
+########################
+
+General:
+------------ 
+New install agent detection and corresponding variables like $InfrastructureShare, $ClientLocation, $ComputerParameterFile, $ComputerInstallSequenceFile, $ceterionInstallAgent
+
+Updated Cmdlets:
+----------------
+Get-Parameter                Added JSON folder support
+Show-BalloonTip              Added service account detection for toast notification with balloontip fallback
+New-Package                  Error handler in global catch block of the packe template improved to detect PackageFramework loading errors
+
+New Cmdlets:
+----------------
+Set-Parameter                Cmdlet to add/update parameter values in the JSON folder
+Add-InstallationLogEntry     Cmdlet to add entries to an install agent sequence file
+
+
