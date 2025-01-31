@@ -75,6 +75,7 @@ Try {
         Write-Log "IsWin2016=$IsWin2016"
         Write-Log "IsWin2019=$IsWin2019"
         Write-Log "IsWin2022=$IsWin2022"
+        Write-Log "IsWin2025=$IsWin2025"
         
         # IsAtLeast<OSVersion>
         Write-Log "IsAtLeastWinVista=$IsAtLeastWinVista"
@@ -90,6 +91,7 @@ Try {
         Write-Log "IsAtLeastWin2016=$IsAtLeastWin2016"
         Write-Log "IsAtLeastWin2019=$IsAtLeastWin2019"
         Write-Log "IsAtLeastWin2022=$IsAtLeastWin2022"
+        Write-Log "IsAtLeastWin2025=$IsAtLeastWin2025"
 
         # IsAtMoast<OSVersion>
         Write-Log "### IsAtMost ###" 
@@ -106,6 +108,7 @@ Try {
         Write-Log "IsAtMostWin2016=$IsAtMostWin2016"
         Write-Log "IsAtMostWin2019=$IsAtMostWin2019"
         Write-Log "IsAtMostWin2022=$IsAtMostWin2022"
+        Write-Log "IsAtMostWin2025=$IsAtMostWin2025"
 
         # Office C2R Details
         Write-Log "### Office C2R ###" 

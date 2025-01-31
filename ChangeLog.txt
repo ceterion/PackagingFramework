@@ -455,3 +455,15 @@ Set-Parameter                Cmdlet to add/update parameter values in the JSON f
 Add-InstallationLogEntry     Cmdlet to add entries to an install agent sequence file
 
 
+Version 2501 (25.1.0.0)
+########################
+
+General:
+------------ 
+New variables for Windows Server 2025 support like $IsWin2025, $IsAtLeastWin2025 and $IsAtMostWin2025
+
+Updated Cmdlets:
+----------------
+Initialize-Script           Bugfix regarding install agent $InfrastructureShare reg key (Github issue #2)
+Update-FrameworkInPackages  Bugfix regarding error handler
+
