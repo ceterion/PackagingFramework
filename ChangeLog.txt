@@ -467,3 +467,11 @@ Updated Cmdlets:
 Initialize-Script           Bugfix regarding install agent $InfrastructureShare reg key (Github issue #2)
 Update-FrameworkInPackages  Bugfix regarding error handler
 
+
+Version 2507 (25.7.0.0)
+########################
+
+Updated Cmdlets:
+----------------
+Get-Parameter               Added support for MECM Collection Variables (previously only MECM Task Sequence Variables where supported)
+
