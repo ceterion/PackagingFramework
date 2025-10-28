@@ -1,4 +1,4 @@
-# ceterion Packaging Framework 2507 (25.7.0.0)
+# ceterion Packaging Framework 2510 (25.10.0.0)
 
 ## Synopsis
 

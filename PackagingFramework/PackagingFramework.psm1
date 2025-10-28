@@ -1485,87 +1485,119 @@ Function Add-InstallationLogEntry {
 	Process {
 		Try {
                 
-            Write-Log "Add install log entry action [$Action] with [$Command] and status [$Status] and ReturnCode [$ReturnCode] for computer [$ComputerName] at position [$Position]" -Source ${CmdletName} 
+            # Check prereqs
+            if (($WebserverURL) -or ($ComputerParameterFile)) { <#nothing to do#> } else { Write-Log "Skip set parameter, because no [ComputerParameterFile] or [WebserverURL] is configured" -Source ${CmdletName} ; Return}
+
+            ### Add entry to install seq file via direct share/file access (Old logic, only for backward compatibility) ###
+            if ($ComputerParameterFile) {
+
+                Write-Log "Add install log entry action [$Action] with command [$Command] and status [$Status] and returncode [$ReturnCode] for computer [$ComputerName] at position [$Position] in [$ComputerParameterFile]" -Source ${CmdletName} 
                 
-            # Convert status string to integer
-            switch ($status)
-            {
-                'Pending' {[int]$status = 0 }
-                'Running' {[int]$status = 1 }
-                'Error' {[int]$status = 2 }
-                'Success' {[int]$status = 3 }
-                'Cancel' {[int]$status = 4 }
-                'Pause' {[int]$status = 5 }
-                Default {[int]$status = 0}
-            }
-
-            if($ComputerInstallSequenceFile) {
-                If (Test-path -Path $ComputerInstallSequenceFile -PathType Leaf) {
-                            
-                        # Helper function creat a new install sequence entry object
-                        Function New-InstallSequenceEntry {
-                            $newEntry = New-Object -TypeName psobject
-                            if ($Status) { $newEntry | Add-Member -MemberType NoteProperty -Name Status -Value $Status }
-                            if ($Action) { $newEntry | Add-Member -MemberType NoteProperty -Name Action -Value $Action }
-                            if ($Command) { $newEntry | Add-Member -MemberType NoteProperty -Name Command -Value $Command }
-                            if ($Start) { $newEntry | Add-Member -MemberType NoteProperty -Name Start -Value $Start }
-                            if ($End) { $newEntry | Add-Member -MemberType NoteProperty -Name End -Value $End }
-                            if ($ReturnCode -is [int]) { $newEntry | Add-Member -MemberType NoteProperty -Name ReturnCode -Value $ReturnCode }
-                            Return $newEntry
-                        }
-                            
-                        # Read existing install sequence file (with retry and delay as workaround for file is use)
-                        $InstallSeqObject = Retry-Command -ScriptBlock { 
-                            $InstallSeqObject = Get-Content $ComputerInstallSequenceFile -ErrorAction Stop | ConvertFrom-Json ; Return $InstallSeqObject
-                        } -Maximum 10 -Delay 250 -DisableWriteLog
-
-                        # Copy existing object line by line to a new object and update it
-                        $NewInstallSeqObject = @()
-                        foreach ($Item in $InstallSeqObject) {
-                                
-                            # Add new line to top
-                            if ($Position -ieq "top") {
-                                if($LineAdded -ne $true){
-                                    $newEntry = New-InstallSequenceEntry
-                                    Write-log "Add [$newEntry] at top" -Source ${CmdletName} -DebugMessage
-                                    $NewInstallSeqObject += $newEntry
-                                    $LineAdded=$true
-                                }
-                                $NewInstallSeqObject += $item
-                            }
-
-                            # Add new line at current line (the first line with Status=0)
-                            if ($Position -ieq "current") {
-                                If (($Item.Status -eq 0) -and ($LineAdded -ne $true)) { 
-                                    $LineAdded=$true
-                                    $newEntry = New-InstallSequenceEntry
-                                    Write-log "Add [$newEntry] at current line" -Source ${CmdletName} -DebugMessage
-                                    $NewInstallSeqObject += $newEntry
-                                }
-                                $NewInstallSeqObject += $item
-                            }
-
-                        }
-
-                        # Add new line to bottom
-                        if ($Position -ieq "bottom") {
-                            $newEntry = New-InstallSequenceEntry
-                            Write-log "Add [$newEntry] at bootom" -Source ${CmdletName} -DebugMessage
-                            $NewInstallSeqObject = $InstallSeqObject
-                            $NewInstallSeqObject += $newEntry
-                        }
-
-                        # Write updateed json 
-                        Retry-Command -ScriptBlock { 
-                            $NewInstallSeqObject | ConvertTo-Json | Out-File $ComputerInstallSequenceFile -Encoding utf8 -ErrorAction Stop
-                        } -Maximum 10 -Delay 250 -DisableWriteLog
-                                                    
-                } else {
-                    Write-Log "Skip add install log entry, file [$ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
+                # Convert status string to integer
+                switch ($status)
+                {
+                    'Pending' {[int]$status = 0 }
+                    'Running' {[int]$status = 1 }
+                    'Error' {[int]$status = 2 }
+                    'Success' {[int]$status = 3 }
+                    'Cancel' {[int]$status = 4 }
+                    'Pause' {[int]$status = 5 }
+                    Default {[int]$status = 0}
                 }
-            } else {
-                Write-Log "Skip add install log entry, Parameter [ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
+
+                if($ComputerInstallSequenceFile) {
+                    If (Test-path -Path $ComputerInstallSequenceFile -PathType Leaf) {
+                            
+                            # Helper function creat a new install sequence entry object
+                            Function New-InstallSequenceEntry {
+                                $newEntry = New-Object -TypeName psobject
+                                if ($Status) { $newEntry | Add-Member -MemberType NoteProperty -Name Status -Value $Status }
+                                if ($Action) { $newEntry | Add-Member -MemberType NoteProperty -Name Action -Value $Action }
+                                if ($Command) { $newEntry | Add-Member -MemberType NoteProperty -Name Command -Value $Command }
+                                if ($Start) { $newEntry | Add-Member -MemberType NoteProperty -Name Start -Value $Start }
+                                if ($End) { $newEntry | Add-Member -MemberType NoteProperty -Name End -Value $End }
+                                if ($ReturnCode -is [int]) { $newEntry | Add-Member -MemberType NoteProperty -Name ReturnCode -Value $ReturnCode }
+                                Return $newEntry
+                            }
+                            
+                            # Read existing install sequence file (with retry and delay as workaround for file is use)
+                            $InstallSeqObject = Retry-Command -ScriptBlock { 
+                                $InstallSeqObject = Get-Content $ComputerInstallSequenceFile -ErrorAction Stop | ConvertFrom-Json ; Return $InstallSeqObject
+                            } -Maximum 10 -Delay 250 -DisableWriteLog
+
+                            # Copy existing object line by line to a new object and update it
+                            $NewInstallSeqObject = @()
+                            foreach ($Item in $InstallSeqObject) {
+                                
+                                # Add new line to top
+                                if ($Position -ieq "top") {
+                                    if($LineAdded -ne $true){
+                                        $newEntry = New-InstallSequenceEntry
+                                        Write-log "Add [$newEntry] at top" -Source ${CmdletName} -DebugMessage
+                                        $NewInstallSeqObject += $newEntry
+                                        $LineAdded=$true
+                                    }
+                                    $NewInstallSeqObject += $item
+                                }
+
+                                # Add new line at current line (the first line with Status=0)
+                                if ($Position -ieq "current") {
+                                    If (($Item.Status -eq 0) -and ($LineAdded -ne $true)) { 
+                                        $LineAdded=$true
+                                        $newEntry = New-InstallSequenceEntry
+                                        Write-log "Add [$newEntry] at current line" -Source ${CmdletName} -DebugMessage
+                                        $NewInstallSeqObject += $newEntry
+                                    }
+                                    $NewInstallSeqObject += $item
+                                }
+
+                            }
+
+                            # Wenn Zeile nicht bei Position "Current" hinzugefügt wurde, weil es kein offene Zeile mit Status=0 gab, dann Position auf 'Bottom' ändern um es am Ende anzufügen:
+                            if ( ($Position -ieq "current") -and ($LineAdded -ne $true)) { $Position = "bottom" }
+
+                            # Add new line to bottom
+                            if ($Position -ieq "bottom") {
+                                $newEntry = New-InstallSequenceEntry
+                                Write-log "Add [$newEntry] at bootom" -Source ${CmdletName} -DebugMessage
+                                $NewInstallSeqObject = $InstallSeqObject
+                                $NewInstallSeqObject += $newEntry
+                            }
+
+                            # Write updateed json 
+                            Retry-Command -ScriptBlock { 
+                                $NewInstallSeqObject | ConvertTo-Json | Out-File $ComputerInstallSequenceFile -Encoding utf8 -ErrorAction Stop
+                            } -Maximum 10 -Delay 250 -DisableWriteLog
+                                                    
+                    } else {
+                        Write-Log "Skip add install log entry, file [$ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
+                    }
+                } else {
+                    Write-Log "Skip add install log entry, Parameter [ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
+                }
             }
+
+            ### Add Install Sequence File entry  via cD Webserver (new logic) ###
+            if ($WebserverURL) {
+
+                Write-Log "Add install log entry action [$Action] with command [$Command] and status [$Status] and returncode [$ReturnCode] for computer [$ComputerName] at position [$Position] via [$WebserverURL]" -Source ${CmdletName} 
+                $body = @{}
+                if ($ComputerName) {$body | Add-Member -MemberType NoteProperty -Name Name -Value $ComputerName}
+                if ($Position) {$body | Add-Member -MemberType NoteProperty -Name Position -Value $Position}
+                if ($Status) {$body | Add-Member -MemberType NoteProperty -Name Status -Value $Status}
+                if ($Returncode) {$body | Add-Member -MemberType NoteProperty -Name Returncode -Value $Returncode}
+                if ($Action) {$body | Add-Member -MemberType NoteProperty -Name Action -Value $Action}
+                if ($Command) {$body | Add-Member -MemberType NoteProperty -Name Command -Value $Status}
+                if ($Start) {$body | Add-Member -MemberType NoteProperty -Name Start -Value $Start}
+                if ($End) {$body | Add-Member -MemberType NoteProperty -Name End -Value $End}
+                $body = $body| ConvertTo-Json -Compress
+                Write-log "Invoke-WebRequest -Uri `"$WebserverURL/api/edit-installsequence`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} # -DebugMessage
+                $Response = Invoke-WebRequest -Uri "$WebserverURL/api/edit-installsequence" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
+                Write-log "Response: $($Response.content)" -Source ${CmdletName} # -DebugMessage
+            
+            }
+
+
         }
 		Catch {
             Write-Log -Message "Failed to add install log  entry. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
@@ -1579,6 +1611,585 @@ Function Add-InstallationLogEntry {
 	}
 }
 #endregion Function Add-InstallationLogEntry
+
+#region Function Add-PackageToRecastAW
+Function Add-PackageToRecastAW {
+<#
+.SYNOPSIS
+	Adds a cDF packages to Recast Application Workspace
+.DESCRIPTION
+	Adds a cDF packages to Recast Application Workspace
+    Note: the Liquit.Server.PowerShell PowerShell module can be installed via: Install-Module -Name Liquit.Server.PowerShell
+.PARAMETER Uri
+	Specifies the Uniform Resource Identifier (URI) of your Recast Application Workspace environment e.g. https://YourInstance.YourDomain.com/ (mandatory)
+.PARAMETER Credential
+	Specifies a credential object with an user name and password that hast access to your Recast Application Workspace environment, you can generate such an object with Get-Credential (mandatory)
+.PARAMETER Path
+    Specifies the path to your cPF package that should be imported (mandatory)
+.PARAMETER Path
+    Specifies the path to your cPF package that should be imported (mandatory)
+.PARAMETER Name
+    Specifies the name you want to use, if not specified the package name specified via the path parameter is used as name (optional)
+.PARAMETER DisplayName
+    Specifies the display name you want to use, if not specified the name parameter is used as display name (optional)
+.PARAMETER Version
+    Specifies the version number (optional)
+.PARAMETER Executable
+    Specifies the path to the executable that should be created as shortcut (optional)
+.PARAMETER Workdir
+    Specifies the working directory of the executable that should be created as shortcut (optional)
+.PARAMETER Arguments
+    Specifies the command line arguments directory for the shortcut (optional)
+.PARAMETER Icon
+    Specifies the path to an icon (optional)
+.PARAMETER Dependency
+    Specifies one ore more packages that are requiered (optional)
+.PARAMETER Tag
+    Specifies a tag (optional)
+.PARAMETER EntitlementGroup
+    Specifies entitlement groups (optional)
+.PARAMETER EntitlementStage
+    Specifies entitlement stage, possible values are 'Development','Test','Acceptance','Production' (optional)
+.PARAMETER EntitlementPublish
+    Specifies entitlement publish mode, posible values are 'Workspace' or 'Catalog' (optional)
+.PARAMETER SnapshotStage
+    Specifies the Snapshot stage, possible values are 'Development','Test','Acceptance','Production' (optional)
+.EXAMPLE
+    Add-PackageToRecastAW -Uri 'https://YourInstance.YourDomain.com' -Credential $(Get-Credential) -Path 'C:\Packages\DonHo_NotepadPlusPlusX64_8.8.5_ML_01.00' -Name "NotepadPlusPlus" -DisplayName "Notepad++" -Version '1.0'
+    Adds a cDF package
+.EXAMPLE
+    Add-PackageToRecastAW -Uri 'https://YourInstance.YourDomain.com' -Credential $(Get-Credential) -Path 'C:\Packages\DonHo_NotepadPlusPlusX64_8.8.5_ML_01.00' -Name "NotepadPlusPlus" -DisplayName "Notepad++" -Version '1.0' -Executable 'C:\Program Files\Notepad++\Notepad++.exe' -Workdir 'C:\Program Files\Notepad++\'
+    Adds a cDF package and create a shortcut
+.EXAMPLE
+    Add-PackageToRecastAW -Uri 'https://YourInstance.YourDomain.com' -Credential $(Get-Credential) -Path 'C:\Packages\IgorPavlov_7ZipX64_25.01_ML_01.00' -Name "7Zip" -DisplayName "7Zip" -Version '1.0' -Executable 'C:\Program Files\7-Zip\7zFM.exe' -Workdir 'C:\Program Files\7-Zip\' -Tag 'ceterion Packaging Framework' -EntitlementGroup @("Everyone","YourGroup") -SnapshotStage Development -Dependency @("NotepadPlusPlus")
+    Adds a cDF package, create a shortcut, add a dependency, add a tag, add a entitlement group, promote snapshot 
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+
+		[Parameter(Mandatory=$True)]
+		[ValidateNotNullorEmpty()]
+		[string]$Uri,
+
+		[Parameter(Mandatory=$True)]
+		[ValidateNotNullorEmpty()]
+		[object]$Credential,
+
+		[Parameter(Mandatory=$True)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path,
+
+		[Parameter(Mandatory=$True)]
+		[ValidateNotNullorEmpty()]
+		[string]$Name,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$DisplayName=$Name,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Version,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Executable,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Workdir,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Arguments,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Icon,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string[]]$Dependency,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$Tag,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string[]]$EntitlementGroup,
+
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('Development','Test','Acceptance','Production')]
+		[string]$EntitlementStage='Development',
+
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('Catalog','Workspace')]
+		[string]$EntitlementPublish='Catalog',
+
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('Development','Test','Acceptance','Production')]
+		[string]$SnapshotStage
+
+	)
+	
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            # Import Module
+            if (-not (Get-Module -Name Liquit.Server.PowerShell)) { Import-Module Liquit.Server.PowerShell -Force }
+            Write-Log "Using [Liquit.Server.PowerShell] with version [$((Get-Module Liquit.Server.PowerShell).Version)]" -Source ${CmdletName}
+
+            # Check mandatory params 
+            if (-not (Test-Path $Path)) { throw "Package path [$Path] not found" }
+
+            If ($Icon) {
+                if (-not (Test-Path $Icon)) { throw "Package path [$Path] not found" }
+            } else {
+                # Fallback to default icon
+                Write-Log -Message "Icon file not specified, fallback to default icon" -Source ${CmdletName}
+                $Icon = "$((Get-Module -Name PackagingFramework).ModuleBase)\PackagingFramework.ico"
+            }
+
+
+            # Connect
+            try {
+                $LiquitWorkspaceConnection = Connect-LiquitWorkspace -URI $Uri -Credential $Credential
+                if (-not $LiquitWorkspaceConnection) { throw "Connect-LiquitWorkspace returned no context." }
+                Write-Log -Message "Connected to [$Uri]" -Source ${CmdletName}
+            } catch { Throw "Connect-LiquitWorkspace -URI $Uri -Credential *** failed: $($_.Exception.Message)" }
+
+
+            # Package & Version gate
+            $packageId = $null
+            try {
+                Write-Log -Message ("Looking up package by name: {0}" -f $Name) -Source ${CmdletName}
+                $existing = Get-LiquitPackage -Name $Name -ErrorAction SilentlyContinue
+
+                function Convert-ToVersion {
+                    param([string]$v)
+                    if ([string]::IsNullOrWhiteSpace($v)) { return [version]'0.0.0' }
+                    try { return [version]$v } catch { return [version]'0.0.0' }
+                }
+
+                if ($existing) {
+                    # Determine current (highest) snapshot version of the existing package
+                    $snaps = Get-LiquitPackageSnapshot -Package $existing -ErrorAction SilentlyContinue
+                    $currentVersion = '0.0.0'
+                    if ($snaps) {
+                        $validSnaps = $snaps | Where-Object { $_.Name -and $_.Name.Trim() -ne '' }
+                        if ($validSnaps) {
+                            $currentVersion = ( $validSnaps | Sort-Object -Property @{ Expression = { Convert-ToVersion $_.Name } } -Descending | Select-Object -First 1).Name
+                        }
+                    }
+                    $newV = Convert-ToVersion $Version
+                    $curV = Convert-ToVersion $currentVersion
+                    Write-Log -Message ("Current version: {0}  |  Incoming version: {1}" -f $curV, $newV) -Source ${CmdletName}
+
+                    if ($newV -le $curV) {
+                        Write-Log -Message ("Incoming version '{0}' is not greater than current '{1}'. Aborting." -f $newV, $curV) -Severity 2 -Source ${CmdletName}
+                        Exit-Script 
+                    }
+
+                    # Proceed with update on existing package (new snapshot will replace actions)
+                    $package   = $existing
+                    $packageId = $existing.Id
+                    Write-Log -Message ("Proceeding with update of existing package (Id: {0})" -f $packageId) -Source ${CmdletName}
+                }
+                else {
+                    # Create new package (first version)
+                    $iconContent = New-LiquitContent -Path $Icon
+                    $newPkg = New-LiquitPackage -Name $Name -Type Custom -Icon $iconContent -DisplayName $DisplayName
+                    if (-not $newPkg) { throw "New-LiquitPackage returned null." }
+                    $package   = $newPkg
+                    $packageId = $newPkg.Id
+                    Write-Log -Message ("Created new package. PackageId: {0}" -f $packageId) -Source ${CmdletName}
+                }
+
+                Write-Log -Message ("Validated PackageId: {0}" -f $packageId) -Source ${CmdletName}
+            }
+            catch {
+                throw "Package step failed: $($_.Exception.Message)"
+            }
+
+            # Tag assignment
+            try {
+                Write-Log -Message ("Retrieving tag: {0}" -f $Tag) -Source ${CmdletName} 
+                $tags = Get-LiquitTag | Where-Object { $_.Name -eq $Tag }
+                if (-not $tags) {  
+                    Write-Log -Message ("Tag not found, create tag now: {0}" -f $Tag) -Source ${CmdletName} 
+                    New-LiquitTag -Name $Tag -Type 'Workspace' | Out-Null ; $tags = Get-LiquitTag | Where-Object { $_.Name -eq $Tag }
+                }
+                Write-Log -Message ("Retrieving package with ID: {0}" -f $packageId) -Source ${CmdletName}
+                $package = Get-LiquitPackage -Id $packageId
+                if (-not $package) { throw "Package '$packageId' not found." }
+
+                try {
+                    # Try to add tag; if already assigned, Liquit throws a duplicate RestException
+                    $null = Add-LiquitTagEntity -Tag $tags -Entity $package -ErrorAction Stop
+                    Write-Log -Message ("Successfully assigned tag '{0}' to package ID: {1}" -f $Tag, $packageId) -Source ${CmdletName}
+                }
+                catch {
+                    $msg = $_.Exception.Message
+                    if ($msg -match 'already exists' -or $msg -match 'same type already exists') {
+                        Write-Log -Message ("Tag '{0}' already assigned to package ID: {1} — skipping." -f $Tag, $packageId) -Source ${CmdletName}
+                    }
+                    else {
+                        throw "Add-LiquitTagEntity failed. $($_.Exception.Message)"
+                    }
+                }
+            }
+            catch {
+                throw "Tag assignment failed: $($_.Exception.Message)"
+            }
+
+
+            # Snapshot & Action Sets
+            $actionSets = @{}
+            try {
+                Write-Log -Message ("Creating action sets for package ID: {0}" -f $packageId) -Source ${CmdletName}
+                $snapshot = New-LiquitPackageSnapshot -Package $package -Name $Version
+                if (-not $snapshot) { throw "New-LiquitPackageSnapshot returned null." }
+                Write-Log -Message ("Created snapshot for package ID: {0}" -f $packageId) -Source ${CmdletName}
+
+                # --- Create Action Sets ---
+                function New-LoggedActionSet {
+                    Param([Parameter(Mandatory)][string]$Name,[Parameter(Mandatory)][string]$Type)
+                    Write-Log -Message ("Attempting to create action set: {0}" -f $Name) -Source ${CmdletName}
+                    $freq = $(if($Type -eq 'Install'){'OncePerDevice'} else {'Always'})
+                    $aset = New-LiquitActionSet -Snapshot $snapshot -Type $Type -Name $Name -Enabled $true -Frequency $freq -Process Sequential
+                    if (-not $aset) { throw "Failed to create action set: $Name" }
+                    Write-Log -Message ("Created action set: {0} with ID: {1}" -f $Name, $aset.Id) -Source ${CmdletName}
+                    return $aset
+                }
+
+                $actionsetDependency = New-LoggedActionSet -Name 'Install Dependencies' -Type 'Install'
+                $actionsetInstall    = New-LoggedActionSet -Name 'Installation'         -Type 'Install'
+                $actionsetLaunch     = New-LoggedActionSet -Name 'Launch'               -Type 'Launch'
+                $actionsetUninstall  = New-LoggedActionSet -Name 'Uninstallation'       -Type 'Uninstall'
+
+                $actionSets = @{
+                    Installation             = $actionsetInstall
+                    Uninstallation           = $actionsetUninstall
+                    Launch                   = $actionsetLaunch
+                    'Install Dependencies'   = $actionsetDependency
+                }
+
+                Write-Log -Message ("Returning action sets: Installation, Uninstallation, Launch, Install Dependencies") -Source ${CmdletName}
+            }
+            catch {
+                throw "Action set step failed: $($_.Exception.Message)"
+            }
+
+
+            # Dependencies (optional): link multiple Liquit packages into "Install Dependencies"
+            try {
+                if ($Dependency -and $Dependency.Count -gt 0) {
+                    foreach ($depName in $Dependency) {
+                        if (-not $depName -or -not $depName.Trim()) { continue }
+
+                        Write-Log -Message ("Resolving dependency package by name: {0}" -f $depName) -Source ${CmdletName}
+                        $depPkg = Get-LiquitPackage -Name $depName -ErrorAction SilentlyContinue
+                        if (-not $depPkg) { throw "Dependency package '$depName' not found." }
+                        Write-Log -Message ("Dependency package resolved: {0} (Id: {1})" -f $depPkg.Name, $depPkg.Id) -Source ${CmdletName}
+
+                        # Create an action that starts/installs the dependency package
+                        $depAction = New-LiquitAction -ActionSet $actionsetDependency -Name ("Install dependency: {0}" -f $depPkg.Name) -Type 'installpackage' -Enabled $true -IgnoreErrors $false -Settings @{ mode = 'Install' }
+
+                        # Link the dependency package to the action via the 'identity' attribute
+                        $null = New-LiquitAttribute -Entity $depAction -Link $depPkg -Id 'package'
+
+                        Write-Log -Message ("Configured dependency action for '{0}'" -f $depPkg.Name) -Source ${CmdletName}
+                    }
+                }
+                else {
+                    Write-Log -Message "No dependency packages specified; skipping dependency actions" -Source ${CmdletName}
+                }
+            }
+            catch {
+                throw "Dependency linking failed: $($_.Exception.Message)"
+            }
+
+
+            # Install Actions
+            try {
+
+                $PackageScript = "$((Get-Item $Path).BaseName).ps1"
+
+                $uploadInstallAction = New-LiquitAction -ActionSet $actionsetInstall -Name ("Upload {0}" -f $Name) -Type 'contentextract' -Enabled $true -IgnoreErrors $true -Settings @{
+                    content=$Path; destination='${PackageTempDir}'
+                }
+                $contentObj = New-LiquitContent -Path $Path
+                $null = New-LiquitAttribute -Entity $uploadInstallAction -Link $contentObj -Id 'content' -Settings @{ filename= ("{0}_{1}.zip" -f $Name, $Version) }
+
+                $null = New-LiquitAction -ActionSet $actionsetInstall -Type "scriptstart" -Name "Run Install Script" -Context Device -Enabled $true -IgnoreErrors $false -Settings @{
+                    path=[string]::Join('\',@('${PackageTempDir}',"$PackageScript"))
+                    directory='${PackageTempDir}'
+                    parameters='-DeploymentType Install -DeployMode Silent'
+                    engineParameters='-ExecutionPolicy RemoteSigned'
+                    type=3
+                }
+
+                $null = New-LiquitAction -ActionSet $actionsetInstall -Type "dirdelete" -Name "Cleanup Temp" -Context Device -Enabled $true -IgnoreErrors $false -Settings @{
+                    path='${PackageTempDir}'
+                    directory='${PackageTempDir}'
+                }
+
+                Write-Log -Message "Configured install actions" -Source ${CmdletName}
+            }
+            catch {
+                throw "Install actions failed: $($_.Exception.Message)"
+            }
+
+            # Launch Actions
+            try {
+                $null = New-LiquitAction -ActionSet $actionsetLaunch -Type "processstart" -Name "Start Process" -Context User -Enabled $true -IgnoreErrors $false -Settings @{
+                    name=$Executable
+                    parameters=$Arguments
+                    directory=$Workdir
+                }
+                Write-Log -Message "Configured launch actions" -Source ${CmdletName}
+            }
+            catch {
+                throw "Launch actions failed: $($_.Exception.Message)"
+            }
+
+            # Uninstall Actions
+            try {
+
+                $PackageScript = "$((Get-Item $Path).BaseName).ps1"
+
+                $uploadUninstallAction = New-LiquitAction -ActionSet $actionsetUninstall -Name ("Upload {0}" -f $Name) -Type 'contentextract' -Enabled $true -IgnoreErrors $true -Settings @{
+                    content=$Path; destination='${PackageTempDir}'
+                }
+                $uninstContent = New-LiquitContent -Path $Path
+                $null = New-LiquitAttribute -Entity $uploadUninstallAction -Link $uninstContent -Id 'content' -Settings @{ filename= ("{0}_{1}.zip" -f $Name, $Version) }
+
+                $null = New-LiquitAction -ActionSet $actionsetUninstall -Type "scriptstart" -Name "Run Uninstall Script" -Context Device -Enabled $true -IgnoreErrors $false -Settings @{
+                    path=[string]::Join('\',@('${PackageTempDir}',"$PackageScript"))
+                    directory='${PackageTempDir}'
+                    parameters='-DeploymentType Uninstall -DeployMode Silent'
+                    engineParameters='-ExecutionPolicy RemoteSigned'
+                    type=3
+                }
+
+                $null = New-LiquitAction -ActionSet $actionsetUninstall -Type "dirdelete" -Name "Cleanup Temp" -Context Device -Enabled $true -IgnoreErrors $false -Settings @{
+                    path='${PackageTempDir}'
+                    directory='${PackageTempDir}'
+                }
+                
+                Write-Log -Message "Configured uninstall actions" -Source ${CmdletName}
+            }
+            catch {
+                throw "Uninstall actions failed: $($_.Exception.Message)"
+            }
+
+
+            # Shortcut
+            try {
+                $enabled = $true
+                New-LiquitPackageShortcut -Snapshot $snapshot -Id 'primary' -Name $DisplayName -Enabled $enabled| Out-Null
+                Write-Log -Message "Created shortcut" -Source ${CmdletName}
+            }
+            catch {
+                throw "Shortcut failed: $($_.Exception.Message)"
+            }
+
+
+            # Entitlement (reconcile to the groups defined in $EntitlementGroup)
+            try {
+                if (-not $EntitlementGroup -or [string]::IsNullOrWhiteSpace(($EntitlementGroup -join ''))) {
+                    Write-Log -Message "No entitlement group(s) defined, skipping entitlement reconciliation." -Source ${CmdletName}
+                }
+                else {
+                    # Helpers to check parameter support
+                    function Test-CmdParam([string]$Name,[string]$Param) {
+                        $cmd = Get-Command -Name $Name -ErrorAction SilentlyContinue
+                        return ($cmd -and $cmd.Parameters.ContainsKey($Param))
+                    }
+
+                    # Normalize input to array
+                    $targetGroupNames = if ($EntitlementGroup -is [string]) { @($EntitlementGroup) } else { $EntitlementGroup }
+
+                    # Resolve groups
+                    $resolvedGroups = @()
+                    foreach ($gName in $targetGroupNames) {
+                        if (-not $gName -or [string]::IsNullOrWhiteSpace($gName)) { continue }
+                        $g = Get-LiquitGroup | Where-Object { $_.DisplayName -eq $gName }
+                        if ($g) { $resolvedGroups += $g } else {
+                            Write-Log -Message ("Group '{0}' not found. It will be skipped in reconciliation." -f $gName) -Source ${CmdletName} -Severity 2
+                        }
+                    }
+
+                    if (-not $resolvedGroups -or $resolvedGroups.Count -eq 0) { 
+                        Write-Log -Message "No valid groups resolved; skipping entitlement reconciliation." -Source ${CmdletName}
+                    }
+                    else {
+                        # Build icon preferences once
+                        $icons = New-Object Liquit.API.Server.V3.PackageEntitlementIcons
+                        $icons.StartMenu   = $true
+                        $icons.Desktop    = $false
+                        $icons.Taskbar    = $false
+                        $icons.MacDesktop = $false
+
+                        # Fetch current entitlements on the package
+                        $currentEnts = @()
+                        $currentEnts = Get-LiquitPackageEntitlement -Package $package -ErrorAction SilentlyContinue
+
+                        # For quick lookup
+                        $targetGroupIds = $resolvedGroups.Id
+                        $currentByGroup = @{}
+                        foreach ($e in $currentEnts) {
+                            if ($e.PSObject.Properties.Name -contains 'Identity' -and $e.Identity -and $e.Identity.Id) {
+                                $currentByGroup[$e.Identity.Id] = $e
+                            }
+                        }
+
+                        # Helper: remove entitlement using whatever parameter set exists
+                        function Remove-EntitlementSafe($Ent, $Pkg, $IdentityObj) {
+                            if (Test-CmdParam 'Remove-LiquitPackageEntitlement' 'Entitlement') {
+                                $null = Remove-LiquitPackageEntitlement -Entitlement $Ent -ErrorAction Stop
+                            }
+                            elseif (Test-CmdParam 'Remove-LiquitPackageEntitlement' 'Identity') {
+                                $null = Remove-LiquitPackageEntitlement -Package $Pkg -Identity $IdentityObj -ErrorAction Stop
+                            }
+                            else {
+                                throw "Remove-LiquitPackageEntitlement doesn't support -Entitlement or -Identity on this module version."
+                            }
+                        }
+
+                        # Helper: update entitlement, or fall back to recreate
+                        function Set-OrRecreate-Entitlement($ExistingEnt, $Pkg, $IdentityObj, $Stage, $Publish, $Icons) {
+                            if (Get-Command -Name Set-LiquitPackageEntitlement -ErrorAction SilentlyContinue) {
+                                try {
+                                    if (Test-CmdParam 'Set-LiquitPackageEntitlement' 'Entitlement') {
+                                        $null = Set-LiquitPackageEntitlement -Entitlement $ExistingEnt -Stage $Stage -Publish $Publish -Icons $Icons -ErrorAction Stop
+                                        return $true
+                                    }
+                                    elseif (Test-CmdParam 'Set-LiquitPackageEntitlement' 'Identity') {
+                                        $null = Set-LiquitPackageEntitlement -Package $Pkg -Identity $IdentityObj -Stage $Stage -Publish $Publish -Icons $Icons -ErrorAction Stop
+                                        return $true
+                                    }
+                                    else {
+                                        # No usable param set: fall through to recreate
+                                    }
+                                }
+                                catch {
+                                    Write-Log -Message ("Update failed for group '{0}', will try recreate: {1}" -f $IdentityObj.DisplayName, $_.Exception.Message) -Source ${CmdletName} -Severity 2
+                                }
+                            }
+                            # Recreate path
+                            try {
+                                Remove-EntitlementSafe -Ent $ExistingEnt -Pkg $Pkg -IdentityObj $IdentityObj
+                                $null = New-LiquitPackageEntitlement -Package $Pkg -Identity $IdentityObj -Publish $Publish -Icons $Icons -Stage $Stage
+                                return $true
+                            }
+                            catch {
+                                throw ("Recreate entitlement failed for '{0}': {1}" -f $IdentityObj.DisplayName, $_.Exception.Message)
+                            }
+                        }
+
+                        # 1) Remove entitlements not in desired groups
+                        foreach ($ent in $currentEnts) {
+                            $entGroupId = $null
+                            if ($ent.PSObject.Properties.Name -contains 'Identity' -and $ent.Identity) { $entGroupId = $ent.Identity.Id }
+                            if ($entGroupId -and ($targetGroupIds -notcontains $entGroupId)) {
+                                try {
+                                    Remove-EntitlementSafe -Ent $ent -Pkg $package -IdentityObj $ent.Identity
+                                    Write-Log -Message ("Removed entitlement for group '{0}'" -f $ent.Identity.DisplayName) -Source ${CmdletName}
+                                }
+                                catch {
+                                    throw ("Failed to remove entitlement for group '{0}': {1}" -f $ent.Identity.DisplayName, $_.Exception.Message)
+                                }
+                            }
+                        }
+
+                        # 2) Ensure/Update entitlements for desired groups
+                        foreach ($g in $resolvedGroups) {
+                            $existingEnt = $null
+                            if ($currentByGroup.ContainsKey($g.Id)) { $existingEnt = $currentByGroup[$g.Id] }
+
+                            if ($existingEnt) {
+                                # Update or recreate to enforce settings
+                                if (Set-OrRecreate-Entitlement -ExistingEnt $existingEnt -Pkg $package -IdentityObj $g -Stage $EntitlementStage -Publish $EntitlementPublish -Icons $icons) {
+                                    Write-Log -Message ("Ensured entitlement for group '{0}' (Stage: {1}, Publish: {2})" -f $g.DisplayName, $EntitlementStage, $EntitlementPublish) -Source ${CmdletName}
+                                }
+                            }
+                            else {
+                                # Create new entitlement
+                                try {
+                                    $null = New-LiquitPackageEntitlement -Package $package -Identity $g -Publish $EntitlementPublish -Icons $icons -Stage $EntitlementStage
+                                    Write-Log -Message ("Created entitlement for group '{0}' (Stage: {1}, Publish: {2})" -f $g.DisplayName, $EntitlementStage, $EntitlementPublish) -Source ${CmdletName}
+                                }
+                                catch {
+                                    throw ("Failed to create entitlement for group '{0}': {1}" -f $g.DisplayName, $_.Exception.Message)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch {
+                throw "Entitlement reconciliation failed: $($_.Exception.Message)"
+            }
+
+            # Promote Snapshot to target stage at the very end (if not Development)
+            try {
+                if ($SnapshotStage -and -not [string]::IsNullOrWhiteSpace($SnapshotStage)) {
+                    $target = $SnapshotStage.Trim()
+                    if ($target -ine 'Development') {
+                        Write-Log -Message ("Promoting latest snapshot to stage: {0}" -f $target) -Source ${CmdletName}
+
+                        # Get latest snapshot of the package
+                        $latestSnapshot = Get-LiquitPackageSnapshot -Package $package | Sort-Object CreatedOn -Descending | Select-Object -First 1
+                        if (-not $latestSnapshot) { throw "No snapshot found for package '$Name'." }
+
+                        try {
+                            $null = Publish-LiquitPackageSnapshot -Snapshot $latestSnapshot -Stage $target
+                            Write-Log -Message ("Successfully promoted snapshot '{0}' to stage: {1}" -f $latestSnapshot.Name, $target) -Source ${CmdletName}
+                        }
+                        catch {
+                            throw ("Failed to promote snapshot to stage '{0}': {1}" -f $target, $_.Exception.Message)
+                        }
+                    }
+                    else {
+                        Write-Log -Message "Target stage is Development; no promotion needed." -Source ${CmdletName}
+                    }
+                }
+                else {
+                    Write-Log -Message "No target stage defined; skipping final snapshot promotion." -Source ${CmdletName}
+                }
+            }
+            catch {
+                throw "Final promotion step failed: $($_.Exception.Message)"
+            }
+
+            # Done
+            Write-Log -Message "Publish completed successfully." -Source ${CmdletName}
+
+		}
+		Catch {
+                Write-Log -Message "Unexpected error . `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			If (-not $ContinueOnError) {
+				Throw "Unexpected error.: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+Set-Alias -Name 'Add-PackageToLiquit' -Value 'Add-PackageToRecastAW' -Scope 'Script' -Force -ErrorAction 'SilentlyContinue'
+#endregion Function Add-PackageToRecastAW
 
 #region Function Add-Path
 Function Add-Path {
@@ -3169,9 +3780,17 @@ Function Exit-Script {
     if (Test-path -path Variable:PackageDescription) {Remove-Variable -Name PackageDescription -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:PackageDisplayName) {Remove-Variable -Name PackageDisplayName -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:PackageGUID) {Remove-Variable -Name PackageGUID -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:PackageDate) {Remove-Variable -Name PackageDate -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:PackagingFrameworkModuleVer) {Remove-Variable -Name PackagingFrameworkModuleVer -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:PackagingFrameworkName) {Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:ScriptDirectory) {Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:WebserverURL) {Remove-Variable -Name WebserverURL -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:InfrastructureShare) {Remove-Variable -Name InfrastructureShare -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ClientLocation) {Remove-Variable -Name ClientLocation -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ComputerParameter) {Remove-Variable -Name ComputerParameter -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ComputerParameterFile) {Remove-Variable -Name ComputerParameterFile -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ComputerParameterFileWithParents) {Remove-Variable -Name ComputerParameterFileWithParents -ErrorAction SilentlyContinue -Scope Global}
+    
 
 
 	## Exit the script, returning the exit code to SCCM
@@ -3254,6 +3873,104 @@ Function Expand-Variable {
 	}
 }
 #endregion Function Expand-Variable
+
+#region Function Export-Icon
+Function Export-Icon {
+<#
+.SYNOPSIS
+	Export a icon from an executable
+.DESCRIPTION
+	Export a icon from an executable
+.PARAMETER Path
+	Specify the path to the executable (exe, dll, etc.) file that contains an icon
+.PARAMETER Destination
+	Specify the folder to save the extracted icon file
+.PARAMETER Name
+	Specify an alternate base name for the new image file. Otherwise, the source name will be used
+.PARAMETER Format
+	Format to export, supported are the formats: ico, bmp, png, jpg, gif
+.EXAMPLE
+	Export-Icon -Path C:\Windows\Notepad.exe -Destination C:\Temp -Name 'MyNotepad.ico' -Format 'ico'
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+        [Parameter(Position = 0, Mandatory,HelpMessage = "Specify the path to the file.")]
+        [ValidateScript({Test-Path $_})]
+        [string]$Path,
+
+        [Parameter(Position = 1, HelpMessage = "Specify the folder to save the file.")]
+        [ValidateScript({Test-Path $_})]
+        [string]$Destination = ".",
+
+        [parameter(Position = 2, HelpMessage = "Specify an alternate base name for the new image file. Otherwise, the source name will be used.")]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter(Position = 3, HelpMessage = "What format do you want to use? The default is ico.")]
+        [ValidateSet("ico","bmp","png","jpg","gif")]
+        [string]$Format = "ico"
+    )
+
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+
+            # Load System.Drawing assembly
+            Try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } Catch { Write-log "Failed to import System.Drawing" -Source ${CmdletName} -Severity 3 ; Throw $_ }
+
+            # Supported formats
+            Switch ($format) {
+                "ico" {$ImageFormat = "Icon"}
+                "bmp" {$ImageFormat = "Bmp"}
+                "png" {$ImageFormat = "Png"}
+                "jpg" {$ImageFormat = "Jpeg"}
+                "gif" {$ImageFormat = "Gif"}
+            }
+
+            # Get file 
+            $file = Get-Item $path
+            
+            # Convert destination to file system path
+            $Destination = Convert-Path -path $Destination
+
+            # Base name
+            if ($Name) { $base = $Name } else {$base = $file.BaseName }
+
+            # Construct the image file name
+            $out = Join-Path -Path $Destination -ChildPath "$base.$format"
+
+            Write-Log "Export icon image from [$path] to [$out] as [$ImageFormat]" -Source ${CmdletName}
+            $global:ico =  [System.Drawing.Icon]::ExtractAssociatedIcon($file.FullName)
+            if ($ico) {
+                if ($PSCmdlet.ShouldProcess($out, "Extract icon")) {
+                    $ico.ToBitmap().Save($Out,$Imageformat)
+                }
+            }
+            else {
+                Write-Log "No associated icon image found in [$($file.fullname)]" -Source ${CmdletName} -Severity 2
+            }
+
+		}
+		Catch {
+                Write-Log -Message "Unexpected error . `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+    			If (-not $ContinueOnError) {
+				Throw "Unexpected error.: $($_.Exception.Message)"
+			}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion Function Export-Icon
 
 #region Function Get-DeferHistory
 Function Get-DeferHistory {
@@ -4204,15 +4921,19 @@ Function Get-Parameter {
 .SYNOPSIS
       Returns parameter variables
 .DESCRIPTION
-      Returns parameter variables from JSON, JSONFolder, SCCM, MECM or CloudShaper
+      Returns parameter variables from JSON, JSONFolder, SCCM, MECM, CloudShaper or cDF
 .PARAMETER Parameter
       The name of the parameter value, e.g. InstallDir (optional), if not specified all parameters are returned
 .PARAMETER Variable
       Variable name where to store the value (optional)
 .PARAMETER Source
-      Source where to look for parameters, possible values are Json, JsonFolder, SCCM, MECM, CloudShaper and All, Default is All (optional)
+      Source where to look for parameters, possible values are Json, JsonFolder, SCCM, MECM, CloudShaper, cDF and All, Default is All (optional)
 .PARAMETER Section
       Section where to look for parameters, not valid for SCCM, MECM and JsonFolder, default for Json is 'Parameters', default for CloudShaper is 'Custom' (optional)
+.PARAMETER ComputerName
+      cDF computer object name (optional, default $env:ComputerName)
+.PARAMETER WebserverURL
+      cDF Webserver URL (optional, if empty HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\WebserverURL RegKey is used)
 .PARAMETER Default
       Default value to return when the parameter is not found or empty (optional, only supported for single parameters)
 .PARAMETER Expand
@@ -4239,11 +4960,11 @@ Function Get-Parameter {
       $Return = Get-Parameter 'TestParam' -NoAutoGeneratedVariable
       Gets the parameter "InstallDir" from all sources and returns the value to the pipe, no varaiable is generated automaticaly
 .EXAMPLE
-      Get-Parameter
-      Get all parameters and automatic generated variables (currently only supportet for JsonFolder parameters)
+      Get-Parameter *
+      Get all parameters and automatic generated variables (only supportet for JsonFolder and cDF source)
 .EXAMPLE
-      $AllParameter = Get-Parameter -NoAutoGeneratedVariable
-      Get all parameters and store them in a single hashtable variable
+      $AllParameter = Get-Parameter * -NoAutoGeneratedVariable
+      Get all parameters and store them in a single hashtable variable (only supportet for JsonFolder and cDF source)
 .NOTES
       Created by ceterion AG
 .LINK
@@ -4261,7 +4982,7 @@ Function Get-Parameter {
             [string]$Variable,
 
             [Parameter(Mandatory=$False)]
-            [ValidateSet('All','Json','JsonFolder','SCCM','MECM','CloudShaper')]
+            [ValidateSet('All','Json','JsonFolder','SCCM','MECM','CloudShaper','cDF')]
             [string]$Source = 'All',
 
             [Parameter(Mandatory=$False)]
@@ -4270,7 +4991,11 @@ Function Get-Parameter {
 
             [Parameter(Mandatory=$False)]
             [ValidateNotNullorEmpty()]
-            [string]$ComputerName=$env:ComputerName,
+            [string]$Computer=$env:ComputerName,
+
+            [Parameter(Mandatory=$False)]
+            [ValidateNotNullorEmpty()]
+            [string]$WebserverURL=$Global:WebserverURL,
         
             [Parameter(Mandatory=$False)]
             [ValidateNotNullorEmpty()]
@@ -4349,7 +5074,8 @@ Function Get-Parameter {
             Write-log "Variable: $Variable" -Source ${CmdletName} -DebugMessage
             Write-log "Source: $Source" -Source ${CmdletName} -DebugMessage
             Write-log "Section: $Section" -Source ${CmdletName} -DebugMessage
-            Write-log "ComputerName: $ComputerName" -Source ${CmdletName} -DebugMessage
+            Write-log "WebserverURL: $WebserverURL" -Source ${CmdletName} -DebugMessage
+            Write-log "Computer: $Computer" -Source ${CmdletName} -DebugMessage
             Write-log "RootFolder: $RootFolder" -Source ${CmdletName} -DebugMessage
             Write-log "Default: $Default" -Source ${CmdletName} -DebugMessage
             Write-log "Expand: $Expand" -Source ${CmdletName} -DebugMessage
@@ -4360,6 +5086,9 @@ Function Get-Parameter {
             Write-log "Force: $Force" -Source ${CmdletName} -DebugMessage
             Write-log "ContinueOnError: $ContinueOnError" -Source ${CmdletName} -DebugMessage
             Write-log "-------------------------------" -Source ${CmdletName} -DebugMessage
+
+            # Empty hastable for later use
+            $SettingsHash = @{}
 
             # Get parameter from package JSON file
             If (($Source -ieq "All") -or ($Source -ieq "Json")) {
@@ -4454,6 +5183,7 @@ public class CollectionVariableDecoder
                         $collVar = $xmlDoc.PolicySecret.InnerText
                         try {
                             $TempReturn = [CollectionVariableDecoder]::Decode($collVar)
+                            if ($TempReturn) {$TempReturn = $TempReturn.Substring(0, $TempReturn.Length - 1)}
                             write-log "${CmdletName} Parameter [$Parameter] has the decoded value [$TempReturn]" -Severity 1 -DebugMessage -Source ${CmdletName}
                         } catch {
                             Write-log "${CmdletName} Failed to decode MECM [$Parameter], possible reason: Package is NOT executed by the MECM user" -Severity 2 -Source ${CmdletName}
@@ -4535,8 +5265,6 @@ public class CollectionVariableDecoder
             If (($Source -ieq "All") -or ($Source -ieq "JsonFolder")) {
                 If(![string]::IsNullOrEmpty($RootFolder))
                 {
-                    $SettingsHash = @{}
-                    
                     # Find COMPUTERNAME.json file (but only once, because this can take some time)
                     #if (-not($Global:ComputerParameterFile)) {
                     #    Write-Log "Search recursive for [$env:COMPUTERNAME.json] at [$RootFolder]" -Source ${CmdletName} #-DebugMessage
@@ -4597,7 +5325,6 @@ public class CollectionVariableDecoder
                     # Remember parameter object globaly for later use
                     $Global:ComputerParameter = $SettingsHash
 
-
                     If(-not($Parameter -ieq "*"))
                     {
                         If(![string]::IsNullOrEmpty($SettingsHash.$Parameter))
@@ -4633,7 +5360,12 @@ public class CollectionVariableDecoder
                                 Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
                             }
                             $Return = $SettingsHash
-                            If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in JSON folder with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in JSON folder with value: [********]" -Source ${CmdletName}}
+                            
+                            if ($Parameter -eq "*") {
+                                Write-Log "A total of [$($Return.count)] parameters found in JSON folder" -Source ${CmdletName}
+                            } else {
+                                If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in JSON folder with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in JSON folder with value: [********]" -Source ${CmdletName}}
+                            }
                             
                         }
                         else
@@ -4648,6 +5380,104 @@ public class CollectionVariableDecoder
                     Write-Log "${CmdletName} Parameter [RootFolder] NOT specified. RootFolder is required for JsonFolder look up." -Severity 2 -DebugMessage -Source ${CmdletName}
                 }
             }
+
+            # Get parameter from cDF Webservice
+            If (($Source -ieq "All") -or ($Source -ieq "cDF")) {
+                If(![string]::IsNullOrEmpty($WebserverURL))
+                {
+                    # Query parameter for webservice, but only once
+                    if (-not $Script:cDFWebServiceResponse) {
+                        Write-log "Get parameters from cDF Webserver at [$WebserverURL] for [$Computer]" -Source ${CmdletName}
+                        $body = @{ Name = "$Computer" ; Inherited = $true } | ConvertTo-Json
+                        Write-log "Invoke-WebRequest -Uri `"$WebserverURL/api/get-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
+                        $Script:cDFWebServiceResponse = Invoke-WebRequest -Uri "$WebserverURL/api/get-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
+                        Write-log "cDFWebServiceResponse: $($Script:cDFWebServiceResponse.content)" -Source ${CmdletName} -DebugMessage
+                    }
+
+                    foreach ($Section in $($Script:cDFWebServiceResponse.Content | ConvertFrom-Json).PSObject.Properties.Name) {
+                        foreach ($item in $($Script:cDFWebServiceResponse.Content | ConvertFrom-Json).$Section) {
+                            $item.PSObject.Properties | ForEach-Object {
+                                $value = $_.value ; $name = $_.name
+                                # Check if propertiy already exists in object
+                                if($name){
+                                    Write-log "Parameter [$Name] with value [$value] found in section [$section]" -Source ${CmdletName} -DebugMessage
+                                    if ($SettingsHash.$name -eq $null){
+                                        # Add to hashtable
+                                        $SettingsHash.Add($name,$value)
+                                        write-log "Add new setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
+                                    } else {
+                                        # Update value if already exist in hashtable
+                                        write-log "Update setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
+                                        $SettingsHash.$name = $value
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    # Remember parameter object globaly for later use
+                    $Global:ComputerParameter = $SettingsHash
+
+                    If(-not($Parameter -ieq "*"))
+                    {
+                        If(![string]::IsNullOrEmpty($SettingsHash.$Parameter))
+                        {
+                            $TempReturn = $SettingsHash.$Parameter
+                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                            {
+                                Write-Log "Return value [$Return] will be overwritten with [$TempReturn]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                            {
+                                Write-Log "Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            $Return = $TempReturn
+                            If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in cDF with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in cDF with value: [********]" -Source ${CmdletName}}
+
+                        }
+                        else
+                        {
+                            Write-Log "Parameter [$Parameter] NOT found in cDF" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                    }
+                    else
+                    {
+                        If($SettingsHash.Count -ne 0)
+                        {
+                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                            {
+                                Write-Log "${CmdletName} Return value [$Return] will be overwritten with hash table" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                            {
+                                Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            $Return = $SettingsHash
+                            if ($Parameter -eq "*") {
+                                Write-Log "A total of [$($Return.count)] parameters found in cDF" -Source ${CmdletName}
+                            } else {
+                                If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in cDF with value [$($Return)]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in cDF with value: [********]" -Source ${CmdletName}}
+                            }
+                            
+                        }
+                        else
+                        {
+                            Write-Log "Parameter [$Parameter] NOT found in cDF" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                    }
+
+                }
+                else
+                {
+                    Write-Log "${CmdletName} Parameter [WebserverURL] NOT specified. WebserverURL is required for cDF look up." -Severity 2 -DebugMessage -Source ${CmdletName}
+                }
+            }
+
+
+
+
+
+
 
 
 
@@ -5788,10 +6618,12 @@ Function Initialize-Script {
     # Get ceterion Install Agent variable
     [string]$Global:IsceterionInstallAgent=$false ; if(get-service -name ceterionInstallAgent -ErrorAction SilentlyContinue){[string]$Global:IsceterionInstallAgent=$true}
 
+    # Get ceterion cDF Webserver URL variable
+    try {$Global:WebserverURL = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'WebserverURL' -ErrorAction SilentlyContinue} catch {}
+
     # Get ceterion Install Agent InfrastructureShare, ClientLocation, ComputerParameterFile and ComputerInstallSequenceFile vars
     try {$Global:InfrastructureShare = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'InfrastructureShare' -ErrorAction SilentlyContinue} catch {} # https://github.com/PowerShell/PowerShell/issues/19228
     try {$Global:ClientLocation = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'ClientLocation' -ErrorAction SilentlyContinue} catch {}
-    
     If ($Global:InfrastructureShare -is [string]) { If ($Global:InfrastructureShare.ToLower().StartsWith("\\dummy\")) {$Global:InfrastructureShare=$null} } # Set to null if dummy
     if ($Global:InfrastructureShare){
         Write-Log "InfrastructureShare is [$Global:InfrastructureShare]" -Source ${CmdletName} -DebugMessage
@@ -5800,7 +6632,7 @@ Function Initialize-Script {
         if (-not($Global:ClientLocation)){
             Write-log "Registry key [ClientLocation] at [HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\] not found" -Source ${CmdletName} -DebugMessage
             Write-Log "Fallback to search for [$ComputerName.json] at [$Global:InfrastructureShare] to find [ClientLocation]" -Source ${CmdletName} -DebugMessage
-            $Global:ComputerParameterFile = (Get-ChildItem "$Global:InfrastructureShare\$ComputerName`.json" -Recurse -Depth 32).FullName 
+            $Global:ComputerParameterFile = try { (Get-ChildItem "$Global:InfrastructureShare\$ComputerName`.json" -Recurse -Depth 32 -ErrorAction SilentlyContinue).FullName } catch { }
             if ($Global:ComputerParameterFile) {
                 $Global:ClientLocation = ("$(Split-path $Global:ComputerParameterFile)" -ireplace ([Regex]::Escape($InfrastructureShare),'')).Trim("\")
                 Write-Log "Found [ClientLocation] at [$Global:ClientLocation]" -Source ${CmdletName} -DebugMessage
@@ -5813,13 +6645,13 @@ Function Initialize-Script {
         if ($Global:ClientLocation){
             Write-Log "ClientLocation is [$Global:ClientLocation]" -Source ${CmdletName} -DebugMessage
             $Global:ComputerParameterFile = "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName.json"
-            if (Test-Path -Path "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName.json") {
+            if (Test-Path -Path "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName.json" -ErrorAction SilentlyContinue) {
                 Write-Log "ComputerParameterFile is [$Global:ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
             } else {
                 Write-Log "ComputerParameterFile not found at [$Global:ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
             }
             $Global:ComputerInstallSequenceFile = "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName`_Install.seq"
-            if (Test-Path -Path "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName`_Install.seq") {
+            if (Test-Path -Path "$Global:InfrastructureShare\$Global:ClientLocation\$ComputerName`_Install.seq" -ErrorAction SilentlyContinue) {
                 Write-Log "ComputerInstallSequenceFile is [$Global:ComputerInstallSequenceFile]" -Source ${CmdletName} -DebugMessage
             } else {
                 Write-Log "ComputerInstallSequenceFile not found at [$Global:ComputerInstallSequenceFile]" -Source ${CmdletName} -DebugMessage
@@ -6148,11 +6980,11 @@ Function Initialize-Script {
 	
 	If ($HKUPrimaryLanguageShort) {
 		#  Use the primary UI language of the logged in user
-		[string]$UILanguage = "$HKUPrimaryLanguageShort"
+		[string]$Global:UILanguage = "$HKUPrimaryLanguageShort"
 	}
 	Else {
 		#  Default to UI language of the account executing current process (even if it is the SYSTEM account)
-		[string]$UILanguage = "$currentLanguage"
+		[string]$Global:UILanguage = "$currentLanguage"
 	}
 	#  Default to English if the detected UI language is not available in the XMl config file
 	If (-not ($ModuleConfigFile.Localization.$UILanguage)) { [string]$UILanguage = 'EN' }
@@ -6316,7 +7148,8 @@ Function Initialize-Script {
 	    Write-Log -Message "OS Version is [$OSName $OSArchitecture $OSVersion $OSReleaseID]" -Source $PackagingFrameworkName
     }
     Write-Log -Message "OS Type is [$OSProductTypeName]" -Source $PackagingFrameworkName
-    Write-Log -Message "Current Culture is [$($Culture.Name)] and UI language is [$CurrentLanguage]" -Source $PackagingFrameworkName
+    Write-Log -Message "OS Current Culture is [$($Culture.Name)] and UI language is [$CurrentLanguage]" -Source $PackagingFrameworkName
+    Write-Log -Message "User UI language is [$UILanguage]" -Source $PackagingFrameworkName
     Write-Log -Message "Hardware Platform is [$(Get-HardwarePlatform)]" -Source $PackagingFrameworkName
     Write-Log -Message "PowerShell Host is [$($PowerShellHost.Name)] with version [$($PowerShellHost.Version)]" -Source $PackagingFrameworkName
     Write-Log -Message "PowerShell Version is [$PSVersionInfo $PSArchitecture]" -Source $PackagingFrameworkName
@@ -7742,9 +8575,6 @@ Function Invoke-PackageEnd {
                     Remove-AppLockerRuleFromJson
                 }
             }
-
-
-
 
             # Run registry branding
             if ($SkipRegistryBranding -ne $true) {
@@ -12969,36 +13799,63 @@ Function Set-MsiProperty {
 Function Set-Parameter {
 <#
 .SYNOPSIS
-        Sets a value for a parameter in the computer parameter json file
+        Sets a value for a parameter in cDF computer parameter json file
 .DESCRIPTION
-        Sets a value for a parameter in the computer parameter json file
+        Sets a value for a parameter in cDF computer parameter json file
 .PARAMETER Parameter
-        The name of the parameter (mandatory)
+        The name of the parameter (mandatory in single paramete moder)
+.PARAMETER ParameterHashTable
+        A mutli dimentional hasttable with multiple sections and parameters (optional)
 .PARAMETER Value
-        Value to set (mandatory)
+        Value to set (mandatory in single parameter mode)
 .PARAMETER Section
-        Section where to set the parameter (optional)
+        Section where to set the parameter (optional, the section is automaticaly found when the parameter already exists, if not fallback to 'CustomSettings' as default)
 .PARAMETER Computer
-        Computer name where to set the parameter, default is the local computer name (optional)
+        Computer name where to set the parameter (optional, default $env:ComputerName)
+.PARAMETER WebserverURL
+      cDF Webserver URL (optional, if empty HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\WebserverURL RegKey is used)
 .PARAMETER ContinueOnError
     Continue On Error (optional)
 .EXAMPLE
-        Set-Parameter -Parameter 'XDA_INSTALLDIR' -Value 'C:\Program Files\Test'
-        Sets the parameter "XDA_INSTALLDIR" to "C:\Program Files\Test", the section is automaticaly found when the parameter already exists
+        Set-Parameter -Parameter 'Test1' -Value 'TestString1' -Section 'CustomSettings'
+        Sets the parameter 'Test1' to string value 'TestString1' in section 'CustomSettings'
 .EXAMPLE
-        Set-Parameter -Parameter 'XDA_INSTALLDIR' -Value 'C:\Program Files\Test' -Section 'XenDesktopAgent'
-        Sets the parameter "XDA_INSTALLDIR" to "C:\Program Files\Test" in the section "XenDesktopAgent"
+        Set-Parameter -Parameter 'Test2' -Value 'TestString2'
+        Sets the parameter 'Test2' to string value 'TestString2', the section is automaticaly found when the parameter already exists
+.EXAMPLE
+        Set-Parameter -Parameter 'Test3' -Value 123
+        Sets the parameter 'Test3' to an integer value
+.EXAMPLE
+        Set-Parameter -Parameter 'Test4' -Value $true
+        Sets the parameter 'Test4' to an bool value
+.EXAMPLE
+        $ParameterHashTable = @{ 
+            'CustomSettings' = @{ 
+                'TestString' = 'This is my text string'
+            }
+            'NetworkAdapter' = @{ 
+                'Gatewayv4' = '123.123.123.1';
+                'IPAddressv4' = '123.123.123.128';
+                'SubnetMaskv4' = '255.255.255.0'
+            }
+        } 
+        Set-Parameter -ParameterHashTable $ParameterHashTable
+        Sets mutliple parameters at once by using a mutli dimentional hasttable with sections, parameters and values
 .LINK
         http://www.ceterion.com
 #>
         [CmdletBinding()]
         Param (
             #  Get the current date
-            [Parameter(Mandatory = $False)]
+            [Parameter(Mandatory = $false)]
             [ValidateNotNullorEmpty()]
-            [string]$Parameter = '*',
+            [string]$Parameter,
 
-            [Parameter(Mandatory = $False)]
+            [Parameter(Mandatory = $false)]
+            [ValidateNotNullorEmpty()]
+            [hashtable]$ParameterHashTable,
+
+            [Parameter(Mandatory = $false)]
             [ValidateNotNullorEmpty()]
             [string]$Value,
 
@@ -13008,89 +13865,117 @@ Function Set-Parameter {
 
             [Parameter(Mandatory=$False)]
             [ValidateNotNullorEmpty()]
-            [string]$ComputerName=$env:ComputerName,
+            [string]$Computer=$env:ComputerName,
         
             [Parameter(Mandatory=$false)]
             [ValidateNotNullorEmpty()]
             [switch]$ContinueOnError
         )
-      
         Begin {
             ## Get the name of this function and write header
             [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
             Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
-        
         }
         Process {
             Try {
-
-                Write-Log "Start add parameter value [$Value] to parameter [$parameter] in section [$section] for computer [$ComputerName] " -Source ${CmdletName} 
-
-                # Use default ComputerParameterFile for local computer or search for ComputerParameterFile for other computer
-                if ($ComputerName -ieq $env:ComputerName) {
-                    Write-Log "ComputerParameterFile [$ComputerParameterFile] is used for [$ComputerName]"
-                } else {
-                    Write-Log "Search for ComputerParameterFile for computer [$ComputerName]"
-                    $CustomComputerParameterFile = (Get-ChildItem "$Global:InfrastructureShare\$ComputerName`.json" -Recurse -Depth 32).FullName 
-                    if ($CustomComputerParameterFile) { 
-                        Write-Log "ComputerParameterFile for computer [$ComputerName] found at [$CustomComputerParameterFile]"  
-                        $ComputerParameterFile = $CustomComputerParameterFile 
-                    } else { 
-                        Throw "ComputerParameterFile for computer [$ComputerName] NOT found" 
-                    }
-                }
-
+                
                 # Check prereqs
-                if (-not($ComputerParameterFile)) { Write-Log "Variable [ComputerParameterFile] not found, abort Set-Parameter" -Source ${CmdletName} ; Return}
-                if (-not(Test-path -Path $ComputerParameterFile)) { Write-Log "File [$ComputerParameterFile] not found, abort Set-Parameter" -Source ${CmdletName} ; Return }
-                # Read json
-                Write-Log "Read file [$ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
-                $ComputerParameterObject = Get-Content $ComputerParameterFile | ConvertFrom-Json
+                if (($WebserverURL) -or ($ComputerParameterFile)) { <#nothing to do#> } else { Write-Log "Skip set parameter, because no [ComputerParameterFile] or [WebserverURL] is configured" -Source ${CmdletName} ; Return}
 
+                ### Set Parameter in json file via direct share/file access (Old logic, only for backward compatibility) ###
+                if ($ComputerParameterFile) {
 
-                # Autodetect section name if not specified
-                if (-not($Section)) {
-                    Write-Log "Section name not specified, auto detect section name" -Source ${CmdletName} -DebugMessage
-                    foreach ($item in $ComputerParameterObject.PSObject.Properties.Name )
-                    {
-                        Write-log "Check for parameter [$parameter] in section [$Item]" -Source ${CmdletName} -DebugMessage
-                        if ($ComputerParameterObject.$Item.$Parameter) {
-                            $Section = $item
-                            Write-log "Parameter [$Parameter] found in Section [$Section]" -Source ${CmdletName} -DebugMessage
+                    # Use default ComputerParameterFile for local computer or search for ComputerParameterFile for other computer
+                    if ($Computer -ieq $env:ComputerName) {
+                        Write-Log "ComputerParameterFile [$ComputerParameterFile] is used for [$Computer]"
+                    } else {
+                        Write-Log "Search for ComputerParameterFile for computer [$Computer]"
+                        $CustomComputerParameterFile = (Get-ChildItem "$Global:InfrastructureShare\$Computer`.json" -Recurse -Depth 32).FullName 
+                        if ($CustomComputerParameterFile) { 
+                            Write-Log "ComputerParameterFile for computer [$Computer] found at [$CustomComputerParameterFile]"  
+                            $ComputerParameterFile = $CustomComputerParameterFile 
+                        } else { 
+                            Throw "ComputerParameterFile for computer [$Computer] NOT found" 
                         }
                     }
+
+                    # Check prereqs
+                    if (-not($ComputerParameterFile)) { Write-Log "Variable [ComputerParameterFile] not found, abort Set-Parameter" -Source ${CmdletName} ; Return}
+                    if (-not(Test-path -Path $ComputerParameterFile)) { Write-Log "File [$ComputerParameterFile] not found, abort Set-Parameter" -Source ${CmdletName} ; Return }
+                    
+                    # Read json
+                    Write-Log "Read file [$ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
+                    $ComputerParameterObject = Get-Content $ComputerParameterFile | ConvertFrom-Json
+
+                    # Autodetect section name if not specified
+                    if (-not($Section)) {
+                        Write-Log "Section name not specified, auto detect section name" -Source ${CmdletName} -DebugMessage
+                        foreach ($item in $ComputerParameterObject.PSObject.Properties.Name )
+                        {
+                            Write-log "Check for parameter [$parameter] in section [$Item]" -Source ${CmdletName} -DebugMessage
+                            if ($ComputerParameterObject.$Item.$Parameter) {
+                                $Section = $item
+                                Write-log "Parameter [$Parameter] found in Section [$Section]" -Source ${CmdletName} -DebugMessage
+                            }
+                        }
+                    }
+
+                    # If no section is specfied and autotetect section name failed, use 'CustomSettings' section as default
+                    if (-not ($Section)) { $Section = 'CustomSettings'}
+
+                    # If section name specified, directly add/set parameter value
+                    if ($Section) {
+                        # Update existing property
+                        if ($ComputerParameterObject.$Section.$Parameter) {
+                            Write-Log "Parameter [$Parameter] in section [$Section] alreday exists and has currently the value [$($ComputerParameterObject.$Section.$Parameter)]" -Source ${CmdletName} -DebugMessage
+                            $ComputerParameterObject.$Section.$Parameter = $value
+                            Write-Log "Parameter [$Parameter] in section [$Section] has changed from [$($ComputerParameterObject.$Section.$Parameter)] to [$value]" -Source ${CmdletName}
+                        # Add new property
+                        } else {
+                            # Add new property to an existing section
+                            if($ComputerParameterObject.$Section) {
+                                Write-Log "Add new parameter [$Parameter] in section [$Section]" -Source ${CmdletName}
+                                $ComputerParameterObject.$Section | Add-Member -MemberType NoteProperty -Name $Parameter -Value $value
+                            } else {
+                                # Add new property and a new section
+                                Write-Log "Add new parameter [$Parameter] to new section [$Section]" -Source ${CmdletName}
+                                $global:tmpObject = New-Object -TypeName psobject
+                                $tmpObject | Add-Member -MemberType NoteProperty -Name $Parameter -Value $value
+                                $ComputerParameterObject | Add-Member -MemberType NoteProperty -Name $section -value $tmpObject
+                            }
+                        }
+                    
+                        # Write updated json 
+                        Write-Log "Write updated file [$ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
+                        Retry-Command -ScriptBlock { 
+                            $ComputerParameterObject | ConvertTo-Json | Out-File $ComputerParameterFile -Encoding utf8 -ErrorAction Stop
+                        } -Maximum 10 -Delay 250 -DisableWriteLog
+                    
+                    } else {
+                        Write-log "Unable to set [$Parameter], because parameter or section not found!" -Source ${CmdletName} -Severity 2
+                        Return
+                    } #section
+                
                 }
 
-                # If section name specified, directly add/set parameter value
-                if ($Section) {
-                    # Update existing property
-                    if ($ComputerParameterObject.$Section.$Parameter) {
-                        Write-Log "Parameter [$Parameter] in section [$Section] alreday exists and has currently the value [$($ComputerParameterObject.$Section.$Parameter)]" -Source ${CmdletName} -DebugMessage
-                        $ComputerParameterObject.$Section.$Parameter = $value
-                        Write-Log "Parameter [$Parameter] in section [$Section] has changed from [$($ComputerParameterObject.$Section.$Parameter)] to [$value]" -Source ${CmdletName}
-                    # Add new property
-                    } else {
-                        # Add new property to an existing section
-                        if($ComputerParameterObject.$Section) {
-                            Write-Log "Add new parameter [$Parameter] in section [$Section]" -Source ${CmdletName}
-                            $ComputerParameterObject.$Section | Add-Member -MemberType NoteProperty -Name $Parameter -Value $value
-                        } else {
-                            # Add new property and a new section
-                            Write-Log "Add new parameter [$Parameter] to new section [$Section]" -Source ${CmdletName}
-                            $global:tmpObject = New-Object -TypeName psobject
-                            $tmpObject | Add-Member -MemberType NoteProperty -Name $Parameter -Value $value
-                            $ComputerParameterObject | Add-Member -MemberType NoteProperty -Name $section -value $tmpObject
+                ### Set parameter via cD Webserver (new logic) ###
+                if ($WebserverURL) {
+
+                        # If no section is specfied, use 'CustomSettings' section as default
+                        if  (-not ($Section)) { $Section = 'CustomSettings'}
+
+                        # Set parameter via webservice
+                        if ($ParameterHashTable) {
+                            $editparameters = $ParameterHashTable
+                            Write-log "Set parameter object [$(ConvertTo-Json $editparameters -Compress)] for [$Computer] via cDF Webserver at [$WebserverURL]" -Source ${CmdletName}
+                         } else {
+                            $editparameters = @{ $Section = @{ $parameter = $value } }    
+                            Write-log "Set parameter [$parameter] in section [$section] to value [$Value] for [$Computer] via cDF Webserver at [$WebserverURL]" -Source ${CmdletName}
                         }
-                    }
-                    # Write updated json 
-                    Write-Log "Write updated file [$ComputerParameterFile]" -Source ${CmdletName} -DebugMessage
-                    Retry-Command -ScriptBlock { 
-                        $ComputerParameterObject | ConvertTo-Json | Out-File $ComputerParameterFile -Encoding utf8 -ErrorAction Stop
-                    } -Maximum 10 -Delay 250 -DisableWriteLog
-                    
-                } else {
-                    Write-log "Unable to set [$Parameter], because parameter or section not found!" -Source ${CmdletName} -Severity 2
-                    Return
+                        $body = @{ Name = "$Computer" ; Parameters = $editparameters ; force = $true} | ConvertTo-Json -Depth 10 -Compress
+                        Write-log "Invoke-WebRequest -Uri `"$WebserverURL/api/edit-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
+                        $Response = Invoke-WebRequest -Uri "$WebserverURL/api/edit-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
+                        Write-log "Response: $($Response.content)" -Source ${CmdletName} -DebugMessage
                 }
 
             }
@@ -20587,12 +21472,13 @@ Function Write-FunctionHeaderOrFooter {
 #endregion
 
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-InstallationLogEntry, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-Parameter, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DL
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-InstallationLogEntry, Add-PackageToRecastAW, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Export-Icon, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-Parameter, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Add-PackageToLiquit, Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DL
+
 # SIG # Begin signature block
-# MIIuLQYJKoZIhvcNAQcCoIIuHjCCLhoCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIuHgYJKoZIhvcNAQcCoIIuDzCCLgsCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC6JN6g8A+VeGJ5
-# JLtFltSj5Oedn82RpNVb2NoO8KYSLKCCJl8wggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCSLZASIrN9ETrl
+# Sfnp8IQ77PMN1WB3uFrnsnKxghho/aCCJlAwggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -20689,151 +21575,151 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # NoqfTTkUzUoP2tlNHnNsjFo2YV+5yZcoaawmNWmR7TywUXG2/vFgJaG0bfEoodee
 # Xp7A4I4HaDDpfRa7ypgJEPeTwHuBRJpj9N+1xtri+6BzHPwsAAvUJm58PGoVsteH
 # AXwvpg4NVgvUk3BKbl7xFulWU1KHqH/sk7T0CFBQ5ohuKPmFf1oqAP4AO9a3Yg2w
-# BMwEg1zPOh6xbUXskzs9iSa9yGwwgga3MIIEn6ADAgECAhBi/LXlDGu4Koe2TDSG
-# 3A1BMA0GCSqGSIb3DQEBCwUAMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3Nl
+# BMwEg1zPOh6xbUXskzs9iSa9yGwwggaoMIIEkKADAgECAhB8HxSZA8e3n1BXr7tS
+# WKgUMA0GCSqGSIb3DQEBCwUAMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3Nl
 # Y28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25p
-# bmcgMjAyMSBDQTAeFw0yMjA4MDgxNTI5MzFaFw0yNTA4MDcxNTI5MzBaMF0xCzAJ
-# BgNVBAYTAkRFMQ8wDQYDVQQIDAZIZXNzZW4xETAPBgNVBAcMCEVzY2hib3JuMRQw
-# EgYDVQQKDAtjZXRlcmlvbiBBRzEUMBIGA1UEAwwLY2V0ZXJpb24gQUcwggIiMA0G
-# CSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDIKiYb6L3yEo2hbJlZz2BzIKqhMlIi
-# 7g59KN00wYk4HGQJ6CAi2NOEKStg3IXvcvkh1yE+Xka9uY26c4j/hZ9XtcJEyOq7
-# SSRcR9aoxZS8LgGrRkU8d7oNQZdAK1HgzVmEDVmgvqWn0NV82iT74hu377JYjv+p
-# ms+RSiUTOR+LbA4TGeHxFeCZ94uVtfHdjZMgRSEtuEghTajAI9E6mGmyzOt7D2hU
-# 8HTytpiVG0RAmieuTY4tD1Kahl2CAeA1oQg+ZrmHV5Na1FcZ2jaCbNQA70JZAaC+
-# HhJf4oCFd0ERarpRUsC0VzvMF1LTiOw6tpWbvhQ679tKz/V/5XCWrqtIAwZumUlM
-# ngLxBpb9bsnSBXLCQUIOGZWQQO3zrTMatfm6otV54EsHupXGYK9lumINNtf2ehye
-# Ta8qUT9pMgdsJJo0oen4eowoj1P/cB4anz6AdF37qhrLWb2aNen2Qm7cT8s0dR7G
-# aVu4uBNdlTPXPocGdBnQOkRif2gCJ9NEicKTT14rr2wzFJsLPHLAKe/ng85+f9IR
-# A0y++TOrjSp0YpA3aYB0oPcpMy+cu+ShG8mirIvBNzXTFm0rF/pSzUeJFyKFGfJO
-# WG82NM2gFlN8Tc5Ud8UUv118x/7nbZQLezSkwSQKb1CQtCT3z0F4kwkuiz80YBjG
-# NwPScX191/kdXwIDAQABo4IBeDCCAXQwDAYDVR0TAQH/BAIwADA9BgNVHR8ENjA0
-# MDKgMKAuhixodHRwOi8vY2NzY2EyMDIxLmNybC5jZXJ0dW0ucGwvY2NzY2EyMDIx
-# LmNybDBzBggrBgEFBQcBAQRnMGUwLAYIKwYBBQUHMAGGIGh0dHA6Ly9jY3NjYTIw
-# MjEub2NzcC1jZXJ0dW0uY29tMDUGCCsGAQUFBzAChilodHRwOi8vcmVwb3NpdG9y
-# eS5jZXJ0dW0ucGwvY2NzY2EyMDIxLmNlcjAfBgNVHSMEGDAWgBTddF1MANt7n6B0
-# yrFu9zzAMsBwzTAdBgNVHQ4EFgQUA2C8eX6Zym6Mef9rfykA3uttqVYwSwYDVR0g
-# BEQwQjAIBgZngQwBBAEwNgYLKoRoAYb2dwIFAQQwJzAlBggrBgEFBQcCARYZaHR0
-# cHM6Ly93d3cuY2VydHVtLnBsL0NQUzATBgNVHSUEDDAKBggrBgEFBQcDAzAOBgNV
-# HQ8BAf8EBAMCB4AwDQYJKoZIhvcNAQELBQADggIBAEwS2d7VlMJ1nRDpXkUB6/RH
-# 3c3vqnMk5KjW7t+ObqiP4um/GVEzarYPUJny1TdUV+NZtYe6kxCj8eXQF3qV9nx3
-# 5gg3LSXSmc0Dff0eRAobj1ZBubgf0lrQXjHJBuCqagTFwLmCiamit20aq/Ki21Gw
-# slbEv4SLN6vNItlvyCsRt1Ou1f9t5A4jokxZ3rqo5+2YNVV8tlTetQq/APdHyKj8
-# 9YN1ChzF0Z261pQYBzpg4q1KPB3bIYMjyptiVKBIVR+dWemozeGxXgB+9tPhWIzI
-# g0MIylYM66Px6WqVuaiXSvAi3PP1R4/SBxOcruhX2MJycCUk0jT52KsPga+IiBO2
-# CgtZpkeK4keEtHPdTVAaO9W0GRru9DTCJT89Jetq3Kl1YppZaKcmMSmku3pT7kW7
-# AHklg18Qg8nUy5zoU1zXmIt/K/XkuaxIRwHzjIC7WwhVfTcXwO9b14PpPynS4Ifd
-# i6ujE7yv+f/f0rg739R5WWrSy2dAb4A3Pf9Zed61IDf14sQfteEvHnZC9C4bbm79
-# A/mVyY8a2UcJAL0VPLZLZMIYeaoYEVUbXCa14vYVSSn1I/viAuth+iGYfG7iYXb5
-# LjICKLyk/l2oL0BYIgRoeFzqM6En7v1/dA6Tk4t39NK7sSIjERtFMnj3YN2tZHJ3
-# dubAxNb6mEFOdkuszq9LMIIGuTCCBKGgAwIBAgIRAJmjgAomVTtlq9xuhKaz6jkw
-# DQYJKoZIhvcNAQEMBQAwgYAxCzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRv
-# IFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlv
-# biBBdXRob3JpdHkxJDAiBgNVBAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0Eg
-# MjAeFw0yMTA1MTkwNTMyMThaFw0zNjA1MTgwNTMyMThaMFYxCzAJBgNVBAYTAlBM
-# MSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0Nl
-# cnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIP
-# ADCCAgoCggIBAJ0jzwQwIzvBRiznM3M+Y116dbq+XE26vest+L7k5n5TeJkgH4Cy
-# k74IL9uP61olRsxsU/WBAElTMNQI/HsE0uCJ3VPLO1UufnY0qDHG7yCnJOvoSNbI
-# bMpT+Cci75scCx7UsKK1fcJo4TXetu4du2vEXa09Tx/bndCBfp47zJNsamzUyD7J
-# 1rcNxOw5g6FJg0ImIv7nCeNn3B6gZG28WAwe0mDqLrvU49chyKIc7gvCjan3GH+2
-# eP4mYJASflBTQ3HOs6JGdriSMVoD1lzBJobtYDF4L/GhlLEXWgrVQ9m0pW37KuwY
-# qpY42grp/kSYE4BUQrbLgBMNKRvfhQPskDfZ/5GbTCyvlqPN+0OEDmYGKlVkOMen
-# DO/xtMrMINRJS5SY+jWCi8PRHAVxO0xdx8m2bWL4/ZQ1dp0/JhUpHEpABMc3eKax
-# 8GI1F03mSJVV6o/nmmKqDE6TK34eTAgDiBuZJzeEPyR7rq30yOVw2DvetlmWssew
-# AhX+cnSaaBKMEj9O2GgYkPJ16Q5Da1APYO6n/6wpCm1qUOW6Ln1J6tVImDyAB5Xs
-# 3+JriasaiJ7P5KpXeiVV/HIsW3ej85A6cGaOEpQA2gotiUqZSkoQUjQ9+hPxDVb/
-# Lqz0tMjp6RuLSKARsVQgETwoNQZ8jCeKwSQHDkpwFndfCceZ/OfCUqjxAgMBAAGj
-# ggFVMIIBUTAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTddF1MANt7n6B0yrFu
-# 9zzAMsBwzTAfBgNVHSMEGDAWgBS2oVQ5AsOgP46KvPrU+Bym0ToO/TAOBgNVHQ8B
-# Af8EBAMCAQYwEwYDVR0lBAwwCgYIKwYBBQUHAwMwMAYDVR0fBCkwJzAloCOgIYYf
-# aHR0cDovL2NybC5jZXJ0dW0ucGwvY3RuY2EyLmNybDBsBggrBgEFBQcBAQRgMF4w
-# KAYIKwYBBQUHMAGGHGh0dHA6Ly9zdWJjYS5vY3NwLWNlcnR1bS5jb20wMgYIKwYB
-# BQUHMAKGJmh0dHA6Ly9yZXBvc2l0b3J5LmNlcnR1bS5wbC9jdG5jYTIuY2VyMDkG
-# A1UdIAQyMDAwLgYEVR0gADAmMCQGCCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1
-# bS5wbC9DUFMwDQYJKoZIhvcNAQEMBQADggIBAHWIWA/lj1AomlOfEOxD/PQ7bcma
-# hmJ9l0Q4SZC+j/v09CD2csX8Yl7pmJQETIMEcy0VErSZePdC/eAvSxhd7488x/Ca
-# t4ke+AUZZDtfCd8yHZgikGuS8mePCHyAiU2VSXgoQ1MrkMuqxg8S1FALDtHqnizY
-# S1bIMOv8znyJjZQESp9RT+6NH024/IqTRsRwSLrYkbFq4VjNn/KV3Xd8dpmyQiir
-# ZdrONoPSlCRxCIi54vQcqKiFLpeBm5S0IoDtLoIe21kSw5tAnWPazS6sgN2oXvFp
-# cVVpMcq0C4x/CLSNe0XckmmGsl9z4UUguAJtf+5gE8GVsEg/ge3jHGTYaZ/Myfuj
-# E8hOmKBAUkVa7NMxRSB1EdPFpNIpEn/pSHuSL+kWN/2xQBJaDFPr1AX0qLgkXmcE
-# i6PFnaw5T17UdIInA58rTu3mefNuzUtse4AgYmxEmJDodf8NbVcU6VdjWtz0e58W
-# FZT7tST6EWQmx/OoHPelE77lojq7lpsjhDCzhhp4kfsfszxf9g2hoCtltXhCX6Nq
-# sqwTT7xe8LgMkH4hVy8L1h2pqGLT2aNCx7h/F95/QvsTeGGjY7dssMzq/rSshFQK
-# LZ8lPb8hFTmiGDJNyHga5hZ59IGynk08mHhBFM/0MLeBzlAQq1utNjQprztZ5vv/
-# NJy8ua9AGbwkMWkOMIIGuTCCBKGgAwIBAgIRAOf/acc7Nc5LkSbYdHxopYcwDQYJ
-# KoZIhvcNAQEMBQAwgYAxCzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRvIFRl
-# Y2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlvbiBB
-# dXRob3JpdHkxJDAiBgNVBAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0EgMjAe
-# Fw0yMTA1MTkwNTMyMDdaFw0zNjA1MTgwNTMyMDdaMFYxCzAJBgNVBAYTAlBMMSEw
-# HwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1
-# bSBUaW1lc3RhbXBpbmcgMjAyMSBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCC
-# AgoCggIBAOkSHwQ17bldesWmlUG+imV/TnfRbSV102aO2/hhKH9/t4NAoVoipzu0
-# ePujH67y8iwlmWuhqRR4xLeLdPxolEL55CzgUXQaq+Qzr5Zk7ySbNl/GZloFiYwu
-# zwWS2AVgLPLCZd5DV8QTF+V57Y6lsdWTrrl5dEeMfsxhkjM2eOXabwfLy6UH2ZHz
-# Av9bS/SmMo1PobSx+vHWST7c4aiwVRvvJY2dWRYpTipLEu/XqQnqhUngFJtnjExq
-# Tokt4HyzOsr2/AYOm8YOcoJQxgvc26+LAfXHiBkbQkBdTfHak4DP3UlYolICZHL+
-# XSzSXlsRgqiWD4MypWGU4A13xiHmaRBZowS8FET+QAbMiqBaHDM3Y6wohW07yZ/m
-# w9ZKu/KmVIAEBhrXesxifPB+DTyeWNkeCGq4IlgJr/Ecr1px6/1QPtj66yvXl3ua
-# uzPPGEXUk6vUym6nZyE1IGXI45uGVI7XqvCt99WuD9LNop9Kd1LmzBGGvxucOo0l
-# j1M3IRi8FimAX3krunSDguC5HgD75nWcUgdZVjm/R81VmaDPEP25Wj+C1reicY5C
-# PckLGBjHQqsJe7jJz1CJXBMUtZs10cVKMEK3n/xD2ku5GFWhx0K6eFwe50xLUIZD
-# 9GfT7s/5/MyBZ1Ep8Q6H+GMuudDwF0mJitk3G8g6EzZprfMQMc3DAgMBAAGjggFV
-# MIIBUTAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBS+VAIvv0Bsc0POrAklTp5D
-# RBru4DAfBgNVHSMEGDAWgBS2oVQ5AsOgP46KvPrU+Bym0ToO/TAOBgNVHQ8BAf8E
-# BAMCAQYwEwYDVR0lBAwwCgYIKwYBBQUHAwgwMAYDVR0fBCkwJzAloCOgIYYfaHR0
-# cDovL2NybC5jZXJ0dW0ucGwvY3RuY2EyLmNybDBsBggrBgEFBQcBAQRgMF4wKAYI
-# KwYBBQUHMAGGHGh0dHA6Ly9zdWJjYS5vY3NwLWNlcnR1bS5jb20wMgYIKwYBBQUH
-# MAKGJmh0dHA6Ly9yZXBvc2l0b3J5LmNlcnR1bS5wbC9jdG5jYTIuY2VyMDkGA1Ud
-# IAQyMDAwLgYEVR0gADAmMCQGCCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1bS5w
-# bC9DUFMwDQYJKoZIhvcNAQEMBQADggIBALiTWXfJTBX9lAcIoKd6oCzwQZOfARQk
-# t0OmiQ390yEqMrStHmpfycggfPGlBHdMDDYhHDVTGyvY+WIbdsIWpJ1BNRt9pOrp
-# Xe8HMR5sOu71AWOqUqfEIXaHWOEs0UWmVs8mJb4lKclOHV8oSoR0p3GCX2tVO+XF
-# 8Qnt7E6fbkwZt3/AY/C5KYzFElU7TCeqBLuSagmM0X3Op56EVIMM/xlWRaDgRna0
-# hLQze5mYHJGv7UuTCOO3wC1bzeZWdlPJOw5v4U1/AljsNLgWZaGRFuBwdF62t6hO
-# Ks86v+jPIMqFPwxNJN/ou22DqzpP+7TyYNbDocrThlEN9D2xvvtBXyYqA7jhYY/f
-# W9edUqhZUmkUGM++Mvz9lyT/nBdfaKqM5otK0U5H8hCSL4SGfjOVyBWbbZlUIE8X
-# 6XycDBRRKEK0q5JTsaZksoKabFAyRKJYgtObwS1UPoDGcmGirwSeGMQTJSh+WR5E
-# XZaEWJVA6ZZPBlGvjgjFYaQ0kLq1OitbmuXZmX7Z70ks9h/elK0A8wOg8oiNVd3o
-# 1bb59ms1QF4OjZ45rkWfsGuz8ctB9/leCuKzkx5Rt1WAOsXy7E7pws+9k+jrePrZ
-# Kw2DnmlNaT19QgX2I+hFtvhC6uOhj/CgjVEA4q1i1OJzpoAmre7zdEg+kZcFIkrD
-# HgokA5mcIMK1MYIHJDCCByACAQEwajBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMY
-# QXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gQ29kZSBT
-# aWduaW5nIDIwMjEgQ0ECEGL8teUMa7gqh7ZMNIbcDUEwDQYJYIZIAWUDBAIBBQCg
-# gYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYB
-# BAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0B
-# CQQxIgQgH/74C9ZNuBUp6f8LIiiwZVANU/3z1DxWmhaAvZyEpmswDQYJKoZIhvcN
-# AQEBBQAEggIAd1r2YlldQkLFC5G57A0a9zndcpgKRAvKIaxlBsJ705yxnRA9ym0N
-# Hwogp6CmR7XFLMIwhSK/wZwNXSBz4UsEIc0fNeiwtX2HWfcJ6mDjh6UXZs945shM
-# ULkpNbxVFs4mTIKnAtXbNyI/usaiIT51DrTNY+8NQ5klk93mCHt8Ko9zRM/EcJww
-# tquVmkBeHGFprXMggGdz+uzypQi19+Sn0GHweXJYc/1UJVWEq3XTrBgcDRNADpcT
-# GX+Lx1EjsFKEKd3cfkq8gq4+/Muwk7utl+I3Wi53iixM5PgnxuaMGezJcsjwigTK
-# oW5O/iNybQtK3nugd41h5l2mXoYQD8mCKDyXobZxPtG8sZiWWLTjDvWyiyVTkMlj
-# yf2TRKsGKVwTdKxeBgUixC2W2Pyh1xIPKl1qe/DPciNZxD02AoazLbhqXHs7cE/n
-# Xt+gtGHOuvxXkpIftLHUCzixP2oVnQ4xhx9WPyjdSaoOOa6U7p5a9kCPg6tLxUi8
-# iGJs6y9AVs4JwoyqVuyrJjr8iuaGV2iVIvErAM4AGhzfpohAKTtBdiVFuOL8Wbvw
-# Qj/bnBf8QeLFkmh+N+/zXyamzxTbvggWmHwFax8ImWoCY8iMhx/L/+VSozmJYyu0
-# 0kSGQJr/145dii8nvPUAu9kaxon9Lvec/eknGXWrLGk1DWqhGh44aYyhggQEMIIE
-# AAYJKoZIhvcNAQkGMYID8TCCA+0CAQEwazBWMQswCQYDVQQGEwJQTDEhMB8GA1UE
-# ChMYQXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGlt
-# ZXN0YW1waW5nIDIwMjEgQ0ECEQCenAT2Vai0pwJtSYxseI2qMA0GCWCGSAFlAwQC
-# AgUAoIIBVzAaBgkqhkiG9w0BCQMxDQYLKoZIhvcNAQkQAQQwHAYJKoZIhvcNAQkF
-# MQ8XDTI1MDcwMzEzMDgyMFowNwYLKoZIhvcNAQkQAi8xKDAmMCQwIgQgz6HcNZ3t
-# K8PLiQ+iMOXa93tUDxpuKyPdzxdU4Yz6oNUwPwYJKoZIhvcNAQkEMTIEMOXxM8jp
-# L9OYjL5f6jKGdl6Qsx1yYBLobepnCMod+rqgGQA+RzaduPOCV+maT6Ue2jCBoAYL
-# KoZIhvcNAQkQAgwxgZAwgY0wgYowgYcEFMMluJsX/MUCYGHOK3F7RQfdnGpqMG8w
-# WqRYMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1z
-# IFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIRAJ6c
-# BPZVqLSnAm1JjGx4jaowDQYJKoZIhvcNAQEBBQAEggIAdcoeIAgTXkBIXKrugFG3
-# tFlh73+2qOO3pPzuJwW27+RAY2DJM/u8PLGRC0KqhCQhDCoBHMvLYWvcZKosUPKA
-# LIy/we6fjij7tcARdaQHSa4oA1ejfABC2IUB4Q9XRNSu5JGey2UbWQ0lUIpyZohv
-# m8fzAQ9jr1kKi0ACrEsYAWUQXy1y3qSsJsS1mBKP1VUF63FA+SJQtXViF99d2ZNe
-# eKeKcM31HyzY+Jyt16xMh22HeGn3aBf4qwxJoGM39Jru9U9atFK4k48ToC4t0teO
-# QBbgbX7AzA7jerj5updjGjwCzDi5TGuIPNcTxvHRZoFM8OQamLwF8aZ3UDemRiXc
-# sg7G9lpZ6MTFuF6Z0hCt40wWWal45cgbkewgOenfq5CEleuSFqjhL+sE+u7unH4t
-# 4SyjFHtPM32YXhkkORFG3EO+ui50EGPJ0FxWVFZcZJ1Nn++VHeYtdtnPNbXA5sXZ
-# hezQAoRfpTHjOuYZFTfSjpirpqW+AOA7jVnqcUM4Jb1vcbBBNJH3xUj8t56fgQn0
-# ErtxAwFY7Hfgw4n1zW1qWrq8+HowTNMBq9yV+JVe9miNZg6MKD5zbkzoj7pNXNHT
-# 7PL6iWrlZ1DU19NKqR6J7FPOOHUPDkJmDHLg9jKyCJvB+gmg3NF0UfByfP5yx0Sh
-# WoYCYz8QntXQqeWkdToNi6E=
+# bmcgMjAyMSBDQTAeFw0yNTA4MjcwNTUzMTVaFw0yNzA4MjcwNTUzMTRaME4xCzAJ
+# BgNVBAYTAkRFMRMwEQYDVQQHDApCYWQgVmlsYmVsMRQwEgYDVQQKDAtjZXRlcmlv
+# biBBRzEUMBIGA1UEAwwLY2V0ZXJpb24gQUcwggIiMA0GCSqGSIb3DQEBAQUAA4IC
+# DwAwggIKAoICAQC//04ya2WTdOYdVn6VuCDMuZZJsbsR+5ftraGKIHZ3BHxn/RvF
+# jB2KjvbGoxzykz/CzLBi39+vLB98gefzootYUBvWS5fgkRalU2eKMfIXJFSj5Y5F
+# EmrlrK6WxEJwKlNTP9vxQabsMaksgQgsDw9iOGhnR3IWK+p4DEuzJWrlatAbdAc4
+# 8qQ5UTJNaTWQk80Q2WO2saiOyy4p2nNd/zaQ9DP5LV+BH2QPuOaPgZqoUqd6yC0c
+# PGb5c2Eb+X9NciCVLqCzXCxT5ThI6jlCLdcBvO5TLuHk+oPNV7BjZ9gO7wNH6M4R
+# CnCO4r59ClE94hzpPi5C7IROSSe2izwTiShOj4JDa6Qmtq+JGSEvEayh7QBoSsTG
+# YfeurI+39LHk15DG19uALbQbVRmu6URzpOBE2UF99dQ+gRPs8hn2cQvERVA8K3KR
+# 3KQfaK0ef1TXN4l008vGMaaCd6M0oYOkdKV8AioabJEcXkM1BkGnJ6NASqKYcGuq
+# Sa5N3+qN2DLiivb6tWbJQxfHmEuS7UAWxbkUlfEgpBfyiZJFifdiW/eYuX4pIhNU
+# 9r7JewUIYyXi8avIkEI6cU6mSdZPt6OySSXIZQgJi7/goq3ZqcYOnkfc7nGMD7J0
+# of7CBjMplrZvuTS0DweUuybTLUb2L77MvDmcexnGtrMbV+ly3pDGR5kS7wIDAQAB
+# o4IBeDCCAXQwDAYDVR0TAQH/BAIwADA9BgNVHR8ENjA0MDKgMKAuhixodHRwOi8v
+# Y2NzY2EyMDIxLmNybC5jZXJ0dW0ucGwvY2NzY2EyMDIxLmNybDBzBggrBgEFBQcB
+# AQRnMGUwLAYIKwYBBQUHMAGGIGh0dHA6Ly9jY3NjYTIwMjEub2NzcC1jZXJ0dW0u
+# Y29tMDUGCCsGAQUFBzAChilodHRwOi8vcmVwb3NpdG9yeS5jZXJ0dW0ucGwvY2Nz
+# Y2EyMDIxLmNlcjAfBgNVHSMEGDAWgBTddF1MANt7n6B0yrFu9zzAMsBwzTAdBgNV
+# HQ4EFgQUp5FUHChbkNAH9SuFSrx4Q8RU/kMwSwYDVR0gBEQwQjAIBgZngQwBBAEw
+# NgYLKoRoAYb2dwIFAQQwJzAlBggrBgEFBQcCARYZaHR0cHM6Ly93d3cuY2VydHVt
+# LnBsL0NQUzATBgNVHSUEDDAKBggrBgEFBQcDAzAOBgNVHQ8BAf8EBAMCB4AwDQYJ
+# KoZIhvcNAQELBQADggIBAE6UqZLxreB1k7kyVbvyx5MKq2kSQ6DgQdh8ledgDO6T
+# LH2Cjr+6oUIkqNRmHsbSU8YzaF9ESxbqAIq+PPM+8xB2fkA0gVgo36azyczcIRW0
+# Dvpuhv0bm5q3LJ1pqKAOeF0yn8MYl9WmGacKISgA9bj9YHgI2SzVSicdugKmLTJ/
+# XLgLNnqOBdb1OKHs4XdTgIhjMDIbEKEiwR04IFH3lzH6TDhG/QzWO8KVdkKOqgJO
+# M8qeEm57DKFJMZwPzgXo0UtSvr5W46yuaZdm7TavQQFmWUbzkbX7ptcOFIRIXf1E
+# 5VfFcOOTGRVFpkkYGEVpDeN8koFn4kK7JC0pl1FoXReU+bLpyUxNaXFEffP5mUU4
+# vHhOCXaMX9fxWQnjBfre5WdLd75IdCIw9hKql9gsGb9zlvHJ6GytSqw1i+T89jco
+# G2HwFu0rW38Q33zjNpSryMXfYLHrAsDJXP4keCdkHV9rJT1QNS1y2De0He7r3K7m
+# rBTVqE6slRPoW/h/XRnKW3MhxZVxHjYvhsb493lJBhe6e5n1A1ZFh8oXVZRJWjyg
+# qmllr+vSLc7DlAaMWkW4QNTLy4EtvlNb8IQ99f/kZHMQmFXrN1bFICytcmOsRvQ/
+# ZGbyYwn84fZS6/dLGdGn3xz3nE/PzMRJ0sW6pxwagoHQ2gd6Xm89+tdiDGGH4ys1
+# MIIGuTCCBKGgAwIBAgIRAJmjgAomVTtlq9xuhKaz6jkwDQYJKoZIhvcNAQEMBQAw
+# gYAxCzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRvIFRlY2hub2xvZ2llcyBT
+# LkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxJDAi
+# BgNVBAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0EgMjAeFw0yMTA1MTkwNTMy
+# MThaFw0zNjA1MTgwNTMyMThaMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3Nl
+# Y28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25p
+# bmcgMjAyMSBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAJ0jzwQw
+# IzvBRiznM3M+Y116dbq+XE26vest+L7k5n5TeJkgH4Cyk74IL9uP61olRsxsU/WB
+# AElTMNQI/HsE0uCJ3VPLO1UufnY0qDHG7yCnJOvoSNbIbMpT+Cci75scCx7UsKK1
+# fcJo4TXetu4du2vEXa09Tx/bndCBfp47zJNsamzUyD7J1rcNxOw5g6FJg0ImIv7n
+# CeNn3B6gZG28WAwe0mDqLrvU49chyKIc7gvCjan3GH+2eP4mYJASflBTQ3HOs6JG
+# driSMVoD1lzBJobtYDF4L/GhlLEXWgrVQ9m0pW37KuwYqpY42grp/kSYE4BUQrbL
+# gBMNKRvfhQPskDfZ/5GbTCyvlqPN+0OEDmYGKlVkOMenDO/xtMrMINRJS5SY+jWC
+# i8PRHAVxO0xdx8m2bWL4/ZQ1dp0/JhUpHEpABMc3eKax8GI1F03mSJVV6o/nmmKq
+# DE6TK34eTAgDiBuZJzeEPyR7rq30yOVw2DvetlmWssewAhX+cnSaaBKMEj9O2GgY
+# kPJ16Q5Da1APYO6n/6wpCm1qUOW6Ln1J6tVImDyAB5Xs3+JriasaiJ7P5KpXeiVV
+# /HIsW3ej85A6cGaOEpQA2gotiUqZSkoQUjQ9+hPxDVb/Lqz0tMjp6RuLSKARsVQg
+# ETwoNQZ8jCeKwSQHDkpwFndfCceZ/OfCUqjxAgMBAAGjggFVMIIBUTAPBgNVHRMB
+# Af8EBTADAQH/MB0GA1UdDgQWBBTddF1MANt7n6B0yrFu9zzAMsBwzTAfBgNVHSME
+# GDAWgBS2oVQ5AsOgP46KvPrU+Bym0ToO/TAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0l
+# BAwwCgYIKwYBBQUHAwMwMAYDVR0fBCkwJzAloCOgIYYfaHR0cDovL2NybC5jZXJ0
+# dW0ucGwvY3RuY2EyLmNybDBsBggrBgEFBQcBAQRgMF4wKAYIKwYBBQUHMAGGHGh0
+# dHA6Ly9zdWJjYS5vY3NwLWNlcnR1bS5jb20wMgYIKwYBBQUHMAKGJmh0dHA6Ly9y
+# ZXBvc2l0b3J5LmNlcnR1bS5wbC9jdG5jYTIuY2VyMDkGA1UdIAQyMDAwLgYEVR0g
+# ADAmMCQGCCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1bS5wbC9DUFMwDQYJKoZI
+# hvcNAQEMBQADggIBAHWIWA/lj1AomlOfEOxD/PQ7bcmahmJ9l0Q4SZC+j/v09CD2
+# csX8Yl7pmJQETIMEcy0VErSZePdC/eAvSxhd7488x/Cat4ke+AUZZDtfCd8yHZgi
+# kGuS8mePCHyAiU2VSXgoQ1MrkMuqxg8S1FALDtHqnizYS1bIMOv8znyJjZQESp9R
+# T+6NH024/IqTRsRwSLrYkbFq4VjNn/KV3Xd8dpmyQiirZdrONoPSlCRxCIi54vQc
+# qKiFLpeBm5S0IoDtLoIe21kSw5tAnWPazS6sgN2oXvFpcVVpMcq0C4x/CLSNe0Xc
+# kmmGsl9z4UUguAJtf+5gE8GVsEg/ge3jHGTYaZ/MyfujE8hOmKBAUkVa7NMxRSB1
+# EdPFpNIpEn/pSHuSL+kWN/2xQBJaDFPr1AX0qLgkXmcEi6PFnaw5T17UdIInA58r
+# Tu3mefNuzUtse4AgYmxEmJDodf8NbVcU6VdjWtz0e58WFZT7tST6EWQmx/OoHPel
+# E77lojq7lpsjhDCzhhp4kfsfszxf9g2hoCtltXhCX6NqsqwTT7xe8LgMkH4hVy8L
+# 1h2pqGLT2aNCx7h/F95/QvsTeGGjY7dssMzq/rSshFQKLZ8lPb8hFTmiGDJNyHga
+# 5hZ59IGynk08mHhBFM/0MLeBzlAQq1utNjQprztZ5vv/NJy8ua9AGbwkMWkOMIIG
+# uTCCBKGgAwIBAgIRAOf/acc7Nc5LkSbYdHxopYcwDQYJKoZIhvcNAQEMBQAwgYAx
+# CzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEu
+# MScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxJDAiBgNV
+# BAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0EgMjAeFw0yMTA1MTkwNTMyMDda
+# Fw0zNjA1MTgwNTMyMDdaMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28g
+# RGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcg
+# MjAyMSBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAOkSHwQ17bld
+# esWmlUG+imV/TnfRbSV102aO2/hhKH9/t4NAoVoipzu0ePujH67y8iwlmWuhqRR4
+# xLeLdPxolEL55CzgUXQaq+Qzr5Zk7ySbNl/GZloFiYwuzwWS2AVgLPLCZd5DV8QT
+# F+V57Y6lsdWTrrl5dEeMfsxhkjM2eOXabwfLy6UH2ZHzAv9bS/SmMo1PobSx+vHW
+# ST7c4aiwVRvvJY2dWRYpTipLEu/XqQnqhUngFJtnjExqTokt4HyzOsr2/AYOm8YO
+# coJQxgvc26+LAfXHiBkbQkBdTfHak4DP3UlYolICZHL+XSzSXlsRgqiWD4MypWGU
+# 4A13xiHmaRBZowS8FET+QAbMiqBaHDM3Y6wohW07yZ/mw9ZKu/KmVIAEBhrXesxi
+# fPB+DTyeWNkeCGq4IlgJr/Ecr1px6/1QPtj66yvXl3uauzPPGEXUk6vUym6nZyE1
+# IGXI45uGVI7XqvCt99WuD9LNop9Kd1LmzBGGvxucOo0lj1M3IRi8FimAX3krunSD
+# guC5HgD75nWcUgdZVjm/R81VmaDPEP25Wj+C1reicY5CPckLGBjHQqsJe7jJz1CJ
+# XBMUtZs10cVKMEK3n/xD2ku5GFWhx0K6eFwe50xLUIZD9GfT7s/5/MyBZ1Ep8Q6H
+# +GMuudDwF0mJitk3G8g6EzZprfMQMc3DAgMBAAGjggFVMIIBUTAPBgNVHRMBAf8E
+# BTADAQH/MB0GA1UdDgQWBBS+VAIvv0Bsc0POrAklTp5DRBru4DAfBgNVHSMEGDAW
+# gBS2oVQ5AsOgP46KvPrU+Bym0ToO/TAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0lBAww
+# CgYIKwYBBQUHAwgwMAYDVR0fBCkwJzAloCOgIYYfaHR0cDovL2NybC5jZXJ0dW0u
+# cGwvY3RuY2EyLmNybDBsBggrBgEFBQcBAQRgMF4wKAYIKwYBBQUHMAGGHGh0dHA6
+# Ly9zdWJjYS5vY3NwLWNlcnR1bS5jb20wMgYIKwYBBQUHMAKGJmh0dHA6Ly9yZXBv
+# c2l0b3J5LmNlcnR1bS5wbC9jdG5jYTIuY2VyMDkGA1UdIAQyMDAwLgYEVR0gADAm
+# MCQGCCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1bS5wbC9DUFMwDQYJKoZIhvcN
+# AQEMBQADggIBALiTWXfJTBX9lAcIoKd6oCzwQZOfARQkt0OmiQ390yEqMrStHmpf
+# ycggfPGlBHdMDDYhHDVTGyvY+WIbdsIWpJ1BNRt9pOrpXe8HMR5sOu71AWOqUqfE
+# IXaHWOEs0UWmVs8mJb4lKclOHV8oSoR0p3GCX2tVO+XF8Qnt7E6fbkwZt3/AY/C5
+# KYzFElU7TCeqBLuSagmM0X3Op56EVIMM/xlWRaDgRna0hLQze5mYHJGv7UuTCOO3
+# wC1bzeZWdlPJOw5v4U1/AljsNLgWZaGRFuBwdF62t6hOKs86v+jPIMqFPwxNJN/o
+# u22DqzpP+7TyYNbDocrThlEN9D2xvvtBXyYqA7jhYY/fW9edUqhZUmkUGM++Mvz9
+# lyT/nBdfaKqM5otK0U5H8hCSL4SGfjOVyBWbbZlUIE8X6XycDBRRKEK0q5JTsaZk
+# soKabFAyRKJYgtObwS1UPoDGcmGirwSeGMQTJSh+WR5EXZaEWJVA6ZZPBlGvjgjF
+# YaQ0kLq1OitbmuXZmX7Z70ks9h/elK0A8wOg8oiNVd3o1bb59ms1QF4OjZ45rkWf
+# sGuz8ctB9/leCuKzkx5Rt1WAOsXy7E7pws+9k+jrePrZKw2DnmlNaT19QgX2I+hF
+# tvhC6uOhj/CgjVEA4q1i1OJzpoAmre7zdEg+kZcFIkrDHgokA5mcIMK1MYIHJDCC
+# ByACAQEwajBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNzZWNvIERhdGEgU3lz
+# dGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gQ29kZSBTaWduaW5nIDIwMjEgQ0EC
+# EHwfFJkDx7efUFevu1JYqBQwDQYJYIZIAWUDBAIBBQCggYQwGAYKKwYBBAGCNwIB
+# DDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEE
+# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgMSiD5ztvUpKX
+# ciWwooCTof9Ryk5V2Pb+E+cmlwTbG7cwDQYJKoZIhvcNAQEBBQAEggIAvHM6luH6
+# zF6FW//ernfq0Ufx+ulQNq/pvC9lteSrsHFLNBIqxKVR+Mwy/PsVpqkqOAdKzKvY
+# J9tGhDP1UeafuU+yMoEI8SJPBMZ/rl8R581AqXWcnN5zJdfon0pafwxiV66DYMkV
+# G90f3BfXRbXJoLOQplgoxWw5v3R+/glH83x6jRWe/kwCDAOZdAqN+aXMWbG6So2F
+# aR17j5pGqLm7NUM3Jm06TiTGvNVjrkNMA9t2jr5Du7yZG7h+JrnDLLvC4VdwSP4o
+# nfUHOYQGU819ndL4KtwcRBvkTIsTkNfWhFb4zgHVpyjzyd/NM6Al3nq+aEjh6idB
+# xJUK8BKKSp1nQhUPNtkd9ofA2hhHaol1K8JDREKGRnE0MUQsqgl4JCNmj+8yuC0H
+# Ups1YQ8Wp7Snus5pfGMf6a+f5v//vLNKeOBaueBjY2uRV43nA/Th/c5Xo2+4qJT9
+# osYbIGWEYII2jzJdCAWhMLzVo8Di1mqib1ENtTTl204+RGcptENWUBTxpUuViJvq
+# o8YbR9ViWFoTFboM7yXKcs1cbBh9fRkQt85eUy4A6xUe9jzLHaQAzudoIFdVCD9w
+# MKSvZlu2UhKtfBPofApu9w/trxrOa2U+6yIizt8+yBGz0W3YA0D6qhh/gFJ1ZOWs
+# 9D9bciC+ET4M90JUVfxMU+ACZ9lQFx3PlNahggQEMIIEAAYJKoZIhvcNAQkGMYID
+# 8TCCA+0CAQEwazBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNzZWNvIERhdGEg
+# U3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1waW5nIDIwMjEg
+# Q0ECEQCenAT2Vai0pwJtSYxseI2qMA0GCWCGSAFlAwQCAgUAoIIBVzAaBgkqhkiG
+# 9w0BCQMxDQYLKoZIhvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI1MTAyODE1MDEw
+# M1owNwYLKoZIhvcNAQkQAi8xKDAmMCQwIgQgz6HcNZ3tK8PLiQ+iMOXa93tUDxpu
+# KyPdzxdU4Yz6oNUwPwYJKoZIhvcNAQkEMTIEMIAjvM1WXwBW8qGv82403KPX4rdv
+# u5JvgzCbVsngZGx/5hoxMKfuh7HeDoAw7Jwi0TCBoAYLKoZIhvcNAQkQAgwxgZAw
+# gY0wgYowgYcEFMMluJsX/MUCYGHOK3F7RQfdnGpqMG8wWqRYMFYxCzAJBgNVBAYT
+# AlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMT
+# G0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIRAJ6cBPZVqLSnAm1JjGx4jaow
+# DQYJKoZIhvcNAQEBBQAEggIACzJhIuVcx8IniFzrP7HMNVKeCda7dFLOQTJDA55t
+# RE9OJLzaUgNj3pBlYhdBJi0fLKTyERJrGewJppHL5buvkIiqZ3GKf8eQznb55m17
+# e4F8EV3mQNIt1CWpaZ03FWmtJsXjiOEjIdT7xeK216TR1GkNmh4UKJdDksv2B1Nu
+# 0B/bzx29DJ5duzihdDWLuW/6XjeHXweM5RgF7SJmsSggZMK4dkHEM5dCezMcZtsm
+# TY69KsFit5ytXJLvX1s0S16qMLQkk/EV3YFwZTSjx3Dp47JOGUUEtFlYigWlcBX2
+# 3XM7DoLaOMapGjPHjxLeZSirk72p0Y/gbWah9+TAp98yyY61s4Gdl/s/Ik/6aycw
+# tjV0C0Y/mcwlXJVdUNXZ2xhfuyMr5DZqZH8Yl60tIJ/xy6XNs4atrP+tv8A4ands
+# /OUOtGkTV3tjNuCm7oZ8jCmZ8nfH2TI6xo6j+/VM0F2/38NQRARRhMK5tje0UoQp
+# jJ5qqhzdPL3AZfLN7R0eQiNpFly0NVHD/yXhqWfrGxITzBUOVKpBVifrWwXWdYbz
+# 6nT5CpjS2gcsjAK2OcwFIHDAyirxtSTGUg8dm2wp4iJDV3IppNZSn5Z2iBsrkYH0
+# rI3d3Pdvj1drp1qzcSamV5tEAFwhDULuwo1J7HhFK8hXiv1Ru9QgBf3ZsU779W2b
+# T7g=
 # SIG # End signature block

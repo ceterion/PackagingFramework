@@ -1,6 +1,6 @@
-ceterion Packaging Framework - Change Log
-Date: 15 November 2024
-Please feel free to report issues as well as feature requests at http://github.com/ceterion/PackagingFramework or via email at PackagingFramework@ceterion.com
+ceterion Packaging Framework (cPF) - Change Log
+
+Please report issues or feature requests at http://github.com/ceterion/PackagingFramework or via email at PackagingFramework@ceterion.com
 
 Version 1.0.0.0 
 ###############
@@ -85,7 +85,7 @@ General Changes
 - Added support for optional package command line parameter. The cmdlet Initialize-Script was extended to get the command line parameters, the cmdlet Get-Parameter has a new -force option control overwrite and inheritance of parameters
  
 
-Version 1.0.2.0
+Version 1.0.2.0 (Mar 13, 2019)
 ###############
 
 Exit-Script
@@ -122,7 +122,7 @@ General Changes
 - Improved package template, a "Remove-Module PackagingFramework" added in front of "Import-Module..." line inside the package template and all example packages to avoid issues when running multiple packages in a single PowerShell instance
 
 
-Version 1.0.3.0
+Version 1.0.3.0 (Mar 20, 2019)
 ###############
 
 Update-Ownership
@@ -143,7 +143,7 @@ Install-DeployPackageService
 - Improved Install-DeployPackageService cmdlet, now with additional delay in the Schedule Tasks trigger to avoid domain logon issues after a reboot
 
 
-Version 1.0.4.0
+Version 1.0.4.0 (May 22, 2019)
 ###############
 Start-IntuneWrapper
 - New Start-IntuneWrapper cmdlet to wrap a PowerShell based Packaging Framework package into an Intune package
@@ -153,7 +153,7 @@ Install-DeployPackageService
 - Bugfix: Deployment stops with error if package from CSV is not found on share
 
 
-Version 1.0.5.0
+Version 1.0.5.0 (Feb 2, 2020)
 ###############
 
 Remove-IniKey 
@@ -166,7 +166,7 @@ Invoke-Encryption
 - Bugfix: Unnecessary file exist check removed for GeneratKey mode 
 
 
-Version 1.0.6.0
+Version 1.0.6.0 (Jun 25, 2020)
 ###############
 
 General Changes
@@ -180,7 +180,7 @@ Set-DisableLogging
 - Bugfix: Mode parameter scope issue fixed and logging improved
 
 
-Version 1.0.7.0
+Version 1.0.7.0 (Oct 30, 2020)
 ###############
 
 General Changes
@@ -190,7 +190,7 @@ General Changes
 - The final balloon tip notification after the package is terminated shows now the correct title instead of "Microsoft.Explorer.Notification.{guid}"
 
 
-Version 1.0.8.0
+Version 1.0.8.0 (Apr 20, 2021)
 ###############
 
 New:
@@ -208,7 +208,7 @@ Copy-File
  - ContinueOnError parameter default changed from $true to $false to make sure an error is thrown if a copy job fails
 
 
-Version 1.0.9.0
+Version 1.0.9.0 (Oct 29, 2021)
 ###############
 
 New:
@@ -220,7 +220,7 @@ New:
 - New variable $TPMVersion
 
 
-Version 1.0.10.0
+Version 1.0.10.0 (Mar 9, 2022)
 ################
 
 New Cmdlets:
@@ -261,7 +261,7 @@ The first 5 lines is the header section, and the last 5 lines is the footer sect
 to replace the existing header and footer section.
 
 
-Version 1.0.11.0
+Version 1.0.11.0 (Nov 7, 2022)
 ################
 
 New Cmdlets:
@@ -281,7 +281,7 @@ Other Changes:
 - New optional package command line parameter AllowRebootPassThru, this parameter allows the 3010 return code (requires restart) to be passed back to the parent process (for SCCM / MECM)
 
 
-Version 1.0.12.0
+Version 1.0.12.0 (Dec 6, 2022)
 ################
 
 General:
@@ -298,8 +298,8 @@ Initialize-Script   Added support for the new package GUID
 Invoke-PackageEnd   Added support for the new package GUID
 
 
-Version 1.0.13.0
-################
+Version 1.0.13.0 (Jan 18, 2023)
+################ 
 
 General:
 ------------
@@ -310,7 +310,7 @@ Updated Cmdlets:
 New-Package         Added "Dependencies" and "Supersedence" secion to PackageName.json, can be used for MECM/SCCM/etc. 
 
 
-Version 1.0.14.0
+Version 1.0.14.0 (Feb 9, 2023)
 ################
 
 General:
@@ -330,7 +330,7 @@ Test-IsMutexAvailable       Improved error handling, last error is removed from 
 
 
 
-Version 1.0.15.0
+Version 1.0.15.0 (Mar 7, 2023)
 ################
 
 New Cmdlets:
@@ -352,7 +352,7 @@ New-Shortcut                New hotkey parameter to add keyboard hotkeys to shor
 Test-Package                Bug regarding wrong message "Parameter PackageGUID is not defined in JSON file" is fixed.
 
 
-Version 1.0.16.0
+Version 1.0.16.0 (Mar 16, 2023)
 ################
 
 General:
@@ -368,7 +368,7 @@ Remove-FirewallRuleFromJson The default parameters can now overwritten via $Glob
 Show-BalloonTip             Has now support for toast notification. Win 10 and newer only, fallback to BalloonTip on older OS versions. Behavior can be controlled via InstallationUIShowBalloonNotificationsUseToast parameter in the package.json file and via cmdlet -UseToast parameter.
 Test-Package                The path parameter can now be used to specify an individual package, previously only a parent folder was supported that included multiple packages.
 
-Version 1.0.17.0
+Version 1.0.17.0 (Mar 28, 2023)
 ################
 
 Updated Cmdlets:
@@ -379,7 +379,7 @@ Initialize-Script           Can now called from a PowerShell profile script with
 Show-BalloonTip             Toast notification improved, support for Info, Warning & Error icons similar to balloon tip mode
 
 
-Version 1.0.18.0
+Version 1.0.18.0 (Jun 9, 2023)
 ################
 
 Updated Cmdlets:
@@ -389,51 +389,56 @@ Add-AddRemovePrograms        Online help improvment, correction of the examples,
 Install-DeployPackageService The schedule task is now using the RunLevel=Highest parameter as default
 Add-PermissionsFromJson      Added PermissionSet support and default parameters can now overwritten via $Global:DefaultPermission<ParameterName> variables, this allows you permission rules with only the path/key parameter in the .json.
 
-Version 1.0.19.0
+Version 1.0.19.0 (Jul 31, 2023)
 ################
+General:
+------------ 
+Introduced first-time AppLocker support, enabling creation and management of local AppLocker rules via new cmdlets.
 
 Updated Cmdlets:
 ----------------
-Add-Font                     Improvment, works now with font files on network shares
-Install-DeployPackageService Improvment, supports now # comment lines in .csv files 
+Add-Font                    Improved Add-Font; it now works with font files located on network shares.
+Install-DeployPackageService Improved Install-DeployPackageService; now supports # comment lines in .csv files. 
 
 New Cmdlets:
 ------------
-Add-AppLockerRule            Cmdlet to add local AppLocker rules
-Add-AppLockerRuleFromJson    Cmdlet to automaticaly add local AppLocker rules based on entries in the package.json file, automatical used when package is installed
-Remove-AppLockerRule         Cmdlet to remove local AppLocker rules
-Remove-AppLockerRuleFromJson Cmdlet to automaticaly remove local AppLocker rules based on entries in the package.json file, automatical used when package is uninstalled
-Invoke-PackageEnd            Added support for Add/Remove-FirewallRuleFromJson and Cmdlet "Skip.." Parameters can now overwritten via $Global:Skip<ParameterName> variables, this allows you to skip selected functions of the cmdlet
-Invoke-PackageStart          Cmdlet "Skip.." Parameters can now overwritten via $Global:Skip<ParameterName> variables, this allows you to skip selected functions of the cmdlet
+Add-AppLockerRule            Cmdlet to add local AppLocker rules.
+Add-AppLockerRuleFromJson    Cmdlet to automatically add local AppLocker rules based on entries in the package.json file; automatically used when the package is installed.
+Remove-AppLockerRule         Cmdlet to remove local AppLocker rules.
+Remove-AppLockerRuleFromJson Cmdlet to automatically remove local AppLocker rules based on entries in the package.json file; automatically used when the package is uninstalled.
+Invoke-PackageEnd            Added support for Add/Remove-FirewallRuleFromJson; Cmdlet “Skip..” parameters can now be overridden via $Global:Skip<ParameterName> variables, allowing selective skipping of cmdlet functions.
+Invoke-PackageStart          Cmdlet “Skip..” parameters can now be overridden via $Global:Skip<ParameterName> variables, allowing selective skipping of cmdlet functions.
 
 
-Version 1.0.20.0
+Version 1.0.20.0 (Sep 15, 2023)
 ################
 
 General:
 ------------ 
-Some examples in the example package are improved.
-Scope issue of variable $DeploymentTypeName fixed.
+Improved examples in the example package.
 
 Updated Cmdlets:
 ----------------
-New-Package                  Empty "AppLockerRules" section is now included in the PackageName.json.
-Add-AppLockerRule            Improved AppLocker variable handling, internal usage of splatting, retry logic because of sporadic "in use" problem when adding multiple rules, improved logfile.
+New-Package                  Added empty "AppLockerRules" section to PackageName.json.
+Add-AppLockerRule            Improved AppLocker variable handling; implemented internal use of splatting; added retry logic to address sporadic “in use” issues when adding multiple rules; enhanced logging.
 Add-AppLockerRuleFromJson    Improved AppLocker variable handling.
 Remove-AppLockerRule         Retry logic because of sporadic "in use" problem when removing multiple rules.
 
+Fixes:
+----------------
+Resolved variable scope issue affecting $DeploymentTypeName.
 
 Version 2404 (24.4.0.0)
 ########################
 
 General:
 ------------ 
-Version number schema changed to Year.Month.Build.Revision
+Updated version numbering scheme to follow the Year.Month.Build.Revision format.
 
 New Cmdlets:
 ----------------
-Start-MSIX                   Cmdlet to install or uninstall MSIX app packages
-Start-AppX                   Cmdlet to install or uninstall AppX app packages
+Start-MSIX                   Cmdlet to install or uninstall MSIX application packages.
+Start-AppX                   Cmdlet to install or uninstall AppX application packages.
 
 
 Version 2411 (24.11.0.0)
@@ -441,18 +446,19 @@ Version 2411 (24.11.0.0)
 
 General:
 ------------ 
-New install agent detection and corresponding variables like $InfrastructureShare, $ClientLocation, $ComputerParameterFile, $ComputerInstallSequenceFile, $ceterionInstallAgent
+Introduced first-time support for the ceterion Deployment Framework (cDF), enabling integration with the new REST API and parameter management.
+Added new ceterion Install Agent (cIA) detection and corresponding variables: $InfrastructureShare, $ClientLocation, $ComputerParameterFile, $ComputerInstallSequenceFile, and $ceterionInstallAgent.
 
 Updated Cmdlets:
 ----------------
-Get-Parameter                Added JSON folder support
-Show-BalloonTip              Added service account detection for toast notification with balloontip fallback
-New-Package                  Error handler in global catch block of the packe template improved to detect PackageFramework loading errors
+Get-Parameter                Added support for retrieving parameters from JSON folder/file.
+Show-BalloonTip              Implemented service account detection for toast notifications, providing automatic fallback to balloon tips when running under service accounts.
+New-Package                  Improved error handling in the global catch block of the package template to detect Packaging Framework loading errors.
 
 New Cmdlets:
 ----------------
-Set-Parameter                Cmdlet to add/update parameter values in the JSON folder
-Add-InstallationLogEntry     Cmdlet to add entries to an install agent sequence file
+Set-Parameter                Cmdlet for adding and updating parameter values stored in the JSON folder/file.
+Add-InstallationLogEntry     Cmdlet to add entries to the ceterion Install Agent sequence file.
 
 
 Version 2501 (25.1.0.0)
@@ -460,12 +466,12 @@ Version 2501 (25.1.0.0)
 
 General:
 ------------ 
-New variables for Windows Server 2025 support like $IsWin2025, $IsAtLeastWin2025 and $IsAtMostWin2025
+Added general support for Windows Server 2025, including new variables $IsWin2025, $IsAtLeastWin2025, and $IsAtMostWin2025.
 
 Updated Cmdlets:
 ----------------
-Initialize-Script           Bugfix regarding install agent $InfrastructureShare reg key (Github issue #2)
-Update-FrameworkInPackages  Bugfix regarding error handler
+Initialize-Script          Fixed issue with install agent $InfrastructureShare registry key (GitHub issue #2: https://github.com/ceterion/PackagingFramework/issues/2)
+Update-FrameworkInPackages Fixed issue with error handler.
 
 
 Version 2507 (25.7.0.0)
@@ -473,5 +479,30 @@ Version 2507 (25.7.0.0)
 
 Updated Cmdlets:
 ----------------
-Get-Parameter               Added support for MECM Collection Variables (previously only MECM Task Sequence Variables where supported)
+Get-Parameter               Added support for MECM collection variables (previously, only MECM task sequence variables were supported).
 
+
+Version 2510 (25.10.0.0)
+########################
+
+General:
+----------------
+Support for Recast Application Workspace (formerly Liquit).
+Support for ceterion Deployment Framework (cDF) REST API.
+
+New Cmdlets:
+----------------
+Add-PackageToRecastAW      Cmdlet to automatically import Packaging Framework application packages into Recast Application Workspace (formerly Liquit), supporting creation, upload, update, tagging, action sets, shortcuts, and entitlements.
+Add-PackageToLiquit        Alias of Add-PackageToRecastAW.
+Export-Icon                Cmdlet that allows you to extract/export icon files from executable files
+
+Updated Cmdlets:
+----------------
+Initialize-Script           Improved error handling for ComputerParameterFile; added proper handling for missing ClientLocation registry key; now exposes the $UILanguage variable with the user’s UI language.
+Get-Parameter               Added cDF (ceterion Deployment Framework) REST API support; enables retrieving multiple parameters in a single call.
+Set-Parameter               Added cDF (ceterion Deployment Framework) REST API support; enables setting multiple parameters in a single call.
+Add-InstallationLogEntry    Added support for cDF (ceterion Deployment Framework) REST API.
+
+Fixes:
+----------------
+Get-Parameter               Fixed handling of MECM collection variables when the string ends with a special character.

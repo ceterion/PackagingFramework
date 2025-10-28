@@ -8,3 +8,4 @@ REM Compile via NSIS (makensisw.exe)
 REM Sign compiled EXE
 Powershell.exe -Command "&{ Set-AuthenticodeSignature -Certificate $(Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert) -HashAlgorithm 'SHA256' -IncludeChain All -TimestampServer "http://time.certum.pl" -FilePath ".\PackagingFrameworkSetup.exe" }"
 
+Pause
