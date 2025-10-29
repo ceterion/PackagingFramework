@@ -492,7 +492,7 @@ Support for ceterion Deployment Framework (cDF) REST API.
 
 New Cmdlets:
 ----------------
-Add-PackageToRecastAW      Cmdlet to automatically import Packaging Framework application packages into Recast Application Workspace (formerly Liquit), supporting creation, upload, update, tagging, action sets, shortcuts, and entitlements.
+Add-PackageToRecastAW      Cmdlet to automatically import Packaging Framework application packages into Recast Application Workspace (formerly Liquit), supporting creation, upload, update, tagging, action sets, shortcuts, stages, dependencies and entitlements.
 Add-PackageToLiquit        Alias of Add-PackageToRecastAW.
 Export-Icon                Cmdlet that allows you to extract/export icon files from executable files
 
