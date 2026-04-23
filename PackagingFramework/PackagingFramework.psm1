@@ -1486,10 +1486,31 @@ Function Add-InstallationLogEntry {
 		Try {
                 
             # Check prereqs
-            if (($WebserverURL) -or ($ComputerParameterFile)) { <#nothing to do#> } else { Write-Log "Skip set parameter, because no [ComputerParameterFile] or [WebserverURL] is configured" -Source ${CmdletName} ; Return}
+            if (($ServiceURL) -or ($ComputerParameterFile)) { <#nothing to do#> } else { Write-Log "Skip set parameter, because no [ComputerParameterFile] or [ServiceURL] is configured" -Source ${CmdletName} ; Return}
+
+            ### Add Install Sequence File entry  via cDF webservice (new logic) ###
+            if ($ServiceURL) {
+
+                Write-Log "Add install log entry action [$Action] with command [$Command] and status [$Status] and returncode [$ReturnCode] for computer [$ComputerName] at position [$Position] via [$ServiceURL]" -Source ${CmdletName} 
+                $body = @{}
+                if ($ComputerName) {$body | Add-Member -MemberType NoteProperty -Name Name -Value $ComputerName}
+                if ($Position) {$body | Add-Member -MemberType NoteProperty -Name Position -Value $Position}
+                if ($Status) {$body | Add-Member -MemberType NoteProperty -Name Status -Value $Status}
+                if ($Returncode) {$body | Add-Member -MemberType NoteProperty -Name Returncode -Value $Returncode}
+                if ($Action) {$body | Add-Member -MemberType NoteProperty -Name Action -Value $Action}
+                if ($Command) {$body | Add-Member -MemberType NoteProperty -Name Command -Value $Status}
+                if ($Start) {$body | Add-Member -MemberType NoteProperty -Name Start -Value $Start}
+                if ($End) {$body | Add-Member -MemberType NoteProperty -Name End -Value $End}
+                $body = $body| ConvertTo-Json -Compress
+                Write-log "Invoke-WebRequest -Uri `"$ServiceURL/api/edit-installsequence`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} # -DebugMessage
+                $Response = Invoke-WebRequest -Uri "$ServiceURL/api/edit-installsequence" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
+                Write-log "Response: $($Response.content)" -Source ${CmdletName} # -DebugMessage
+                $ServiceURLWasUsed=$true
+            }
+
 
             ### Add entry to install seq file via direct share/file access (Old logic, only for backward compatibility) ###
-            if ($ComputerParameterFile) {
+            if (($ComputerParameterFile) -and ($ServiceURLWasUsed -ne $true)) {
 
                 Write-Log "Add install log entry action [$Action] with command [$Command] and status [$Status] and returncode [$ReturnCode] for computer [$ComputerName] at position [$Position] in [$ComputerParameterFile]" -Source ${CmdletName} 
                 
@@ -1575,26 +1596,6 @@ Function Add-InstallationLogEntry {
                 } else {
                     Write-Log "Skip add install log entry, Parameter [ComputerInstallSequenceFile] not found" -Source ${CmdletName} -DebugMessage
                 }
-            }
-
-            ### Add Install Sequence File entry  via cD Webserver (new logic) ###
-            if ($WebserverURL) {
-
-                Write-Log "Add install log entry action [$Action] with command [$Command] and status [$Status] and returncode [$ReturnCode] for computer [$ComputerName] at position [$Position] via [$WebserverURL]" -Source ${CmdletName} 
-                $body = @{}
-                if ($ComputerName) {$body | Add-Member -MemberType NoteProperty -Name Name -Value $ComputerName}
-                if ($Position) {$body | Add-Member -MemberType NoteProperty -Name Position -Value $Position}
-                if ($Status) {$body | Add-Member -MemberType NoteProperty -Name Status -Value $Status}
-                if ($Returncode) {$body | Add-Member -MemberType NoteProperty -Name Returncode -Value $Returncode}
-                if ($Action) {$body | Add-Member -MemberType NoteProperty -Name Action -Value $Action}
-                if ($Command) {$body | Add-Member -MemberType NoteProperty -Name Command -Value $Status}
-                if ($Start) {$body | Add-Member -MemberType NoteProperty -Name Start -Value $Start}
-                if ($End) {$body | Add-Member -MemberType NoteProperty -Name End -Value $End}
-                $body = $body| ConvertTo-Json -Compress
-                Write-log "Invoke-WebRequest -Uri `"$WebserverURL/api/edit-installsequence`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} # -DebugMessage
-                $Response = Invoke-WebRequest -Uri "$WebserverURL/api/edit-installsequence" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
-                Write-log "Response: $($Response.content)" -Source ${CmdletName} # -DebugMessage
-            
             }
 
 
@@ -3744,6 +3745,7 @@ Function Exit-Script {
         if ($deploymentType -ieq 'Uninstall')
         {
             if ($PackageName){ Remove-RegistryKey -Key "$Script:ConfigRegPath\$PackagingFrameworkName\InstalledPackages\$PackageName" -Recurse }
+            if (($Xoap) -and ($PackageName)) { Remove-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Recurse }
         }
     }
 
@@ -3754,6 +3756,7 @@ Function Exit-Script {
     if (Test-path -path Variable:AppName) {Remove-Variable -Name AppName -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:AppVendor) {Remove-Variable -Name AppVendor -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:AppVersion) {Remove-Variable -Name AppVersion -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:appArch) {Remove-Variable -Name appArch -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:CurrentDate) {Remove-Variable -Name CurrentDate -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:CurrentDateTime) {Remove-Variable -Name CurrentDateTime -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:CurrentTime) {Remove-Variable -Name CurrentTime -ErrorAction SilentlyContinue -Scope Global}
@@ -3784,7 +3787,7 @@ Function Exit-Script {
     if (Test-path -path Variable:PackagingFrameworkModuleVer) {Remove-Variable -Name PackagingFrameworkModuleVer -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:PackagingFrameworkName) {Remove-Variable -Name PackagingFrameworkName -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:ScriptDirectory) {Remove-Variable -Name ScriptDirectory -ErrorAction SilentlyContinue -Scope Global}
-    if (Test-path -path Variable:WebserverURL) {Remove-Variable -Name WebserverURL -ErrorAction SilentlyContinue -Scope Global}
+    if (Test-path -path Variable:ServiceURL) {Remove-Variable -Name ServiceURL -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:InfrastructureShare) {Remove-Variable -Name InfrastructureShare -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:ClientLocation) {Remove-Variable -Name ClientLocation -ErrorAction SilentlyContinue -Scope Global}
     if (Test-path -path Variable:ComputerParameter) {Remove-Variable -Name ComputerParameter -ErrorAction SilentlyContinue -Scope Global}
@@ -4932,8 +4935,8 @@ Function Get-Parameter {
       Section where to look for parameters, not valid for SCCM, MECM and JsonFolder, default for Json is 'Parameters', default for CloudShaper is 'Custom' (optional)
 .PARAMETER ComputerName
       cDF computer object name (optional, default $env:ComputerName)
-.PARAMETER WebserverURL
-      cDF Webserver URL (optional, if empty HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\WebserverURL RegKey is used)
+.PARAMETER ServiceURL
+      cDF webservice URL (optional, if empty HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\ServiceURL RegKey is used)
 .PARAMETER Default
       Default value to return when the parameter is not found or empty (optional, only supported for single parameters)
 .PARAMETER Expand
@@ -4995,7 +4998,7 @@ Function Get-Parameter {
 
             [Parameter(Mandatory=$False)]
             [ValidateNotNullorEmpty()]
-            [string]$WebserverURL=$Global:WebserverURL,
+            [string]$ServiceURL=$Global:ServiceURL,
         
             [Parameter(Mandatory=$False)]
             [ValidateNotNullorEmpty()]
@@ -5074,7 +5077,7 @@ Function Get-Parameter {
             Write-log "Variable: $Variable" -Source ${CmdletName} -DebugMessage
             Write-log "Source: $Source" -Source ${CmdletName} -DebugMessage
             Write-log "Section: $Section" -Source ${CmdletName} -DebugMessage
-            Write-log "WebserverURL: $WebserverURL" -Source ${CmdletName} -DebugMessage
+            Write-log "ServiceURL: $ServiceURL" -Source ${CmdletName} -DebugMessage
             Write-log "Computer: $Computer" -Source ${CmdletName} -DebugMessage
             Write-log "RootFolder: $RootFolder" -Source ${CmdletName} -DebugMessage
             Write-log "Default: $Default" -Source ${CmdletName} -DebugMessage
@@ -5261,9 +5264,105 @@ public class CollectionVariableDecoder
                 if ($ResetSection -eq $true) {Remove-variable Section -Force}
             }
 
+            # Get parameter from cDF Webservice
+            If (($Source -ieq "All") -or ($Source -ieq "cDF")) {
+                If(![string]::IsNullOrEmpty($ServiceURL))
+                {
+                    # Query parameter for webservice, but only once
+                    if (-not $Script:cDFWebServiceResponse) {
+                        Write-log "Get parameters from cDF Webservice at [$ServiceURL] for [$Computer]" -Source ${CmdletName}
+                        $body = @{ Name = "$Computer" ; Inherited = $true } | ConvertTo-Json
+                        Write-log "Invoke-WebRequest -Uri `"$ServiceURL/api/get-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
+                        $Script:cDFWebServiceResponse = Invoke-WebRequest -Uri "$ServiceURL/api/get-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
+                        Write-log "cDFWebServiceResponse: $($Script:cDFWebServiceResponse.content)" -Source ${CmdletName} -DebugMessage
+                    }
+
+                    foreach ($Section in $($Script:cDFWebServiceResponse.Content | ConvertFrom-Json).PSObject.Properties.Name) {
+                        foreach ($item in $($Script:cDFWebServiceResponse.Content | ConvertFrom-Json).$Section) {
+                            $item.PSObject.Properties | ForEach-Object {
+                                $value = $_.value ; $name = $_.name
+                                # Check if propertiy already exists in object
+                                if($name){
+                                    Write-log "Parameter [$Name] with value [$value] found in section [$section]" -Source ${CmdletName} -DebugMessage
+                                    if ($SettingsHash.$name -eq $null){
+                                        # Add to hashtable
+                                        $SettingsHash.Add($name,$value)
+                                        write-log "Add new setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
+                                    } else {
+                                        # Update value if already exist in hashtable
+                                        write-log "Update setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
+                                        $SettingsHash.$name = $value
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    # Remember parameter object globaly for later use
+                    $Global:ComputerParameter = $SettingsHash
+
+                    If(-not($Parameter -ieq "*"))
+                    {
+                        If(![string]::IsNullOrEmpty($SettingsHash.$Parameter))
+                        {
+                            $TempReturn = $SettingsHash.$Parameter
+                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                            {
+                                Write-Log "Return value [$Return] will be overwritten with [$TempReturn]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                            {
+                                Write-Log "Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            $Return = $TempReturn
+                            If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in cDF with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in cDF with value: [********]" -Source ${CmdletName}}
+
+                        }
+                        else
+                        {
+                            Write-Log "Parameter [$Parameter] NOT found in cDF" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                    }
+                    else
+                    {
+                        If($SettingsHash.Count -ne 0)
+                        {
+                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
+                            {
+                                Write-Log "${CmdletName} Return value [$Return] will be overwritten with hash table" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
+                            {
+                                Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
+                            }
+                            $Return = $SettingsHash
+                            if ($Parameter -eq "*") {
+                                Write-Log "A total of [$($Return.count)] parameters found in cDF" -Source ${CmdletName}
+                            } else {
+                                If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in cDF with value [$($Return)]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in cDF with value: [********]" -Source ${CmdletName}}
+                            }
+                            
+                        }
+                        else
+                        {
+                            Write-Log "Parameter [$Parameter] NOT found in cDF" -Severity 2 -DebugMessage -Source ${CmdletName}
+                        }
+                    }
+                    $ServiceURLWasUsed=$true
+                }
+                else
+                {
+                    Write-Log "${CmdletName} Parameter [ServiceURL] NOT specified. ServiceURL is required for cDF look up." -Severity 2 -DebugMessage -Source ${CmdletName}
+                }
+                
+            }
+
             # Get parameter from JSON folder
             If (($Source -ieq "All") -or ($Source -ieq "JsonFolder")) {
-                If(![string]::IsNullOrEmpty($RootFolder))
+                If ($ServiceURLWasUsed -eq $true) {
+                    Write-Log "${CmdletName} Skip JsonFolder because ServiceURL was used." -Severity 2 -DebugMessage -Source ${CmdletName}
+                }
+                elseIf(![string]::IsNullOrEmpty($RootFolder))
                 {
                     # Find COMPUTERNAME.json file (but only once, because this can take some time)
                     #if (-not($Global:ComputerParameterFile)) {
@@ -5380,107 +5479,6 @@ public class CollectionVariableDecoder
                     Write-Log "${CmdletName} Parameter [RootFolder] NOT specified. RootFolder is required for JsonFolder look up." -Severity 2 -DebugMessage -Source ${CmdletName}
                 }
             }
-
-            # Get parameter from cDF Webservice
-            If (($Source -ieq "All") -or ($Source -ieq "cDF")) {
-                If(![string]::IsNullOrEmpty($WebserverURL))
-                {
-                    # Query parameter for webservice, but only once
-                    if (-not $Script:cDFWebServiceResponse) {
-                        Write-log "Get parameters from cDF Webserver at [$WebserverURL] for [$Computer]" -Source ${CmdletName}
-                        $body = @{ Name = "$Computer" ; Inherited = $true } | ConvertTo-Json
-                        Write-log "Invoke-WebRequest -Uri `"$WebserverURL/api/get-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
-                        $Script:cDFWebServiceResponse = Invoke-WebRequest -Uri "$WebserverURL/api/get-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
-                        Write-log "cDFWebServiceResponse: $($Script:cDFWebServiceResponse.content)" -Source ${CmdletName} -DebugMessage
-                    }
-
-                    foreach ($Section in $($Script:cDFWebServiceResponse.Content | ConvertFrom-Json).PSObject.Properties.Name) {
-                        foreach ($item in $($Script:cDFWebServiceResponse.Content | ConvertFrom-Json).$Section) {
-                            $item.PSObject.Properties | ForEach-Object {
-                                $value = $_.value ; $name = $_.name
-                                # Check if propertiy already exists in object
-                                if($name){
-                                    Write-log "Parameter [$Name] with value [$value] found in section [$section]" -Source ${CmdletName} -DebugMessage
-                                    if ($SettingsHash.$name -eq $null){
-                                        # Add to hashtable
-                                        $SettingsHash.Add($name,$value)
-                                        write-log "Add new setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
-                                    } else {
-                                        # Update value if already exist in hashtable
-                                        write-log "Update setting from section [$Section] with [$name] and value [$value] to hashtable" -Source ${CmdletName} -DebugMessage
-                                        $SettingsHash.$name = $value
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    # Remember parameter object globaly for later use
-                    $Global:ComputerParameter = $SettingsHash
-
-                    If(-not($Parameter -ieq "*"))
-                    {
-                        If(![string]::IsNullOrEmpty($SettingsHash.$Parameter))
-                        {
-                            $TempReturn = $SettingsHash.$Parameter
-                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
-                            {
-                                Write-Log "Return value [$Return] will be overwritten with [$TempReturn]" -Severity 2 -DebugMessage -Source ${CmdletName}
-                            }
-                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
-                            {
-                                Write-Log "Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
-                            }
-                            $Return = $TempReturn
-                            If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in cDF with value [$Return]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in cDF with value: [********]" -Source ${CmdletName}}
-
-                        }
-                        else
-                        {
-                            Write-Log "Parameter [$Parameter] NOT found in cDF" -Severity 2 -DebugMessage -Source ${CmdletName}
-                        }
-                    }
-                    else
-                    {
-                        If($SettingsHash.Count -ne 0)
-                        {
-                            If(![string]::IsNullOrEmpty($Return) -and -not $SecureParameters)
-                            {
-                                Write-Log "${CmdletName} Return value [$Return] will be overwritten with hash table" -Severity 2 -DebugMessage -Source ${CmdletName}
-                            }
-                            ElseIf(![string]::IsNullOrEmpty($Return) -and $SecureParameters)
-                            {
-                                Write-Log "${CmdletName} Return value [********] will be overwritten with [********]" -Severity 2 -DebugMessage -Source ${CmdletName}
-                            }
-                            $Return = $SettingsHash
-                            if ($Parameter -eq "*") {
-                                Write-Log "A total of [$($Return.count)] parameters found in cDF" -Source ${CmdletName}
-                            } else {
-                                If (-not $SecureParameters) {Write-Log "Parameter [$Parameter] found in cDF with value [$($Return)]" -Source ${CmdletName}} else {Write-Log "Parameter [$Parameter] found in cDF with value: [********]" -Source ${CmdletName}}
-                            }
-                            
-                        }
-                        else
-                        {
-                            Write-Log "Parameter [$Parameter] NOT found in cDF" -Severity 2 -DebugMessage -Source ${CmdletName}
-                        }
-                    }
-
-                }
-                else
-                {
-                    Write-Log "${CmdletName} Parameter [WebserverURL] NOT specified. WebserverURL is required for cDF look up." -Severity 2 -DebugMessage -Source ${CmdletName}
-                }
-            }
-
-
-
-
-
-
-
-
-
 
             # Return default value when no parameter value is found and default value is specified
             if (-not([string]::IsNullOrEmpty($Parameter))) {
@@ -6618,8 +6616,11 @@ Function Initialize-Script {
     # Get ceterion Install Agent variable
     [string]$Global:IsceterionInstallAgent=$false ; if(get-service -name ceterionInstallAgent -ErrorAction SilentlyContinue){[string]$Global:IsceterionInstallAgent=$true}
 
-    # Get ceterion cDF Webserver URL variable
-    try {$Global:WebserverURL = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'WebserverURL' -ErrorAction SilentlyContinue} catch {}
+    # Get ceterion cDF Webservice URL variable
+    try {
+        $Global:ServiceURL = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'ServiceURL' -ErrorAction SilentlyContinue
+        if ($Global:ServiceURL) {$Global:ServiceURL = $Global:ServiceURL.Trim("/")}
+    } catch {}
 
     # Get ceterion Install Agent InfrastructureShare, ClientLocation, ComputerParameterFile and ComputerInstallSequenceFile vars
     try {$Global:InfrastructureShare = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\ceterion\InstallAgent' -Name 'InfrastructureShare' -ErrorAction SilentlyContinue} catch {} # https://github.com/PowerShell/PowerShell/issues/19228
@@ -6912,6 +6913,7 @@ Function Initialize-Script {
     [string]$Script:configMSIUninstallParams = $ModuleConfigFile.Options.MSIUninstallParams
     [boolean]$Script:configSuppressNamingSchemeErrors = $ModuleConfigFile.Options.SuppressNamingSchemeErrors
     [boolean]$Script:configSuppressPackageJsonErrors = $ModuleConfigFile.Options.SuppressPackageJsonErrors
+    [boolean]$Script:Xoap = $ModuleConfigFile.Options.Xoap
     
     ## Getting details for all logged on users
 	[psobject[]]$LoggedOnUserSessions = Get-LoggedOnUser
@@ -7316,6 +7318,7 @@ Function Initialize-Script {
             [string]$Global:PackageDescription = $PackageConfigFile.Package.PackageDescription
             [string]$Global:PackageDisplayName = $PackageConfigFile.Package.PackageDisplayName
             [string]$Global:PackageGUID = $PackageConfigFile.Package.PackageGUID
+            [string]$Global:PackageRevision = $PackageConfigFile.Package.PackageRevision
             
             # User PackageName as PackageDescription if empty
             if (-not $Global:PackageDescription) {$Global:PackageDescription = $Global=$PackageName}
@@ -8603,6 +8606,55 @@ Function Invoke-PackageEnd {
                 $Global:DisableLogging = $false
                 $Global:DisableWriteHost = $false
             }
+
+            # Run registry branding (Xoap format)
+            if ($Xoap -eq $true) {
+                if ($SkipRegistryBranding -ne $true) {
+                    $Global:DisableLogging = $true
+                    $Global:DisableWriteHost = $true
+
+                    If ($deploymentType -ieq 'Install') {
+
+                        If (-not($appVendor)) { try { $appVendor = $PackageName.split("_")[0] } catch {}}
+                        If (-not($appName)) { try { $appName = $PackageName.split("_")[1] } catch {}}
+                        If (-not($appVersion)) { try { $appVersion = $PackageName.split("_")[2] } catch {}}
+                        If (-not($appOS)) { try { $appOS = $PackageName.split("_")[3] } catch {}}
+                        If (-not($appArch)) { try { $appArch = $PackageName.split("_")[4] } catch {}}
+                        If (-not($appLang)) { try { $appLang = $PackageName.split("_")[5] } catch {}}
+                        if (-not($appScriptDate)) { $appScriptDate = (Get-Item (get-variable PSCommandPath).Value).LastWriteTime }
+                        if (-not($appRevision)) { $appRevision = $PackageRevision }
+                        $InstallSource = try {$(Split-path $PSScriptRoot) } catch {}
+                        $LogFile = try { Join-Path -Path $LogDir -ChildPath $LogName} catch {}
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'IsInstalled' -Value 1 -Type DWord
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptName' -Value "$appName" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptVendor' -Value "$appVendor" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptVersion' -Value "$appVersion" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptArch' -Value "$appArch" -Type String  # TODO
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptLanguage' -Value "$appLang" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptRevision' -Value "$appRevision" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptVersion' -Value "$appVersion" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptDate' -Value "$appScriptDate" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'ScriptAuthor' -Value "$PackageAuthor" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'PSADTVersion' -Value "$PackagingFrameworkModuleVersion" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'InstallationDateTime' -Value "$currentDateTime" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'InstallationTimeZone' -Value "$currentTimeZoneBias" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'InstallationSource' -Value "$InstallSource" -Type String
+                        Set-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Name 'LogFile' -Value "$LogFile" -Type String
+                    }
+                    $PackageAuthor
+                    If ($deploymentType -ieq 'Uninstall'){
+                        If ($installSuccess) {
+                            if ($PackageName){ Remove-RegistryKey -Key "HKEY_LOCAL_MACHINE\SOFTWARE\PSADT\InstalledApps\$PackageName" -Recurse }
+                        }
+                    }
+
+                    $Global:DisableLogging = $false
+                    $Global:DisableWriteHost = $false
+                }
+            }
+
+
+
 
             # Chaneg default value for InstallPhase based on deployment type
             If ($deploymentType -ieq 'Install') { $Global:InstallPhase = 'Install' }
@@ -13812,8 +13864,8 @@ Function Set-Parameter {
         Section where to set the parameter (optional, the section is automaticaly found when the parameter already exists, if not fallback to 'CustomSettings' as default)
 .PARAMETER Computer
         Computer name where to set the parameter (optional, default $env:ComputerName)
-.PARAMETER WebserverURL
-      cDF Webserver URL (optional, if empty HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\WebserverURL RegKey is used)
+.PARAMETER ServiceURL
+      cDF Webservice URL (optional, if empty HKEY_LOCAL_MACHINE\SOFTWARE\ceterion\InstallAgent\ServiceURL RegKey is used)
 .PARAMETER ContinueOnError
     Continue On Error (optional)
 .EXAMPLE
@@ -13880,10 +13932,31 @@ Function Set-Parameter {
             Try {
                 
                 # Check prereqs
-                if (($WebserverURL) -or ($ComputerParameterFile)) { <#nothing to do#> } else { Write-Log "Skip set parameter, because no [ComputerParameterFile] or [WebserverURL] is configured" -Source ${CmdletName} ; Return}
+                if (($ServiceURL) -or ($ComputerParameterFile)) { <#nothing to do#> } else { Write-Log "Skip set parameter, because no [ComputerParameterFile] or [ServiceURL] is configured" -Source ${CmdletName} ; Return}
+
+                ### Set parameter via cD Webservice (new logic) ###
+                if ($ServiceURL) {
+
+                        # If no section is specfied, use 'CustomSettings' section as default
+                        if  (-not ($Section)) { $Section = 'CustomSettings'}
+
+                        # Set parameter via webservice
+                        if ($ParameterHashTable) {
+                            $editparameters = $ParameterHashTable
+                            Write-log "Set parameter object [$(ConvertTo-Json $editparameters -Compress)] for [$Computer] via cDF Webservice at [$ServiceURL]" -Source ${CmdletName}
+                         } else {
+                            $editparameters = @{ $Section = @{ $parameter = $value } }    
+                            Write-log "Set parameter [$parameter] in section [$section] to value [$Value] for [$Computer] via cDF Webservice at [$ServiceURL]" -Source ${CmdletName}
+                        }
+                        $body = @{ Name = "$Computer" ; Parameters = $editparameters ; force = $true} | ConvertTo-Json -Depth 10 -Compress
+                        Write-log "Invoke-WebRequest -Uri `"$ServiceURL/api/edit-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
+                        $Response = Invoke-WebRequest -Uri "$ServiceURL/api/edit-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
+                        Write-log "Response: $($Response.content)" -Source ${CmdletName} -DebugMessage
+                        $ServiceURLWasUsed=$true
+                }
 
                 ### Set Parameter in json file via direct share/file access (Old logic, only for backward compatibility) ###
-                if ($ComputerParameterFile) {
+                if (($ComputerParameterFile) -and ($ServiceURLWasUsed -ne $true)) {
 
                     # Use default ComputerParameterFile for local computer or search for ComputerParameterFile for other computer
                     if ($Computer -ieq $env:ComputerName) {
@@ -13956,26 +14029,6 @@ Function Set-Parameter {
                         Return
                     } #section
                 
-                }
-
-                ### Set parameter via cD Webserver (new logic) ###
-                if ($WebserverURL) {
-
-                        # If no section is specfied, use 'CustomSettings' section as default
-                        if  (-not ($Section)) { $Section = 'CustomSettings'}
-
-                        # Set parameter via webservice
-                        if ($ParameterHashTable) {
-                            $editparameters = $ParameterHashTable
-                            Write-log "Set parameter object [$(ConvertTo-Json $editparameters -Compress)] for [$Computer] via cDF Webserver at [$WebserverURL]" -Source ${CmdletName}
-                         } else {
-                            $editparameters = @{ $Section = @{ $parameter = $value } }    
-                            Write-log "Set parameter [$parameter] in section [$section] to value [$Value] for [$Computer] via cDF Webserver at [$WebserverURL]" -Source ${CmdletName}
-                        }
-                        $body = @{ Name = "$Computer" ; Parameters = $editparameters ; force = $true} | ConvertTo-Json -Depth 10 -Compress
-                        Write-log "Invoke-WebRequest -Uri `"$WebserverURL/api/edit-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
-                        $Response = Invoke-WebRequest -Uri "$WebserverURL/api/edit-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
-                        Write-log "Response: $($Response.content)" -Source ${CmdletName} -DebugMessage
                 }
 
             }
@@ -21475,10 +21528,10 @@ Function Write-FunctionHeaderOrFooter {
 Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-InstallationLogEntry, Add-PackageToRecastAW, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Export-Icon, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-Parameter, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Add-PackageToLiquit, Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DL
 
 # SIG # Begin signature block
-# MIIuHgYJKoZIhvcNAQcCoIIuDzCCLgsCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIuGwYJKoZIhvcNAQcCoIIuDDCCLggCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCSLZASIrN9ETrl
-# Sfnp8IQ77PMN1WB3uFrnsnKxghho/aCCJlAwggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCRUT0IDhDkJdqU
+# Qh2USSlEV63n+Mw2UHU8M9iFDhWrQaCCJk8wggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -21540,186 +21593,185 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # +JcQByowJam5yHG472jMLX714H4Pgqhvtrpsg0N3zYqSF6GeW3gWPUXiM3Ld4WbK
 # mdPJxSb9DWgERq622ZuMvhm+scbyGeNcAsos2G9KB9nJNdpAdfLEpxlvnkIQmHXm
 # lYtgvO3FEteKztWYXFaWA8XudwY1/8/k7j8TYe7b2i2F8M2unbIYCUXDkqFyF/xH
-# tqALLPHE3kNoCGpfO/B2Y/vMBiymxuIOtbm+JI8wggaDMIIEa6ADAgECAhEAnpwE
-# 9lWotKcCbUmMbHiNqjANBgkqhkiG9w0BAQwFADBWMQswCQYDVQQGEwJQTDEhMB8G
-# A1UEChMYQXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0g
-# VGltZXN0YW1waW5nIDIwMjEgQ0EwHhcNMjUwMTA5MDg0MDQzWhcNMzYwMTA3MDg0
-# MDQzWjBQMQswCQYDVQQGEwJQTDEhMB8GA1UECgwYQXNzZWNvIERhdGEgU3lzdGVt
-# cyBTLkEuMR4wHAYDVQQDDBVDZXJ0dW0gVGltZXN0YW1wIDIwMjUwggIiMA0GCSqG
-# SIb3DQEBAQUAA4ICDwAwggIKAoICAQDHKV9n+Kwr3ZBF5UCLWOQ/NdbblAvQeGMj
-# fCi/bibT71hPkwKV4UvQt1MuOwoaUCYtsLhw8jrmOmoz2HoHKKzEpiS3A1rA3ssX
-# UZMnSrbiiVpDj+5MtnbXSVEJKbccuHbmwcjl39N4W72zccoC/neKAuwO1DJ+9SO+
-# YkHncRiV95idWhxRAcDYv47hc9GEFZtTFxQXLbrL4N7N90BqLle3ayznzccEPQ+E
-# 6H6p00zE9HUp++3bZTF4PfyPRnKCLc5ezAzEqqbbU5F/nujx69T1mm02jltlFXnT
-# MF1vlakeQXWYpGIjtrR7WP7tIMZnk78nrYSfeAp8le+/W/5+qr7tqQZufW9invsR
-# Tcfk7P+mnKjJLuSbwqgxelvCBryz9r51bT0561aR2c+joFygqW7n4FPCnMLOj40X
-# 4ot7wP2u8kLRDVHbhsHq5SGLqr8DbFq14ws2ALS3tYa2GGiA7wX79rS5oDMnSY/x
-# mJO5cupuSvqpylzO7jzcLOwWiqCrq05AXp51SRrj9xRt8KdZWpDdWhWmE8MFiFtm
-# Q0AqODLJBn1hQAx3FvD/pte6pE1Bil0BOVC2Snbeq/3NylDwvDdAg/0CZRJsQIay
-# dHswJwyYBlYUDyaQK2yUS57hobnYx/vStMvTB96ii4jGV3UkZh3GvwdDCsZkbJXa
-# U8ATF/z6DwIDAQABo4IBUDCCAUwwdQYIKwYBBQUHAQEEaTBnMDsGCCsGAQUFBzAC
-# hi9odHRwOi8vc3ViY2EucmVwb3NpdG9yeS5jZXJ0dW0ucGwvY3RzY2EyMDIxLmNl
-# cjAoBggrBgEFBQcwAYYcaHR0cDovL3N1YmNhLm9jc3AtY2VydHVtLmNvbTAfBgNV
-# HSMEGDAWgBS+VAIvv0Bsc0POrAklTp5DRBru4DAMBgNVHRMBAf8EAjAAMDkGA1Ud
-# HwQyMDAwLqAsoCqGKGh0dHA6Ly9zdWJjYS5jcmwuY2VydHVtLnBsL2N0c2NhMjAy
-# MS5jcmwwFgYDVR0lAQH/BAwwCgYIKwYBBQUHAwgwDgYDVR0PAQH/BAQDAgeAMCIG
-# A1UdIAQbMBkwCAYGZ4EMAQQCMA0GCyqEaAGG9ncCBQELMB0GA1UdDgQWBBSBjAag
-# KFP8AD/bfp5KwR8i7LISiTANBgkqhkiG9w0BAQwFAAOCAgEAmQ8ZDBvrBUPnaL87
-# AYc4JlmfH1ZP5yt65MtzYu8fbmsL3d3cvYs+Enbtfu9f2wMehzSyved3Rc59a04O
-# 8NN7plw4PXg71wfSE4MRFM1EuqL63zq9uTjm/9tA73r1aCdWmkprKp0aLoZolUN0
-# qGcvr9+QG8VIJVMcuSqFeEvRrLEKK2xVkMSdTTbDhseUjI4vN+BrXm5z45EA3aDp
-# SiZQuoNd4RFnDzddbgfcCQPaY2UyXqzNBjnuz6AyHnFzKtNlCevkMBgh4dIDt/0D
-# GGDOaTEAWZtUEqK5AlHd0PBnd40Lnog4UATU3Bt6GHfeDmWEHFTjHKsmn9Q8wiGj
-# 906bVgL835tfEH9EgYDklqrOUxWxDf1cOA7ds/r8pIc2vjLQ9tOSkm9WXVbnTeLG
-# 3Q57frTgCvTObd/qf3UzE97nTNOU7vOMZEo41AgmhuEbGsyQIDM/V6fJQX1RnzzJ
-# NoqfTTkUzUoP2tlNHnNsjFo2YV+5yZcoaawmNWmR7TywUXG2/vFgJaG0bfEoodee
-# Xp7A4I4HaDDpfRa7ypgJEPeTwHuBRJpj9N+1xtri+6BzHPwsAAvUJm58PGoVsteH
-# AXwvpg4NVgvUk3BKbl7xFulWU1KHqH/sk7T0CFBQ5ohuKPmFf1oqAP4AO9a3Yg2w
-# BMwEg1zPOh6xbUXskzs9iSa9yGwwggaoMIIEkKADAgECAhB8HxSZA8e3n1BXr7tS
-# WKgUMA0GCSqGSIb3DQEBCwUAMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3Nl
-# Y28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25p
-# bmcgMjAyMSBDQTAeFw0yNTA4MjcwNTUzMTVaFw0yNzA4MjcwNTUzMTRaME4xCzAJ
-# BgNVBAYTAkRFMRMwEQYDVQQHDApCYWQgVmlsYmVsMRQwEgYDVQQKDAtjZXRlcmlv
-# biBBRzEUMBIGA1UEAwwLY2V0ZXJpb24gQUcwggIiMA0GCSqGSIb3DQEBAQUAA4IC
-# DwAwggIKAoICAQC//04ya2WTdOYdVn6VuCDMuZZJsbsR+5ftraGKIHZ3BHxn/RvF
-# jB2KjvbGoxzykz/CzLBi39+vLB98gefzootYUBvWS5fgkRalU2eKMfIXJFSj5Y5F
-# EmrlrK6WxEJwKlNTP9vxQabsMaksgQgsDw9iOGhnR3IWK+p4DEuzJWrlatAbdAc4
-# 8qQ5UTJNaTWQk80Q2WO2saiOyy4p2nNd/zaQ9DP5LV+BH2QPuOaPgZqoUqd6yC0c
-# PGb5c2Eb+X9NciCVLqCzXCxT5ThI6jlCLdcBvO5TLuHk+oPNV7BjZ9gO7wNH6M4R
-# CnCO4r59ClE94hzpPi5C7IROSSe2izwTiShOj4JDa6Qmtq+JGSEvEayh7QBoSsTG
-# YfeurI+39LHk15DG19uALbQbVRmu6URzpOBE2UF99dQ+gRPs8hn2cQvERVA8K3KR
-# 3KQfaK0ef1TXN4l008vGMaaCd6M0oYOkdKV8AioabJEcXkM1BkGnJ6NASqKYcGuq
-# Sa5N3+qN2DLiivb6tWbJQxfHmEuS7UAWxbkUlfEgpBfyiZJFifdiW/eYuX4pIhNU
-# 9r7JewUIYyXi8avIkEI6cU6mSdZPt6OySSXIZQgJi7/goq3ZqcYOnkfc7nGMD7J0
-# of7CBjMplrZvuTS0DweUuybTLUb2L77MvDmcexnGtrMbV+ly3pDGR5kS7wIDAQAB
-# o4IBeDCCAXQwDAYDVR0TAQH/BAIwADA9BgNVHR8ENjA0MDKgMKAuhixodHRwOi8v
-# Y2NzY2EyMDIxLmNybC5jZXJ0dW0ucGwvY2NzY2EyMDIxLmNybDBzBggrBgEFBQcB
-# AQRnMGUwLAYIKwYBBQUHMAGGIGh0dHA6Ly9jY3NjYTIwMjEub2NzcC1jZXJ0dW0u
-# Y29tMDUGCCsGAQUFBzAChilodHRwOi8vcmVwb3NpdG9yeS5jZXJ0dW0ucGwvY2Nz
-# Y2EyMDIxLmNlcjAfBgNVHSMEGDAWgBTddF1MANt7n6B0yrFu9zzAMsBwzTAdBgNV
-# HQ4EFgQUp5FUHChbkNAH9SuFSrx4Q8RU/kMwSwYDVR0gBEQwQjAIBgZngQwBBAEw
-# NgYLKoRoAYb2dwIFAQQwJzAlBggrBgEFBQcCARYZaHR0cHM6Ly93d3cuY2VydHVt
-# LnBsL0NQUzATBgNVHSUEDDAKBggrBgEFBQcDAzAOBgNVHQ8BAf8EBAMCB4AwDQYJ
-# KoZIhvcNAQELBQADggIBAE6UqZLxreB1k7kyVbvyx5MKq2kSQ6DgQdh8ledgDO6T
-# LH2Cjr+6oUIkqNRmHsbSU8YzaF9ESxbqAIq+PPM+8xB2fkA0gVgo36azyczcIRW0
-# Dvpuhv0bm5q3LJ1pqKAOeF0yn8MYl9WmGacKISgA9bj9YHgI2SzVSicdugKmLTJ/
-# XLgLNnqOBdb1OKHs4XdTgIhjMDIbEKEiwR04IFH3lzH6TDhG/QzWO8KVdkKOqgJO
-# M8qeEm57DKFJMZwPzgXo0UtSvr5W46yuaZdm7TavQQFmWUbzkbX7ptcOFIRIXf1E
-# 5VfFcOOTGRVFpkkYGEVpDeN8koFn4kK7JC0pl1FoXReU+bLpyUxNaXFEffP5mUU4
-# vHhOCXaMX9fxWQnjBfre5WdLd75IdCIw9hKql9gsGb9zlvHJ6GytSqw1i+T89jco
-# G2HwFu0rW38Q33zjNpSryMXfYLHrAsDJXP4keCdkHV9rJT1QNS1y2De0He7r3K7m
-# rBTVqE6slRPoW/h/XRnKW3MhxZVxHjYvhsb493lJBhe6e5n1A1ZFh8oXVZRJWjyg
-# qmllr+vSLc7DlAaMWkW4QNTLy4EtvlNb8IQ99f/kZHMQmFXrN1bFICytcmOsRvQ/
-# ZGbyYwn84fZS6/dLGdGn3xz3nE/PzMRJ0sW6pxwagoHQ2gd6Xm89+tdiDGGH4ys1
-# MIIGuTCCBKGgAwIBAgIRAJmjgAomVTtlq9xuhKaz6jkwDQYJKoZIhvcNAQEMBQAw
-# gYAxCzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRvIFRlY2hub2xvZ2llcyBT
-# LkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxJDAi
-# BgNVBAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0EgMjAeFw0yMTA1MTkwNTMy
-# MThaFw0zNjA1MTgwNTMyMThaMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3Nl
-# Y28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25p
-# bmcgMjAyMSBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAJ0jzwQw
-# IzvBRiznM3M+Y116dbq+XE26vest+L7k5n5TeJkgH4Cyk74IL9uP61olRsxsU/WB
-# AElTMNQI/HsE0uCJ3VPLO1UufnY0qDHG7yCnJOvoSNbIbMpT+Cci75scCx7UsKK1
-# fcJo4TXetu4du2vEXa09Tx/bndCBfp47zJNsamzUyD7J1rcNxOw5g6FJg0ImIv7n
-# CeNn3B6gZG28WAwe0mDqLrvU49chyKIc7gvCjan3GH+2eP4mYJASflBTQ3HOs6JG
-# driSMVoD1lzBJobtYDF4L/GhlLEXWgrVQ9m0pW37KuwYqpY42grp/kSYE4BUQrbL
-# gBMNKRvfhQPskDfZ/5GbTCyvlqPN+0OEDmYGKlVkOMenDO/xtMrMINRJS5SY+jWC
-# i8PRHAVxO0xdx8m2bWL4/ZQ1dp0/JhUpHEpABMc3eKax8GI1F03mSJVV6o/nmmKq
-# DE6TK34eTAgDiBuZJzeEPyR7rq30yOVw2DvetlmWssewAhX+cnSaaBKMEj9O2GgY
-# kPJ16Q5Da1APYO6n/6wpCm1qUOW6Ln1J6tVImDyAB5Xs3+JriasaiJ7P5KpXeiVV
-# /HIsW3ej85A6cGaOEpQA2gotiUqZSkoQUjQ9+hPxDVb/Lqz0tMjp6RuLSKARsVQg
-# ETwoNQZ8jCeKwSQHDkpwFndfCceZ/OfCUqjxAgMBAAGjggFVMIIBUTAPBgNVHRMB
-# Af8EBTADAQH/MB0GA1UdDgQWBBTddF1MANt7n6B0yrFu9zzAMsBwzTAfBgNVHSME
-# GDAWgBS2oVQ5AsOgP46KvPrU+Bym0ToO/TAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0l
-# BAwwCgYIKwYBBQUHAwMwMAYDVR0fBCkwJzAloCOgIYYfaHR0cDovL2NybC5jZXJ0
-# dW0ucGwvY3RuY2EyLmNybDBsBggrBgEFBQcBAQRgMF4wKAYIKwYBBQUHMAGGHGh0
-# dHA6Ly9zdWJjYS5vY3NwLWNlcnR1bS5jb20wMgYIKwYBBQUHMAKGJmh0dHA6Ly9y
-# ZXBvc2l0b3J5LmNlcnR1bS5wbC9jdG5jYTIuY2VyMDkGA1UdIAQyMDAwLgYEVR0g
-# ADAmMCQGCCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1bS5wbC9DUFMwDQYJKoZI
-# hvcNAQEMBQADggIBAHWIWA/lj1AomlOfEOxD/PQ7bcmahmJ9l0Q4SZC+j/v09CD2
-# csX8Yl7pmJQETIMEcy0VErSZePdC/eAvSxhd7488x/Cat4ke+AUZZDtfCd8yHZgi
-# kGuS8mePCHyAiU2VSXgoQ1MrkMuqxg8S1FALDtHqnizYS1bIMOv8znyJjZQESp9R
-# T+6NH024/IqTRsRwSLrYkbFq4VjNn/KV3Xd8dpmyQiirZdrONoPSlCRxCIi54vQc
-# qKiFLpeBm5S0IoDtLoIe21kSw5tAnWPazS6sgN2oXvFpcVVpMcq0C4x/CLSNe0Xc
-# kmmGsl9z4UUguAJtf+5gE8GVsEg/ge3jHGTYaZ/MyfujE8hOmKBAUkVa7NMxRSB1
-# EdPFpNIpEn/pSHuSL+kWN/2xQBJaDFPr1AX0qLgkXmcEi6PFnaw5T17UdIInA58r
-# Tu3mefNuzUtse4AgYmxEmJDodf8NbVcU6VdjWtz0e58WFZT7tST6EWQmx/OoHPel
-# E77lojq7lpsjhDCzhhp4kfsfszxf9g2hoCtltXhCX6NqsqwTT7xe8LgMkH4hVy8L
-# 1h2pqGLT2aNCx7h/F95/QvsTeGGjY7dssMzq/rSshFQKLZ8lPb8hFTmiGDJNyHga
-# 5hZ59IGynk08mHhBFM/0MLeBzlAQq1utNjQprztZ5vv/NJy8ua9AGbwkMWkOMIIG
-# uTCCBKGgAwIBAgIRAOf/acc7Nc5LkSbYdHxopYcwDQYJKoZIhvcNAQEMBQAwgYAx
-# CzAJBgNVBAYTAlBMMSIwIAYDVQQKExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEu
-# MScwJQYDVQQLEx5DZXJ0dW0gQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxJDAiBgNV
-# BAMTG0NlcnR1bSBUcnVzdGVkIE5ldHdvcmsgQ0EgMjAeFw0yMTA1MTkwNTMyMDda
-# Fw0zNjA1MTgwNTMyMDdaMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28g
-# RGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcg
-# MjAyMSBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAOkSHwQ17bld
-# esWmlUG+imV/TnfRbSV102aO2/hhKH9/t4NAoVoipzu0ePujH67y8iwlmWuhqRR4
-# xLeLdPxolEL55CzgUXQaq+Qzr5Zk7ySbNl/GZloFiYwuzwWS2AVgLPLCZd5DV8QT
-# F+V57Y6lsdWTrrl5dEeMfsxhkjM2eOXabwfLy6UH2ZHzAv9bS/SmMo1PobSx+vHW
-# ST7c4aiwVRvvJY2dWRYpTipLEu/XqQnqhUngFJtnjExqTokt4HyzOsr2/AYOm8YO
-# coJQxgvc26+LAfXHiBkbQkBdTfHak4DP3UlYolICZHL+XSzSXlsRgqiWD4MypWGU
-# 4A13xiHmaRBZowS8FET+QAbMiqBaHDM3Y6wohW07yZ/mw9ZKu/KmVIAEBhrXesxi
-# fPB+DTyeWNkeCGq4IlgJr/Ecr1px6/1QPtj66yvXl3uauzPPGEXUk6vUym6nZyE1
-# IGXI45uGVI7XqvCt99WuD9LNop9Kd1LmzBGGvxucOo0lj1M3IRi8FimAX3krunSD
-# guC5HgD75nWcUgdZVjm/R81VmaDPEP25Wj+C1reicY5CPckLGBjHQqsJe7jJz1CJ
-# XBMUtZs10cVKMEK3n/xD2ku5GFWhx0K6eFwe50xLUIZD9GfT7s/5/MyBZ1Ep8Q6H
-# +GMuudDwF0mJitk3G8g6EzZprfMQMc3DAgMBAAGjggFVMIIBUTAPBgNVHRMBAf8E
-# BTADAQH/MB0GA1UdDgQWBBS+VAIvv0Bsc0POrAklTp5DRBru4DAfBgNVHSMEGDAW
-# gBS2oVQ5AsOgP46KvPrU+Bym0ToO/TAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0lBAww
-# CgYIKwYBBQUHAwgwMAYDVR0fBCkwJzAloCOgIYYfaHR0cDovL2NybC5jZXJ0dW0u
-# cGwvY3RuY2EyLmNybDBsBggrBgEFBQcBAQRgMF4wKAYIKwYBBQUHMAGGHGh0dHA6
-# Ly9zdWJjYS5vY3NwLWNlcnR1bS5jb20wMgYIKwYBBQUHMAKGJmh0dHA6Ly9yZXBv
-# c2l0b3J5LmNlcnR1bS5wbC9jdG5jYTIuY2VyMDkGA1UdIAQyMDAwLgYEVR0gADAm
-# MCQGCCsGAQUFBwIBFhhodHRwOi8vd3d3LmNlcnR1bS5wbC9DUFMwDQYJKoZIhvcN
-# AQEMBQADggIBALiTWXfJTBX9lAcIoKd6oCzwQZOfARQkt0OmiQ390yEqMrStHmpf
-# ycggfPGlBHdMDDYhHDVTGyvY+WIbdsIWpJ1BNRt9pOrpXe8HMR5sOu71AWOqUqfE
-# IXaHWOEs0UWmVs8mJb4lKclOHV8oSoR0p3GCX2tVO+XF8Qnt7E6fbkwZt3/AY/C5
-# KYzFElU7TCeqBLuSagmM0X3Op56EVIMM/xlWRaDgRna0hLQze5mYHJGv7UuTCOO3
-# wC1bzeZWdlPJOw5v4U1/AljsNLgWZaGRFuBwdF62t6hOKs86v+jPIMqFPwxNJN/o
-# u22DqzpP+7TyYNbDocrThlEN9D2xvvtBXyYqA7jhYY/fW9edUqhZUmkUGM++Mvz9
-# lyT/nBdfaKqM5otK0U5H8hCSL4SGfjOVyBWbbZlUIE8X6XycDBRRKEK0q5JTsaZk
-# soKabFAyRKJYgtObwS1UPoDGcmGirwSeGMQTJSh+WR5EXZaEWJVA6ZZPBlGvjgjF
-# YaQ0kLq1OitbmuXZmX7Z70ks9h/elK0A8wOg8oiNVd3o1bb59ms1QF4OjZ45rkWf
-# sGuz8ctB9/leCuKzkx5Rt1WAOsXy7E7pws+9k+jrePrZKw2DnmlNaT19QgX2I+hF
-# tvhC6uOhj/CgjVEA4q1i1OJzpoAmre7zdEg+kZcFIkrDHgokA5mcIMK1MYIHJDCC
-# ByACAQEwajBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNzZWNvIERhdGEgU3lz
-# dGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gQ29kZSBTaWduaW5nIDIwMjEgQ0EC
-# EHwfFJkDx7efUFevu1JYqBQwDQYJYIZIAWUDBAIBBQCggYQwGAYKKwYBBAGCNwIB
-# DDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEE
-# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgMSiD5ztvUpKX
-# ciWwooCTof9Ryk5V2Pb+E+cmlwTbG7cwDQYJKoZIhvcNAQEBBQAEggIAvHM6luH6
-# zF6FW//ernfq0Ufx+ulQNq/pvC9lteSrsHFLNBIqxKVR+Mwy/PsVpqkqOAdKzKvY
-# J9tGhDP1UeafuU+yMoEI8SJPBMZ/rl8R581AqXWcnN5zJdfon0pafwxiV66DYMkV
-# G90f3BfXRbXJoLOQplgoxWw5v3R+/glH83x6jRWe/kwCDAOZdAqN+aXMWbG6So2F
-# aR17j5pGqLm7NUM3Jm06TiTGvNVjrkNMA9t2jr5Du7yZG7h+JrnDLLvC4VdwSP4o
-# nfUHOYQGU819ndL4KtwcRBvkTIsTkNfWhFb4zgHVpyjzyd/NM6Al3nq+aEjh6idB
-# xJUK8BKKSp1nQhUPNtkd9ofA2hhHaol1K8JDREKGRnE0MUQsqgl4JCNmj+8yuC0H
-# Ups1YQ8Wp7Snus5pfGMf6a+f5v//vLNKeOBaueBjY2uRV43nA/Th/c5Xo2+4qJT9
-# osYbIGWEYII2jzJdCAWhMLzVo8Di1mqib1ENtTTl204+RGcptENWUBTxpUuViJvq
-# o8YbR9ViWFoTFboM7yXKcs1cbBh9fRkQt85eUy4A6xUe9jzLHaQAzudoIFdVCD9w
-# MKSvZlu2UhKtfBPofApu9w/trxrOa2U+6yIizt8+yBGz0W3YA0D6qhh/gFJ1ZOWs
-# 9D9bciC+ET4M90JUVfxMU+ACZ9lQFx3PlNahggQEMIIEAAYJKoZIhvcNAQkGMYID
-# 8TCCA+0CAQEwazBWMQswCQYDVQQGEwJQTDEhMB8GA1UEChMYQXNzZWNvIERhdGEg
-# U3lzdGVtcyBTLkEuMSQwIgYDVQQDExtDZXJ0dW0gVGltZXN0YW1waW5nIDIwMjEg
-# Q0ECEQCenAT2Vai0pwJtSYxseI2qMA0GCWCGSAFlAwQCAgUAoIIBVzAaBgkqhkiG
-# 9w0BCQMxDQYLKoZIhvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI1MTAyODE1MDEw
-# M1owNwYLKoZIhvcNAQkQAi8xKDAmMCQwIgQgz6HcNZ3tK8PLiQ+iMOXa93tUDxpu
-# KyPdzxdU4Yz6oNUwPwYJKoZIhvcNAQkEMTIEMIAjvM1WXwBW8qGv82403KPX4rdv
-# u5JvgzCbVsngZGx/5hoxMKfuh7HeDoAw7Jwi0TCBoAYLKoZIhvcNAQkQAgwxgZAw
-# gY0wgYowgYcEFMMluJsX/MUCYGHOK3F7RQfdnGpqMG8wWqRYMFYxCzAJBgNVBAYT
-# AlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMT
-# G0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBDQQIRAJ6cBPZVqLSnAm1JjGx4jaow
-# DQYJKoZIhvcNAQEBBQAEggIACzJhIuVcx8IniFzrP7HMNVKeCda7dFLOQTJDA55t
-# RE9OJLzaUgNj3pBlYhdBJi0fLKTyERJrGewJppHL5buvkIiqZ3GKf8eQznb55m17
-# e4F8EV3mQNIt1CWpaZ03FWmtJsXjiOEjIdT7xeK216TR1GkNmh4UKJdDksv2B1Nu
-# 0B/bzx29DJ5duzihdDWLuW/6XjeHXweM5RgF7SJmsSggZMK4dkHEM5dCezMcZtsm
-# TY69KsFit5ytXJLvX1s0S16qMLQkk/EV3YFwZTSjx3Dp47JOGUUEtFlYigWlcBX2
-# 3XM7DoLaOMapGjPHjxLeZSirk72p0Y/gbWah9+TAp98yyY61s4Gdl/s/Ik/6aycw
-# tjV0C0Y/mcwlXJVdUNXZ2xhfuyMr5DZqZH8Yl60tIJ/xy6XNs4atrP+tv8A4ands
-# /OUOtGkTV3tjNuCm7oZ8jCmZ8nfH2TI6xo6j+/VM0F2/38NQRARRhMK5tje0UoQp
-# jJ5qqhzdPL3AZfLN7R0eQiNpFly0NVHD/yXhqWfrGxITzBUOVKpBVifrWwXWdYbz
-# 6nT5CpjS2gcsjAK2OcwFIHDAyirxtSTGUg8dm2wp4iJDV3IppNZSn5Z2iBsrkYH0
-# rI3d3Pdvj1drp1qzcSamV5tEAFwhDULuwo1J7HhFK8hXiv1Ru9QgBf3ZsU779W2b
-# T7g=
+# tqALLPHE3kNoCGpfO/B2Y/vMBiymxuIOtbm+JI8wggaCMIIEaqADAgECAhAo8HfB
+# HDa9/l90MkdwJy4DMA0GCSqGSIb3DQEBDAUAMFYxCzAJBgNVBAYTAlBMMSEwHwYD
+# VQQKExhBc3NlY28gRGF0YSBTeXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBU
+# aW1lc3RhbXBpbmcgMjAyMSBDQTAeFw0yNjAzMTEwNzM0NTRaFw0zNjAyMjcwNzM0
+# NTRaMFAxCzAJBgNVBAYTAlBMMSEwHwYDVQQKDBhBc3NlY28gRGF0YSBTeXN0ZW1z
+# IFMuQS4xHjAcBgNVBAMMFUNlcnR1bSBUaW1lc3RhbXAgMjAyNjCCAiIwDQYJKoZI
+# hvcNAQEBBQADggIPADCCAgoCggIBALi9zfBw+xI12hi2F9uNQBNOSTkTIi13fuh3
+# DiWybI5392bBfJw6tO7zDs7UqP/rejVf4xFTU3XNOPsuOFkP5SPFsnWwn3VJL+Nh
+# NhsuujvYsQtaQnvNo1wk46reTgws1L8OFEdKaxgyqT4zOQx81mLwNZSqXNU9Rrb9
+# oAJWJF4Mydz+C1ebu0D0+vgM3tqAQ8TU203fqgKCPqIdHloaFqH9eyR+8tnpmy2h
+# nnN59ZOtmsuHeRwf5iTOhlhf0d/qqquLOSIGPgGVL1Hj5XBUox2OE7tQRr+l/xxN
+# bL6OuwBO4Aa2EbuxYg37cpXv5i2/lTL4NASB/duf9W4fjA3Ro+GP+bC54n2OYiM3
+# Cq8z92ejx8F5HWO2e4/75eC95B9tMw/eq7109GDyW2+2ut5Bn0o8MXJTERkyystW
+# bqcnUkomA97qfiDCwvpWuOMdfTOksXe9S+xDxOJaCbiyTivgPulxcT+tfQTRXBr5
+# UwtPvc+INnafOEilzVHA11tv+pHcylryxBc08cUihf/ttqkZS0bmx3VxQay8uoha
+# Tp0//ECA9vYGW51SKdJMJhXvKyIdBLy8WYNchTt8yRITv9Adxg9JqGujh+TnP1bW
+# 3aQjFtlEl7SzgNeI8OVA/CJAWWUuRT3Au9ToOpHy/flrrknhN4heEw7/6ILMv4HS
+# sj0YZ4otAgMBAAGjggFQMIIBTDB1BggrBgEFBQcBAQRpMGcwOwYIKwYBBQUHMAKG
+# L2h0dHA6Ly9zdWJjYS5yZXBvc2l0b3J5LmNlcnR1bS5wbC9jdHNjYTIwMjEuY2Vy
+# MCgGCCsGAQUFBzABhhxodHRwOi8vc3ViY2Eub2NzcC1jZXJ0dW0uY29tMB8GA1Ud
+# IwQYMBaAFL5UAi+/QGxzQ86sCSVOnkNEGu7gMAwGA1UdEwEB/wQCMAAwOQYDVR0f
+# BDIwMDAuoCygKoYoaHR0cDovL3N1YmNhLmNybC5jZXJ0dW0ucGwvY3RzY2EyMDIx
+# LmNybDAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDAOBgNVHQ8BAf8EBAMCB4AwIgYD
+# VR0gBBswGTAIBgZngQwBBAIwDQYLKoRoAYb2dwIFAQswHQYDVR0OBBYEFCM5aiir
+# mhKnpKfyH/lFmr+N/oIDMA0GCSqGSIb3DQEBDAUAA4ICAQBm/pObrAveTqYFPCSt
+# hxNVwBHTW4TfuBQY2KGCdMlH6ALjVPYf2XARNGMTXScR0JQ2/c2LxLpoHHhRwxFf
+# 3d933DhFS165rYj6iPSQKm41rc9AMpTCjMdmai1aK9o870pOzTzLRhWFVIxm+5Qf
+# +t4V5z14tPoUsAWdfRKD1Zzvzfe5AHlE9rxOZcGROiULxs3Edf7ZJ8RZI0jzD9ju
+# j2oEX2XS7BVKuNCK1W0h1mjapv028yqo8UtZh5/1Ib48Yyp88BDYShh5PSGUUuS5
+# tYXVfcduIPBe3PdNTYRYdT5VNxkwLgjMzIcr/6SH2fejFJDjnCxjvXLuarErJg/I
+# dI+hXdGIBDVOGv1zrkF4ktoQvFZIp5DIAYh0GwyUhc87qqn5UaYTj2+iyiBDSNh7
+# aGCrkuAnqg7Qh7frhX+QhMGeJ9SpLpnG76qN85hLyjvYR6gRYiLTj8G4fxjqV400
+# /buPw0rBo9yJZyq/8cGdCOLPOYf9qpefTcrZKeO9pg+UJHx8UABbaTqizRxm8sUS
+# EycccCCFhIit3AI/3wGuSOADeiA676NcQ7+dsP04YvzvdN7pTZNyg672WpBDJdg0
+# eItHl4yomvNeIOWh1qs4QqOW6TI8Ocsi4uSDTLorxLUDnBTwKQzzpxd1YUctEgRh
+# 32R0J9FkFkeEruJU94RljFr1uDCCBqgwggSQoAMCAQICEHwfFJkDx7efUFevu1JY
+# qBQwDQYJKoZIhvcNAQELBQAwVjELMAkGA1UEBhMCUEwxITAfBgNVBAoTGEFzc2Vj
+# byBEYXRhIFN5c3RlbXMgUy5BLjEkMCIGA1UEAxMbQ2VydHVtIENvZGUgU2lnbmlu
+# ZyAyMDIxIENBMB4XDTI1MDgyNzA1NTMxNVoXDTI3MDgyNzA1NTMxNFowTjELMAkG
+# A1UEBhMCREUxEzARBgNVBAcMCkJhZCBWaWxiZWwxFDASBgNVBAoMC2NldGVyaW9u
+# IEFHMRQwEgYDVQQDDAtjZXRlcmlvbiBBRzCCAiIwDQYJKoZIhvcNAQEBBQADggIP
+# ADCCAgoCggIBAL//TjJrZZN05h1WfpW4IMy5lkmxuxH7l+2toYogdncEfGf9G8WM
+# HYqO9sajHPKTP8LMsGLf368sH3yB5/Oii1hQG9ZLl+CRFqVTZ4ox8hckVKPljkUS
+# auWsrpbEQnAqU1M/2/FBpuwxqSyBCCwPD2I4aGdHchYr6ngMS7MlauVq0Bt0Bzjy
+# pDlRMk1pNZCTzRDZY7axqI7LLinac13/NpD0M/ktX4EfZA+45o+BmqhSp3rILRw8
+# ZvlzYRv5f01yIJUuoLNcLFPlOEjqOUIt1wG87lMu4eT6g81XsGNn2A7vA0fozhEK
+# cI7ivn0KUT3iHOk+LkLshE5JJ7aLPBOJKE6PgkNrpCa2r4kZIS8RrKHtAGhKxMZh
+# 966sj7f0seTXkMbX24AttBtVGa7pRHOk4ETZQX311D6BE+zyGfZxC8RFUDwrcpHc
+# pB9orR5/VNc3iXTTy8YxpoJ3ozShg6R0pXwCKhpskRxeQzUGQacno0BKophwa6pJ
+# rk3f6o3YMuKK9vq1ZslDF8eYS5LtQBbFuRSV8SCkF/KJkkWJ92Jb95i5fikiE1T2
+# vsl7BQhjJeLxq8iQQjpxTqZJ1k+3o7JJJchlCAmLv+Cirdmpxg6eR9zucYwPsnSh
+# /sIGMymWtm+5NLQPB5S7JtMtRvYvvsy8OZx7Gca2sxtX6XLekMZHmRLvAgMBAAGj
+# ggF4MIIBdDAMBgNVHRMBAf8EAjAAMD0GA1UdHwQ2MDQwMqAwoC6GLGh0dHA6Ly9j
+# Y3NjYTIwMjEuY3JsLmNlcnR1bS5wbC9jY3NjYTIwMjEuY3JsMHMGCCsGAQUFBwEB
+# BGcwZTAsBggrBgEFBQcwAYYgaHR0cDovL2Njc2NhMjAyMS5vY3NwLWNlcnR1bS5j
+# b20wNQYIKwYBBQUHMAKGKWh0dHA6Ly9yZXBvc2l0b3J5LmNlcnR1bS5wbC9jY3Nj
+# YTIwMjEuY2VyMB8GA1UdIwQYMBaAFN10XUwA23ufoHTKsW73PMAywHDNMB0GA1Ud
+# DgQWBBSnkVQcKFuQ0Af1K4VKvHhDxFT+QzBLBgNVHSAERDBCMAgGBmeBDAEEATA2
+# BgsqhGgBhvZ3AgUBBDAnMCUGCCsGAQUFBwIBFhlodHRwczovL3d3dy5jZXJ0dW0u
+# cGwvQ1BTMBMGA1UdJQQMMAoGCCsGAQUFBwMDMA4GA1UdDwEB/wQEAwIHgDANBgkq
+# hkiG9w0BAQsFAAOCAgEATpSpkvGt4HWTuTJVu/LHkwqraRJDoOBB2HyV52AM7pMs
+# fYKOv7qhQiSo1GYextJTxjNoX0RLFuoAir488z7zEHZ+QDSBWCjfprPJzNwhFbQO
+# +m6G/RubmrcsnWmooA54XTKfwxiX1aYZpwohKAD1uP1geAjZLNVKJx26AqYtMn9c
+# uAs2eo4F1vU4oezhd1OAiGMwMhsQoSLBHTggUfeXMfpMOEb9DNY7wpV2Qo6qAk4z
+# yp4SbnsMoUkxnA/OBejRS1K+vlbjrK5pl2btNq9BAWZZRvORtfum1w4UhEhd/UTl
+# V8Vw45MZFUWmSRgYRWkN43ySgWfiQrskLSmXUWhdF5T5sunJTE1pcUR98/mZRTi8
+# eE4Jdoxf1/FZCeMF+t7lZ0t3vkh0IjD2EqqX2CwZv3OW8cnobK1KrDWL5Pz2Nygb
+# YfAW7StbfxDffOM2lKvIxd9gsesCwMlc/iR4J2QdX2slPVA1LXLYN7Qd7uvcruas
+# FNWoTqyVE+hb+H9dGcpbcyHFlXEeNi+Gxvj3eUkGF7p7mfUDVkWHyhdVlElaPKCq
+# aWWv69ItzsOUBoxaRbhA1MvLgS2+U1vwhD31/+RkcxCYVes3VsUgLK1yY6xG9D9k
+# ZvJjCfzh9lLr90sZ0affHPecT8/MxEnSxbqnHBqCgdDaB3pebz3612IMYYfjKzUw
+# gga5MIIEoaADAgECAhEAmaOACiZVO2Wr3G6EprPqOTANBgkqhkiG9w0BAQwFADCB
+# gDELMAkGA1UEBhMCUEwxIjAgBgNVBAoTGVVuaXpldG8gVGVjaG5vbG9naWVzIFMu
+# QS4xJzAlBgNVBAsTHkNlcnR1bSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTEkMCIG
+# A1UEAxMbQ2VydHVtIFRydXN0ZWQgTmV0d29yayBDQSAyMB4XDTIxMDUxOTA1MzIx
+# OFoXDTM2MDUxODA1MzIxOFowVjELMAkGA1UEBhMCUEwxITAfBgNVBAoTGEFzc2Vj
+# byBEYXRhIFN5c3RlbXMgUy5BLjEkMCIGA1UEAxMbQ2VydHVtIENvZGUgU2lnbmlu
+# ZyAyMDIxIENBMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAnSPPBDAj
+# O8FGLOczcz5jXXp1ur5cTbq96y34vuTmflN4mSAfgLKTvggv24/rWiVGzGxT9YEA
+# SVMw1Aj8ewTS4IndU8s7VS5+djSoMcbvIKck6+hI1shsylP4JyLvmxwLHtSworV9
+# wmjhNd627h27a8RdrT1PH9ud0IF+njvMk2xqbNTIPsnWtw3E7DmDoUmDQiYi/ucJ
+# 42fcHqBkbbxYDB7SYOouu9Tj1yHIohzuC8KNqfcYf7Z4/iZgkBJ+UFNDcc6zokZ2
+# uJIxWgPWXMEmhu1gMXgv8aGUsRdaCtVD2bSlbfsq7BiqljjaCun+RJgTgFRCtsuA
+# Ew0pG9+FA+yQN9n/kZtMLK+Wo837Q4QOZgYqVWQ4x6cM7/G0yswg1ElLlJj6NYKL
+# w9EcBXE7TF3HybZtYvj9lDV2nT8mFSkcSkAExzd4prHwYjUXTeZIlVXqj+eaYqoM
+# TpMrfh5MCAOIG5knN4Q/JHuurfTI5XDYO962WZayx7ACFf5ydJpoEowSP07YaBiQ
+# 8nXpDkNrUA9g7qf/rCkKbWpQ5boufUnq1UiYPIAHlezf4muJqxqIns/kqld6JVX8
+# cixbd6PzkDpwZo4SlADaCi2JSplKShBSND36E/ENVv8urPS0yOnpG4tIoBGxVCAR
+# PCg1BnyMJ4rBJAcOSnAWd18Jx5n858JSqPECAwEAAaOCAVUwggFRMA8GA1UdEwEB
+# /wQFMAMBAf8wHQYDVR0OBBYEFN10XUwA23ufoHTKsW73PMAywHDNMB8GA1UdIwQY
+# MBaAFLahVDkCw6A/joq8+tT4HKbROg79MA4GA1UdDwEB/wQEAwIBBjATBgNVHSUE
+# DDAKBggrBgEFBQcDAzAwBgNVHR8EKTAnMCWgI6Ahhh9odHRwOi8vY3JsLmNlcnR1
+# bS5wbC9jdG5jYTIuY3JsMGwGCCsGAQUFBwEBBGAwXjAoBggrBgEFBQcwAYYcaHR0
+# cDovL3N1YmNhLm9jc3AtY2VydHVtLmNvbTAyBggrBgEFBQcwAoYmaHR0cDovL3Jl
+# cG9zaXRvcnkuY2VydHVtLnBsL2N0bmNhMi5jZXIwOQYDVR0gBDIwMDAuBgRVHSAA
+# MCYwJAYIKwYBBQUHAgEWGGh0dHA6Ly93d3cuY2VydHVtLnBsL0NQUzANBgkqhkiG
+# 9w0BAQwFAAOCAgEAdYhYD+WPUCiaU58Q7EP89DttyZqGYn2XRDhJkL6P+/T0IPZy
+# xfxiXumYlARMgwRzLRUStJl490L94C9LGF3vjzzH8Jq3iR74BRlkO18J3zIdmCKQ
+# a5LyZ48IfICJTZVJeChDUyuQy6rGDxLUUAsO0eqeLNhLVsgw6/zOfImNlARKn1FP
+# 7o0fTbj8ipNGxHBIutiRsWrhWM2f8pXdd3x2mbJCKKtl2s42g9KUJHEIiLni9Byo
+# qIUul4GblLQigO0ugh7bWRLDm0CdY9rNLqyA3ahe8WlxVWkxyrQLjH8ItI17RdyS
+# aYayX3PhRSC4Am1/7mATwZWwSD+B7eMcZNhpn8zJ+6MTyE6YoEBSRVrs0zFFIHUR
+# 08Wk0ikSf+lIe5Iv6RY3/bFAEloMU+vUBfSouCReZwSLo8WdrDlPXtR0gicDnytO
+# 7eZ5827NS2x7gCBibESYkOh1/w1tVxTpV2Na3PR7nxYVlPu1JPoRZCbH86gc96UT
+# vuWiOruWmyOEMLOGGniR+x+zPF/2DaGgK2W1eEJfo2qyrBNPvF7wuAyQfiFXLwvW
+# HamoYtPZo0LHuH8X3n9C+xN4YaNjt2ywzOr+tKyEVAotnyU9vyEVOaIYMk3IeBrm
+# Fnn0gbKeTTyYeEEUz/Qwt4HOUBCrW602NCmvO1nm+/80nLy5r0AZvCQxaQ4wgga5
+# MIIEoaADAgECAhEA5/9pxzs1zkuRJth0fGilhzANBgkqhkiG9w0BAQwFADCBgDEL
+# MAkGA1UEBhMCUEwxIjAgBgNVBAoTGVVuaXpldG8gVGVjaG5vbG9naWVzIFMuQS4x
+# JzAlBgNVBAsTHkNlcnR1bSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTEkMCIGA1UE
+# AxMbQ2VydHVtIFRydXN0ZWQgTmV0d29yayBDQSAyMB4XDTIxMDUxOTA1MzIwN1oX
+# DTM2MDUxODA1MzIwN1owVjELMAkGA1UEBhMCUEwxITAfBgNVBAoTGEFzc2VjbyBE
+# YXRhIFN5c3RlbXMgUy5BLjEkMCIGA1UEAxMbQ2VydHVtIFRpbWVzdGFtcGluZyAy
+# MDIxIENBMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA6RIfBDXtuV16
+# xaaVQb6KZX9Od9FtJXXTZo7b+GEof3+3g0ChWiKnO7R4+6MfrvLyLCWZa6GpFHjE
+# t4t0/GiUQvnkLOBRdBqr5DOvlmTvJJs2X8ZmWgWJjC7PBZLYBWAs8sJl3kNXxBMX
+# 5XntjqWx1ZOuuXl0R4x+zGGSMzZ45dpvB8vLpQfZkfMC/1tL9KYyjU+htLH68dZJ
+# PtzhqLBVG+8ljZ1ZFilOKksS79epCeqFSeAUm2eMTGpOiS3gfLM6yvb8Bg6bxg5y
+# glDGC9zbr4sB9ceIGRtCQF1N8dqTgM/dSViiUgJkcv5dLNJeWxGCqJYPgzKlYZTg
+# DXfGIeZpEFmjBLwURP5ABsyKoFocMzdjrCiFbTvJn+bD1kq78qZUgAQGGtd6zGJ8
+# 8H4NPJ5Y2R4IargiWAmv8RyvWnHr/VA+2PrrK9eXe5q7M88YRdSTq9TKbqdnITUg
+# Zcjjm4ZUjteq8K331a4P0s2in0p3UubMEYa/G5w6jSWPUzchGLwWKYBfeSu6dIOC
+# 4LkeAPvmdZxSB1lWOb9HzVWZoM8Q/blaP4LWt6JxjkI9yQsYGMdCqwl7uMnPUIlc
+# ExS1mzXRxUowQref/EPaS7kYVaHHQrp4XB7nTEtQhkP0Z9Puz/n8zIFnUSnxDof4
+# Yy650PAXSYmK2TcbyDoTNmmt8xAxzcMCAwEAAaOCAVUwggFRMA8GA1UdEwEB/wQF
+# MAMBAf8wHQYDVR0OBBYEFL5UAi+/QGxzQ86sCSVOnkNEGu7gMB8GA1UdIwQYMBaA
+# FLahVDkCw6A/joq8+tT4HKbROg79MA4GA1UdDwEB/wQEAwIBBjATBgNVHSUEDDAK
+# BggrBgEFBQcDCDAwBgNVHR8EKTAnMCWgI6Ahhh9odHRwOi8vY3JsLmNlcnR1bS5w
+# bC9jdG5jYTIuY3JsMGwGCCsGAQUFBwEBBGAwXjAoBggrBgEFBQcwAYYcaHR0cDov
+# L3N1YmNhLm9jc3AtY2VydHVtLmNvbTAyBggrBgEFBQcwAoYmaHR0cDovL3JlcG9z
+# aXRvcnkuY2VydHVtLnBsL2N0bmNhMi5jZXIwOQYDVR0gBDIwMDAuBgRVHSAAMCYw
+# JAYIKwYBBQUHAgEWGGh0dHA6Ly93d3cuY2VydHVtLnBsL0NQUzANBgkqhkiG9w0B
+# AQwFAAOCAgEAuJNZd8lMFf2UBwigp3qgLPBBk58BFCS3Q6aJDf3TISoytK0eal/J
+# yCB88aUEd0wMNiEcNVMbK9j5Yht2whaknUE1G32k6uld7wcxHmw67vUBY6pSp8Qh
+# dodY4SzRRaZWzyYlviUpyU4dXyhKhHSncYJfa1U75cXxCe3sTp9uTBm3f8Bj8Lkp
+# jMUSVTtMJ6oEu5JqCYzRfc6nnoRUgwz/GVZFoOBGdrSEtDN7mZgcka/tS5MI47fA
+# LVvN5lZ2U8k7Dm/hTX8CWOw0uBZloZEW4HB0Xra3qE4qzzq/6M8gyoU/DE0k3+i7
+# bYOrOk/7tPJg1sOhytOGUQ30PbG++0FfJioDuOFhj99b151SqFlSaRQYz74y/P2X
+# JP+cF19oqozmi0rRTkfyEJIvhIZ+M5XIFZttmVQgTxfpfJwMFFEoQrSrklOxpmSy
+# gppsUDJEoliC05vBLVQ+gMZyYaKvBJ4YxBMlKH5ZHkRdloRYlUDplk8GUa+OCMVh
+# pDSQurU6K1ua5dmZftnvSSz2H96UrQDzA6DyiI1V3ejVtvn2azVAXg6NnjmuRZ+w
+# a7Pxy0H3+V4K4rOTHlG3VYA6xfLsTunCz72T6Ot4+tkrDYOeaU1pPX1CBfYj6EW2
+# +ELq46GP8KCNUQDirWLU4nOmgCat7vN0SD6RlwUiSsMeCiQDmZwgwrUxggciMIIH
+# HgIBATBqMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBTeXN0
+# ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQ
+# fB8UmQPHt59QV6+7UlioFDANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEM
+# MQowCKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQB
+# gjcCAQsxDjAMBgorBgEEAYI3AgEVMC8GCSqGSIb3DQEJBDEiBCCTCzQYKWkw3f6F
+# DJLC0pu/mYZtNXEB022815e9BpSYEjANBgkqhkiG9w0BAQEFAASCAgBvsc/ZhPnI
+# rVzkRrEeG8J4wCRDyCp9hA/49m2YKSscdiDaqcP9RG3RGCphcemTIJ6w0N5QtsN+
+# sbfY6f9fGLps2hlVlKqpV4NkT8tAILqEZWGzMCBY+s2OQMHUBbKKj/tcYlQC7Rkq
+# /NboPvYnEN8Lr7Stva5/GPhChL9p8D8/1If4RRDTmNof5QAqwiv4gASLKoJwcAqy
+# waxly0M7jtGztLQcsk7XybbChQKvMDdO9HRtDP1TCyu+SaBs/d/bOdc0Bs7pCeNA
+# 5sH2DdNq3cTehCr8uCMyLkAVsyPmiHUOLsYzpH4ZM9uD+hiLsoK9htKxvw2mEfJM
+# CqSO/CwvyL/RdfYyzWNHhNCcxOU/ZA1Key+7LdgEd/6TebGXXKNjx8ll2spCmjR1
+# iCPHP+gEgUuLZDrWfFLtYGE91s6KEQ7mUmm/iE2xLhAM4/qnJRes2qgJfhPbp42L
+# g1UKArcCufEJeIpSQYRhf3qjUC0/EVV2RiTv+BUctT3Jg4bhn98BBzRHBb8AQBvn
+# Bj0XalOQLK0YpmmIHo2AgiiuHfm2B836C5j7ZSk8WW4/UwNqlkHB8mvj4tN5L1+S
+# bdRvPehBk9aEL6aR5fvE0aZdN09E9Pxq2c/oBqKDEpVfYKV3EAvneOUSvoBveomN
+# y34ajrxyPbIRB3fiPAyhMOn8gWKEYi1J9aGCBAIwggP+BgkqhkiG9w0BCQYxggPv
+# MIID6wIBATBqMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBT
+# eXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBD
+# QQIQKPB3wRw2vf5fdDJHcCcuAzANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcN
+# AQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNjA0MjMxMTU2NDVa
+# MDcGCyqGSIb3DQEJEAIvMSgwJjAkMCIEIIW+kOEK0kONfMkotq9IsJqyCBd87Piw
+# EmxY05EFJcQ8MD8GCSqGSIb3DQEJBDEyBDD84yV2+FTF9dDe3bz+a3rhOl5fw9xf
+# PDWvC1Zv648HrFXEDu5FUUOmjPaE/ovGWa8wgZ8GCyqGSIb3DQEJEAIMMYGPMIGM
+# MIGJMIGGBBRXFGhBDKha80JO+RZKUTYQ9NONmDBuMFqkWDBWMQswCQYDVQQGEwJQ
+# TDEhMB8GA1UEChMYQXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtD
+# ZXJ0dW0gVGltZXN0YW1waW5nIDIwMjEgQ0ECECjwd8EcNr3+X3QyR3AnLgMwDQYJ
+# KoZIhvcNAQEBBQAEggIAE7QaLizDTDRp0ed8RmxFqGjt/yqBW2rEL1v+Mj83htn1
+# xuWCuTZn/rgAIOGsXVE/mJAfDQpWRr1HrPwA+FpPt4xMUcfO9IemX4VvuUHKxccX
+# t0Ps4uDGHTIEgngwMo/fwylRPQ3n92qpRjlWP3oQFKf/2wfOb5gfEU1OmPZTJzTO
+# Lauwh009u7mxyNPIB55ZWZr8xfz2skHnYDmAJdTAxCZJ7HRCqr64WC2Lh4UAdHXg
+# OeH7kkDwX749eG2cHnSnIf2kcvjI5x7MSUM0uwD+JM8LmnAv3A0UZERhv9hfWgxx
+# pq4dyKH3hfxbQZj7qK5kWdA8iEhn1drgLngzjZlqwHPIQ8J6j3asp496enDwdDCO
+# PtcIewiqsLkvA5s/dodR4Dnpp9gAPIFw5JjnNEqA1i0e91pyPuctgnSpDpf0wtth
+# JldiZg841JRtQlF1EYQhfR4ILKb3nnig9pNzA9Wj+NBN/aHPJPQCoezRzSJO6DLx
+# /367NI2TABSgFGBO+lJUeU7BWhx6twCw00dtJL8C2JSlFLc0F0eBJ4cLJyDF6nQr
+# je3hvJtu5FN8a5W2O00jWUzvyAWaSEOsOcJ+v5XTxeer/nFm/ffBrLxqS9nNqlRx
+# Egg22sjPEo/8jtDhKprQvbR5BUXoeV4yTLcSuKq/ufxad+n3ct/sYODR9EdOAUM=
 # SIG # End signature block

@@ -1,93 +1,220 @@
-# ceterion Packaging Framework 2510 (25.10.0.0)
+# ceterion Packaging Framework (cPF)
 
-## Synopsis
+> Enterprise-ready PowerShell framework for standardized, automated, and platform-agnostic software packaging and deployment integration.
 
-A PowerShell module based packaging framework.
 
-This packaging framework contains parts of the PowerShell App Deployment Toolkit (Version 3.7.0) project from
-[http://psappdeploytoolkit.com/](http://psappdeploytoolkit.com/) with modifications, fixes, custom extensions 
-and new features.
-The modification includes a conversion from a simple included script into an PowerShell module and it's
-extended with some additional functions and variables we missed in the original implementation.
+![Version](https://img.shields.io/badge/version-26.4.0.0-blue)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
+![License](https://img.shields.io/badge/license-GPLv3-green)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
-In addition we provide extensions with improved functionality which are available on request. 
+---
 
-This extra toolset includes actually the following features:
+## 🚀 Quick Start
 
-- enteo/NetInstall/DSM/avanti/HEAT/Frontrange Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
-- Wise Script Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
-- NSIS Script Migration Converter as PowerShell Module to migrate proprietary Packages to PowerShell
-- VMware Workspace ONE UEM Extension with package importer and other cmdlets to automate Workspace ONE tasks
-- SCCM Toolset (e.g. to build collections, parameter inheritance,..)
-- Sample Application Package Templates (est. 270+ Applications)
-- Sample OS Configuration Package Templates (est. 100+ Package Templates)
-- Sample Citrix Configuration Package Templates (different versions e.g. Provisioning Server, XenApp, XenDesktop -  always up2date)
+```powershell
+Import-Module PackagingFramework
+Initialize-Script
+New-Package -Path C:\Temp -Name 'MyApp_1.0'
+```
 
-Please feel free to check these sways for additional information:
+---
 
-- Automatic Deployment of Citrix XenApp & XenDesktop with Provisioning Services
-  https://sway.office.com/B1cGP9yGvSGUnxb2?ref=Link
- 
-- Migrate and convert your Packages from, DSM/Heat/Frontrange/NetInstall to Powershell 
-  https://sway.office.com/30HfytCsDlJD3nVH?ref=Link
+## 💡 Why cPF?
+
+- Standardize and scale your **enterprise packaging process**
+- Automate packaging with a **modular PowerShell framework**
+- Integrate seamlessly with **modern deployment platforms (MECM, Intune, Workspace ONE, XOAP, Recast)**
+- Extend into full **end-to-end deployment workflows (cDF)**
+- Leverage **Winget, XOAP, and enterprise service integrations**
+
+---
+
+# ceterion Packaging Framework 2604 (26.4.0.0)
+
+## Overview
+
+The **ceterion Packaging Framework (cPF)** is a modular PowerShell-based framework for standardized, automated, and enterprise-ready software packaging.
+
+Since 2019, the framework has been continuously evolved and architecturally expanded across more than 40 iterations.
+
+It enables organizations to build, manage, and deploy application packages in a consistent, scalable, and maintainable way across modern endpoint management platforms.
+
+## Key Features
+
+- Modular PowerShell architecture (fully refactored from script-based approach)
+- Standardized packaging methodology for enterprise environments
+- Integration-ready for modern deployment solutions (e.g. MECM, Intune, Workspace ONE)
+- Seamless integration with the ceterion Deployment Framework (cDF) enabling end-to-end automation from packaging to deployment
+- Native integration with Recast Application Workspace for enhanced application management and user experience
+- Built-in logging, error handling, and user interaction handling
+- Highly customizable via central configuration (`PackagingFramework.json`)
+- Designed for automation and CI/CD scenarios
+
+## Packaging Lifecycle
+
+The framework supports a structured end-to-end packaging and deployment lifecycle:
+
+Create → Configure → Package → Test → Deploy → Maintain
+
+**Roles & Technologies:**
+
+- **Create / Configure / Package / Test**
+  - **cPF (ceterion Packaging Framework)** – Standardized packaging, configuration, validation, and testing
+
+- **Deploy**
+  - Any deployment mechanism (including custom scripts such as CMD/PowerShell)
+  - **Tools (Endpoint Management)**
+    - **Microsoft Intune** – Endpoint management platform
+    - **Microsoft MECM (SCCM)** – Endpoint management platform
+    - **Omnissa Workspace ONE** – Endpoint management platform
+  - **Frameworks**
+    - **cDF (ceterion Deployment Framework)** – Optional deployment orchestration and automation layer
+  - **Platforms / Experience Layer**
+    - **XOAP** – Integration, package management, and Infrastructure-as-a-Service (IaaS) enablement
+    - **Recast Application Workspace** – Application delivery and user experience layer
+
+- **Maintain**
+  - **cPF / cDF** – Lifecycle updates, versioning, and operational management
+
+This ensures a seamless transition from packaging to enterprise deployment workflows.
+
+## Technology Base
+
+The framework integrates selected components of the **PowerShell App Deployment Toolkit (PSAppDeployToolkit v3.7.0)**.
+
+These components have been:
+- Refactored
+- Extended
+- Stabilized
+
+…and embedded into a modular architecture to meet real-world enterprise requirements.
+
+## What’s New in 2604
+
+- Localization extended to **25 supported languages (23 newly added)**:
+  - Newly added: Arabic, Chinese (Simplified), Chinese (Traditional), Czech, Danish, Dutch (Netherlands), Finnish, French, Hebrew, Hungarian, Italian, Japanese, Korean, Norwegian (Bokmål), Polish, Portuguese, Portuguese (Brazil), Russian, Slovak, Spanish, Swedish, Turkish, Ukrainian
+
+*Previously supported languages: German, English*
+
+- Added **XOAP support** for integration, deployment, and management of Packaging Framework packages in XOAP environments
+- Updated internal parameter handling (`ServiceURL` replaces `WebserverURL`)
+
+## Optional Extensions & Toolsets
+
+Extended capabilities are available on request:
+
+- **Migration Converters**
+  - Ivanti / DSM / NetInstall / HEAT / FrontRange → PowerShell
+  - Wise Script → PowerShell
+  - NSIS → PowerShell
+
+- **Workspace ONE UEM Extension**
+  - Automation cmdlets for package import and task handling
+
+- **SCCM / MECM / Intune Toolset**
+  - Collection management
+  - Parameter inheritance
+  - Deployment automation
+
+- **Template Libraries**
+  - 270+ Application package templates
+  - 100+ OS configuration templates
+  - Citrix templates (PVS, XenApp, XenDesktop)
+
+- **Winget Repository Integration**
+  - Automated integration of Winget package repositories
+  - Enterprise-ready consumption of public repositories with standardized packaging integration
+
+- **Packaging as a Service (PaaS)**
+  - Outsourced and scalable application packaging services by ceterion
+  - Standardized, high-quality package delivery aligned with enterprise requirements
+
+- **Professional & Support Services**
+  - Implementation and customization
+  - Integration into existing environments
+  - Trainings and workshops
+  - Technical support
+  - SLA-based enterprise support
 
 ## Installation
 
-Run PackagingFrameworkSetup.exe
+Run:
+
+```
+PackagingFrameworkSetup.exe
+```
 
 ## Usage
 
-First make sure you start your PowerShell session with local admin permissions.
-When UAC is enabled make sure to start an elevated Powershell session.
-Also make sure your PowerShell execution policy is configured to run scripts, i.e. you can configure it with this PowerShell command:
+### Requirements
 
-```Set-ExecutionPolicy RemoteSigned```
+- PowerShell with administrative privileges
+- Execution policy allowing script execution:
 
-To import the module use the following PowerShell command:
+```
+Set-ExecutionPolicy RemoteSigned
+```
 
-```Import-Module PackagingFramework```
+### Import Module
 
-To Initialize the runtime variables use the following PowerShell command:
+```
+Import-Module PackagingFramework
+```
 
-```Initialize-Script```
+### Initialize Runtime
 
-The get a list of all included command use the following PowerShell command:
+```
+Initialize-Script
+```
 
-```Get-Command -Module PackagingFramework```
+### Discover Commands
 
-To get help for the individual PowerShell commands of the module use the following PowerShell command:
+```
+Get-Command -Module PackagingFramework
+```
 
-```Get-Help [Command]```
+### Help
 
-To get a full help of all included command use the following PowerShell command:
+```
+Get-Help [Command]
+Get-Command -Module PackagingFramework | Get-Help
+Show-HelpConsole
+```
 
-```Get-Command -Module PackagingFramework | Get-Help```
+### Runtime Variables
 
-To get a help console use this PowerShell command:
+```
+Get-Variable | Out-GridView
+```
 
-```Show-HelpConsole```
+### Create a Package (Example)
 
-To get a list of all runtime variables use the following PowerShell command:
+```
+New-Package -Path C:\Temp -Name 'Microsoft_Office_16.0_EN_01.00'
+```
 
-```Get-Variable | Out-GridView```
+### Configuration
 
-To create your first own package use the following PowerShell command (example):
+Central configuration file:
 
-```New-Package -Path C:\Temp -Name 'Microsoft_Office_16.0_EN_01.00'```
+```
+%ProgramFiles%\WindowsPowerShell\Modules\PackagingFramework\PackagingFramework.json
+```
 
-To customize the packaging framework to your needs please have a look at the module configuration file at:
+### Example Packages
 
-```'%ProgramFiles%\WindowsPowerShell\Modules\PackagingFramework\PackagingFramework.json'```
+```
+%MyDocuments%\Packaging Framework Examples
+```
 
-When you have select the "Example Package" option while installing the setup, you will find the examples at:
+## Support & Contact
 
-```'%MyDocuments%\Packaging Framework Examples'```
-
-## Contributors
-
-If you have any feedback, comment or question, you can contact us via [packagingframework@ceterion.com](mailto:packagingframework@ceterion.com) or by creating an issue at [https://github.com/ceterion/PackagingFramework/issues](https://github.com/ceterion/PackagingFramework/issues)
+- Email: packagingframework@ceterion.com
+- GitHub Issues: https://github.com/ceterion/PackagingFramework/issues
 
 ## License
 
-This Project is licensed with the GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007
-For additional details, see /LICENSE.txt
+Licensed under the **GNU General Public License v3.0**.
+
+See `/LICENSE.txt` for details.

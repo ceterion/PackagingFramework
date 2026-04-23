@@ -506,3 +506,23 @@ Add-InstallationLogEntry    Added support for cDF (ceterion Deployment Framework
 Fixes:
 ----------------
 Get-Parameter               Fixed handling of MECM collection variables when the string ends with a special character.
+
+Version 2604 (26.4.0.0)
+########################
+
+General:
+----------------
+- Added support for XOAP, enabling Packaging Framework packages to be integrated, deployed, and managed within XOAP environments, including full compatibility with the XOAP naming scheme and registry branding.
+
+- Localization extended to 25 supported languages (23 newly added)
+  - Newly added: Arabic, Chinese (Simplified), Chinese (Traditional), Czech, Danish, Finnish, French, Hebrew, Hungarian, Italian, Japanese, Korean, Norwegian (Bokmål), Dutch (Netherlands), Polish, Portuguese, Portuguese (Brazil), Russian, Slovak, Spanish, Swedish, Turkish, Ukrainian
+  - Standardized localization across all languages (installation, uninstallation, restart, deferral, disk space messages)
+  - Unified message structure and placeholders ({0}, {1}, {2}) for consistency and maintainability
+  - English (EN) and German (DE) defined as reference languages and updated
+
+
+Updated Cmdlets:
+----------------
+- Get-Parameter               Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence.
+- Set-Parameter               Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence.
+- Add-InstallationLogEntry    Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence.
