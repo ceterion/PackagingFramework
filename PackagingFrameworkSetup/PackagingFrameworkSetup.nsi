@@ -30,6 +30,7 @@ VIAddVersionKey "CompanyName" "ceterion AG"
 !define MUI_HEADERIMAGE_RIGHT
 !define MUI_WELCOMEFINISHPAGE_BITMAP "PackagingFrameworkSetupWizardInstall.bmp"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "PackagingFrameworkSetupWizardUninstall.bmp"
+!define MUI_FINISHPAGE_SHOWREADME $INSTDIR\PackagingFramework\readme.md
 
 # Pages
 !insertmacro MUI_PAGE_WELCOME
@@ -56,8 +57,6 @@ Section "PowerShell Module" Section1
   File /r ..\PackagingFramework\*.*
   SetOutPath '$InstDir\PackagingFrameworkExtension'
   File /r ..\PackagingFrameworkExtension\*.*
-  SetOutPath '$InstDir\PackagingFramework\SupportFiles'
-  File /r ..\PackagingFrameworkSupportFiles\*.*
 
   # Store installation folder
   WriteRegStr HKLM "Software\PackagingFramework" "" $InstDir
