@@ -3,7 +3,7 @@
 > Enterprise-ready PowerShell framework for standardized, automated, and platform-agnostic software packaging and deployment integration.
 
 
-![Version](https://img.shields.io/badge/version-26.4.0.0-blue)
+![Version](https://img.shields.io/badge/version-26.6.1.0-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -30,7 +30,7 @@ New-Package -Path C:\Temp -Name 'MyApp_1.0'
 
 ---
 
-# ceterion Packaging Framework 2604 (26.4.0.0)
+# ceterion Packaging Framework 2606 (26.6.1.0)
 
 ## Overview
 
@@ -47,6 +47,7 @@ It enables organizations to build, manage, and deploy application packages in a 
 - Integration-ready for modern deployment solutions (e.g. MECM, Intune, Workspace ONE)
 - Seamless integration with the ceterion Deployment Framework (cDF) enabling end-to-end automation from packaging to deployment
 - Native integration with Recast Application Workspace for enhanced application management and user experience
+- Package integrity sealing with automatic install-time validation (`New-PackageSeal` / `Test-PackageSeal`)
 - Built-in logging, error handling, and user interaction handling
 - Highly customizable via central configuration (`PackagingFramework.json`)
 - Designed for automation and CI/CD scenarios
@@ -90,7 +91,11 @@ These components have been:
 
 …and embedded into a modular architecture to meet real-world enterprise requirements.
 
-## What’s New in 2604
+## What’s New in 2606 (26.6.1.0)
+
+- **Package integrity sealing** — seal a package’s `Files` folder with per-file MD5 hashes and a top-level aggregate manifest hash via **`New-PackageSeal`**, embedded as a collapsible `#region` block inside the package script. The seal is validated automatically at install time (**`Test-PackageSeal`**, invoked by `Invoke-PackageStart`); a changed, missing, or added file aborts the package before any payload runs. Sealing removes any existing Authenticode signature so packages can be re-signed afterwards (seal, then sign).
+
+### Previously in 2604 (26.4.0.0)
 
 - Localization extended to **25 supported languages (23 newly added)**:
   - Newly added: Arabic, Chinese (Simplified), Chinese (Traditional), Czech, Danish, Dutch (Netherlands), Finnish, French, Hebrew, Hungarian, Italian, Japanese, Korean, Norwegian (Bokmål), Polish, Portuguese, Portuguese (Brazil), Russian, Slovak, Spanish, Swedish, Turkish, Ukrainian

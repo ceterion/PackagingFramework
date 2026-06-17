@@ -8710,6 +8710,11 @@ Function Invoke-PackageStart {
             Set-InstallPhase 'PackageStart'
             Write-Log "Invoke Package Start" -Source ${CmdletName}
 
+            # Validate sealed package payloads before executing package code
+            If (($deploymentType -ieq 'Install') -and $PackageName) {
+                Test-PackageSeal -Path $ScriptDirectory | Out-Null
+            }
+
             # Run PackageStartExtension from Extension (if exists)
             if ($SkipPackageStartExtension -ne $true) {
                 If ($PackageStartExtension) { 
@@ -8723,8 +8728,8 @@ Function Invoke-PackageStart {
     
 		}
 		Catch {
-			Write-Log -Message "Failed to invoke Package End Section. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
-			Throw "Failed to invoke Package End Section.: $($_.Exception.Message)"
+			Write-Log -Message "Failed to invoke Package Start Section. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Throw "Failed to invoke Package Start Section.: $($_.Exception.Message)"
 		}
 	}
 	End {
@@ -21524,14 +21529,429 @@ Function Write-FunctionHeaderOrFooter {
 }
 #endregion
 
+#region Package Seal
+#region Function Get-PackageFileMD5
+Function Get-PackageFileMD5 {
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path
+	)
+	Process {
+		$Md5 = [System.Security.Cryptography.MD5]::Create()
+		Try {
+			$Stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+			Try {
+				Return ([System.BitConverter]::ToString($Md5.ComputeHash($Stream)) -replace '-','')
+			}
+			Finally { $Stream.Dispose() }
+		}
+		Finally { $Md5.Dispose() }
+	}
+}
+#endregion Function Get-PackageFileMD5
+
+#region Function Get-PackageManifestHash
+Function Get-PackageManifestHash {
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[AllowEmptyCollection()]
+		[array]$Files
+	)
+	Process {
+		$Builder = New-Object -TypeName System.Text.StringBuilder
+		foreach ($Entry in $Files) {
+			[void]$Builder.Append([string]$Entry.Path)
+			[void]$Builder.Append("`n")
+			[void]$Builder.Append([string]$Entry.Length)
+			[void]$Builder.Append("`n")
+			[void]$Builder.Append(([string]$Entry.Hash).ToUpperInvariant())
+			[void]$Builder.Append("`n")
+		}
+		$Md5 = [System.Security.Cryptography.MD5]::Create()
+		Try {
+			[byte[]]$Bytes = [System.Text.Encoding]::UTF8.GetBytes($Builder.ToString())
+			Return ([System.BitConverter]::ToString($Md5.ComputeHash($Bytes)) -replace '-','')
+		}
+		Finally { $Md5.Dispose() }
+	}
+}
+#endregion Function Get-PackageManifestHash
+
+#region Function Get-PackageSeal
+Function Get-PackageSeal {
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$ScriptFile
+	)
+	Process {
+		if (-not (Test-Path -LiteralPath $ScriptFile -PathType Leaf)) { Return $null }
+
+		$Encoding = Get-TextFileEncoding -Path $ScriptFile
+		[string]$Content = [System.IO.File]::ReadAllText($ScriptFile, $Encoding)
+		[string]$SealPattern = '(?ms)^#region PackagingFramework Seal\r?\n(?<Seal>.*?)^#endregion PackagingFramework Seal\r?\n?'
+		$SealMatch = [regex]::Match($Content, $SealPattern)
+		if (-not $SealMatch.Success) {
+			if ($Content -match '(?m)^# PackagingFramework Seal: Begin') {
+				Throw "Outdated package seal format (pre-region markers). Reseal the package with New-PackageSeal."
+			}
+			Return $null
+		}
+
+		[array]$JsonLines = @()
+		foreach ($Line in ($SealMatch.Groups['Seal'].Value -split "`r?`n")) {
+			if ([string]::IsNullOrWhiteSpace($Line)) { continue }
+			if ($Line -match '^\s*# ?(.*)$') {
+				$JsonLines += $Matches[1]
+			}
+			else {
+				Throw "Invalid package seal content line [$Line]."
+			}
+		}
+
+		[string]$Json = ($JsonLines -join [Environment]::NewLine)
+		if ([string]::IsNullOrWhiteSpace($Json)) { Throw "Package seal block is empty." }
+
+		Return ($Json | ConvertFrom-Json)
+	}
+}
+#endregion Function Get-PackageSeal
+
+#region Function Get-TextFileEncoding
+Function Get-TextFileEncoding {
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path
+	)
+	Process {
+		[byte[]]$Bytes = [System.IO.File]::ReadAllBytes($Path)
+		if (($Bytes.Length -ge 3) -and ($Bytes[0] -eq 0xEF) -and ($Bytes[1] -eq 0xBB) -and ($Bytes[2] -eq 0xBF)) {
+			Return (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $true)
+		}
+		if (($Bytes.Length -ge 2) -and ($Bytes[0] -eq 0xFF) -and ($Bytes[1] -eq 0xFE)) {
+			Return [System.Text.Encoding]::Unicode
+		}
+		if (($Bytes.Length -ge 2) -and ($Bytes[0] -eq 0xFE) -and ($Bytes[1] -eq 0xFF)) {
+			Return [System.Text.Encoding]::BigEndianUnicode
+		}
+		Return [System.Text.Encoding]::Default
+	}
+}
+#endregion Function Get-TextFileEncoding
+
+#region Function New-PackageSealBlock
+Function New-PackageSealBlock {
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[psobject]$Manifest,
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNull()]
+		[string]$NewLine
+	)
+	Process {
+		[string]$Json = $Manifest | ConvertTo-Json -Depth 6
+		[array]$Lines = @('#region PackagingFramework Seal')
+		foreach ($Line in ($Json -split "`r?`n")) {
+			$Lines += "# $Line"
+		}
+		$Lines += '#endregion PackagingFramework Seal'
+		Return ($Lines -join $NewLine)
+	}
+}
+#endregion Function New-PackageSealBlock
+
+#region Function New-PackageSealManifest
+Function New-PackageSealManifest {
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$PackageFolder,
+		[Parameter(Mandatory=$true)]
+		[ValidateNotNullorEmpty()]
+		[string]$PackageName
+	)
+	Process {
+		[string]$FilesFolder = Join-Path -Path $PackageFolder -ChildPath 'Files'
+		if (-not (Test-Path -LiteralPath $FilesFolder -PathType Container)) {
+			Throw "Files folder [$FilesFolder] was not found."
+		}
+
+		[string]$FilesRoot = (Get-Item -LiteralPath $FilesFolder -ErrorAction Stop).FullName.TrimEnd([char[]]'\/')
+		[array]$FileEntries = @()
+		[array]$FileItems = @(Get-ChildItem -LiteralPath $FilesFolder -File -Recurse -Force -ErrorAction Stop)
+		[Array]::Sort($FileItems, [System.Comparison[object]]{ param($a, $b) [string]::CompareOrdinal($a.FullName, $b.FullName) })
+
+		foreach ($File in $FileItems) {
+			[string]$RelativePath = $File.FullName.Substring($FilesRoot.Length).TrimStart([char[]]'\/')
+			$RelativePath = $RelativePath -replace '\\','/'
+
+			$FileEntries += [pscustomobject][ordered]@{
+				Path = $RelativePath
+				Hash = (Get-PackageFileMD5 -Path $File.FullName).ToUpperInvariant()
+				Length = $File.Length
+			}
+		}
+
+		$ManifestHash = Get-PackageManifestHash -Files $FileEntries
+
+		Return [pscustomobject][ordered]@{
+			SchemaVersion = 2
+			Algorithm = 'MD5'
+			GeneratedOn = (Get-Date).ToUniversalTime().ToString('o')
+			PackageName = $PackageName
+			ManifestHash = $ManifestHash
+			Files = @($FileEntries)
+		}
+	}
+}
+#endregion Function New-PackageSealManifest
+
+#region Function New-PackageSeal
+Function New-PackageSeal {
+<#
+.SYNOPSIS
+	Seal a package Files folder.
+.DESCRIPTION
+	Scans the package Files folder recursively, calculates MD5 hashes, and writes a generated seal block into the package PowerShell script. Any existing seal block and Authenticode signature are removed; re-sign the package after sealing.
+.PARAMETER Path
+	The package folder path. The folder must contain <PackageName>.ps1 and a Files folder.
+.EXAMPLE
+	New-PackageSeal -Path C:\Packages\Vendor_App_1.0_EN_01.00
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding(SupportsShouldProcess=$true)]
+	Param (
+		[Parameter(Mandatory=$true, Position=0)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path
+	)
+	Begin {
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+	}
+	Process {
+		Try {
+            # Make sure Initialize-Script was exectuded before
+            if (-not($ModuleConfigFile)) { Initialize-Script }
+
+			if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+				Throw "Package folder [$Path] was not found."
+			}
+
+			[string]$PackageFolder = (Get-Item -LiteralPath $Path -ErrorAction Stop).FullName
+			[string]$PackageName = Split-Path -Path $PackageFolder -Leaf
+			[string]$ScriptFile = Join-Path -Path $PackageFolder -ChildPath "$PackageName.ps1"
+
+			if (-not (Test-Path -LiteralPath $ScriptFile -PathType Leaf)) {
+				Throw "Package script [$ScriptFile] was not found."
+			}
+
+			$Manifest = New-PackageSealManifest -PackageFolder $PackageFolder -PackageName $PackageName
+			$Encoding = Get-TextFileEncoding -Path $ScriptFile
+			[string]$Content = [System.IO.File]::ReadAllText($ScriptFile, $Encoding)
+			if ($Content -match "`r`n") { [string]$NewLine = "`r`n" } else { [string]$NewLine = "`n" }
+			[string]$SealBlock = New-PackageSealBlock -Manifest $Manifest -NewLine $NewLine
+			# Remove any existing seal block so a reseal does not duplicate it.
+			[string]$SealPattern = '(?ms)^#region PackagingFramework Seal\r?\n.*?^#endregion PackagingFramework Seal\r?\n?'
+			[string]$NewContent = [regex]::Replace($Content, $SealPattern, '', 1)
+
+			# Remove any existing Authenticode signature block. Writing the seal changes the
+			# script content and invalidates the signature, so the package must be re-signed
+			# after sealing; leaving a stale, non-validating signature behind is misleading.
+			[bool]$SignatureRemoved = $false
+			$SignatureBegins = [regex]::Matches($NewContent, '(?m)^# SIG # Begin signature block')
+			if ($SignatureBegins.Count -gt 0) {
+				[int]$SignatureIndex = $SignatureBegins[$SignatureBegins.Count - 1].Index
+				# Only strip when the last marker starts a well-formed block that runs to end of file,
+				# so the literal appearing earlier in package code (e.g. a here-string) is never stripped.
+				if ($NewContent.Substring($SignatureIndex) -match '(?s)^# SIG # Begin signature block.*# SIG # End signature block\s*$') {
+					$NewContent = $NewContent.Substring(0, $SignatureIndex)
+					$SignatureRemoved = $true
+				}
+			}
+
+			# Append the fresh seal block at the end of the (now unsigned) script.
+			$NewContent = $NewContent.TrimEnd([char[]]"`r`n") + $NewLine + $NewLine + $SealBlock + $NewLine
+
+			if ($PSCmdlet.ShouldProcess($ScriptFile, 'Update package seal')) {
+				[System.IO.File]::WriteAllText($ScriptFile, $NewContent, $Encoding)
+				if ($SignatureRemoved) {
+					Write-Log -Message "Removed existing Authenticode signature from [$PackageName]; re-sign the package after sealing." -Severity 2 -Source ${CmdletName}
+				}
+				Write-Log -Message "Sealed package [$PackageName] with [$(@($Manifest.Files).Count)] file hash(es)." -Source ${CmdletName}
+
+				Write-Output -InputObject ([pscustomobject]@{
+					PackageName = $PackageName
+					ScriptFile = $ScriptFile
+					Algorithm = $Manifest.Algorithm
+					FilesSealed = @($Manifest.Files).Count
+				})
+			}
+		}
+		Catch {
+			Write-Log -Message "Failed to seal package. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Throw "Failed to seal package: $($_.Exception.Message)"
+		}
+	}
+	End {
+	}
+}
+#endregion Function New-PackageSeal
+
+#region Function Test-PackageSeal
+Function Test-PackageSeal {
+<#
+.SYNOPSIS
+	Validate a sealed package Files folder.
+.DESCRIPTION
+	Reads the seal block from the package script and verifies that every sealed file exists and matches its recorded MD5 hash and length, that the aggregate manifest hash is consistent, and that no file in the Files folder is left uncovered by the seal (an added or unexpected file fails validation). A package with no seal block passes (treated as unsealed); a legacy or pre-v2 seal is rejected and must be resealed.
+.PARAMETER Path
+	The package folder path. The package name is taken from the folder leaf, the script path is <Path>\<PackageName>.ps1, and the files path is <Path>\Files.
+.EXAMPLE
+	Test-PackageSeal -Path C:\Packages\Vendor_App_1.0_EN_01.00
+.NOTES
+	Created by ceterion AG
+.LINK
+	http://www.ceterion.com
+#>
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true, Position=0)]
+		[ValidateNotNullorEmpty()]
+		[string]$Path
+	)
+	Begin {
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+	}
+	Process {
+		Try {
+            # Make sure Initialize-Script was exectuded before
+            if (-not($ModuleConfigFile)) { Initialize-Script }
+
+			if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+				Throw "Package folder [$Path] was not found."
+			}
+			[string]$PackageFolder = (Get-Item -LiteralPath $Path -ErrorAction Stop).FullName
+			[string]$PackageName = Split-Path -Path $PackageFolder -Leaf
+			[string]$ScriptFile = Join-Path -Path $PackageFolder -ChildPath "$PackageName.ps1"
+			[string]$FilesFolder = Join-Path -Path $PackageFolder -ChildPath 'Files'
+
+			$Seal = Get-PackageSeal -ScriptFile $ScriptFile
+			if (-not $Seal) {
+				Write-Log -Message "No package seal block found in [$ScriptFile], skip file hash validation." -Source ${CmdletName} -DebugMessage
+				Return $true
+			}
+
+			if ($Seal.Algorithm -ine 'MD5') {
+				Throw "Package seal algorithm [$($Seal.Algorithm)] is not supported."
+			}
+
+			if (([int]($Seal.SchemaVersion) -lt 2) -or [string]::IsNullOrWhiteSpace([string]$Seal.ManifestHash)) {
+				Throw "Unsupported package seal schema version [$($Seal.SchemaVersion)]. Reseal the package with New-PackageSeal."
+			}
+
+			if (-not (Test-Path -LiteralPath $FilesFolder -PathType Container)) {
+				Throw "Files folder [$FilesFolder] was not found."
+			}
+
+			[array]$Failures = @()
+			foreach ($SealedFile in @($Seal.Files)) {
+				[string]$RelativePath = $SealedFile.Path
+				if ([string]::IsNullOrWhiteSpace($RelativePath)) {
+					$Failures += 'Package seal contains an empty file path.'
+					continue
+				}
+				if ([System.IO.Path]::IsPathRooted($RelativePath)) {
+					$Failures += "Package seal contains rooted path [$RelativePath]."
+					continue
+				}
+				if (($RelativePath -split '[\\/]') -contains '..') {
+					$Failures += "Package seal contains path traversal [$RelativePath]."
+					continue
+				}
+
+				# Build an absolute, native-separator path and use .NET file APIs.
+				# PowerShell provider cmdlets (Get-Item / Get-FileHash) can fail on
+				# unusual but valid file names even with -LiteralPath; .NET does not.
+				[string]$NativeRelativePath = $RelativePath -replace '/', [System.IO.Path]::DirectorySeparatorChar
+				[string]$FilePath = [System.IO.Path]::Combine($FilesFolder, $NativeRelativePath)
+				if (-not [System.IO.File]::Exists($FilePath)) {
+					$Failures += "Missing sealed file [$RelativePath]."
+					continue
+				}
+
+				$ActualFile = New-Object -TypeName System.IO.FileInfo -ArgumentList $FilePath
+				[string]$ExpectedHash = ([string]$SealedFile.Hash).ToUpperInvariant()
+				[string]$ActualHash = (Get-PackageFileMD5 -Path $FilePath).ToUpperInvariant()
+				if ($ActualHash -ne $ExpectedHash) {
+					$Failures += "Hash mismatch for [$RelativePath]. Expected [$ExpectedHash], actual [$ActualHash]."
+					continue
+				}
+
+				if (($null -ne $SealedFile.Length) -and ([int64]$SealedFile.Length -ne [int64]$ActualFile.Length)) {
+					$Failures += "Length mismatch for [$RelativePath]. Expected [$($SealedFile.Length)], actual [$($ActualFile.Length)]."
+				}
+			}
+
+			# v2: verify the aggregate manifest hash and detect files not covered by the seal
+			[string]$ExpectedManifestHash = ([string]$Seal.ManifestHash).ToUpperInvariant()
+			[string]$ActualManifestHash = (Get-PackageManifestHash -Files @($Seal.Files)).ToUpperInvariant()
+			if ($ActualManifestHash -ne $ExpectedManifestHash) {
+				$Failures += "Package manifest hash mismatch. Expected [$ExpectedManifestHash], actual [$ActualManifestHash]."
+			}
+
+			$ExpectedPaths = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+			foreach ($SealedFile in @($Seal.Files)) {
+				[void]$ExpectedPaths.Add((([string]$SealedFile.Path) -replace '\\','/'))
+			}
+			[string]$FilesRoot = (Get-Item -LiteralPath $FilesFolder -ErrorAction Stop).FullName.TrimEnd([char[]]'\/')
+			foreach ($DiskFullName in [System.IO.Directory]::EnumerateFiles($FilesRoot, '*', [System.IO.SearchOption]::AllDirectories)) {
+				[string]$DiskRelativePath = ($DiskFullName.Substring($FilesRoot.Length).TrimStart([char[]]'\/')) -replace '\\','/'
+				if (-not $ExpectedPaths.Contains($DiskRelativePath)) {
+					$Failures += "Unexpected file [$DiskRelativePath] is not covered by the package seal."
+				}
+			}
+
+			if ($Failures.Count -gt 0) {
+				foreach ($Failure in $Failures) {
+					Write-Log -Message $Failure -Severity 3 -Source ${CmdletName}
+				}
+				Throw "Package seal validation failed for [$PackageName]. [$($Failures.Count)] file(s) failed validation."
+			}
+
+			Write-Log -Message "Package seal validation successful for [$PackageName] with [$(@($Seal.Files).Count)] file hash(es)." -Source ${CmdletName}
+			Return $true
+		}
+		Catch {
+			Write-Log -Message "Failed to validate package seal. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Throw "Failed to validate package seal: $($_.Exception.Message)"
+		}
+	}
+	End {
+	}
+}
+#endregion Function Test-PackageSeal
+#endregion Package Seal
+
 ## Export functions, aliases and variables
-Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-InstallationLogEntry, Add-PackageToRecastAW, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Export-Icon, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-Parameter, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Add-PackageToLiquit, Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DL
+Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLockerRule, Add-AppLockerRuleFromJson, Add-Font, Add-InstallationLogEntry, Add-PackageToRecastAW, Add-Path, Close-InstallationProgress, Convert-Base64, ConvertFrom-AAPIni, ConvertFrom-Ini, ConvertFrom-IniFiletoObjectCollection, ConvertTo-Ini, ConvertTo-NTAccountOrSID, Convert-RegistryPath, Copy-File, Disable-TerminalServerInstallMode, Edit-StringInFile, Enable-TerminalServerInstallMode, Exit-Script, Expand-Variable, Export-Icon, Get-FileVerb, Get-EnvironmentVariable, Get-FileVersion, Get-FreeDiskSpace, Get-HardwarePlatform, Get-IniValue, Get-InstalledApplication, Get-LoggedOnUser, Get-MsiTableProperty, Get-Path, Get-Parameter, Get-PendingReboot, Get-RegistryKey, Get-ParameterFromRegKey, Get-ServiceStartMode, Get-WindowTitle, Import-RegFile, Initialize-Script, Install-DeployPackageService, Install-MSUpdates, Install-MultiplePackages, Install-SCCMSoftwareUpdates, Invoke-FileVerb, Invoke-Encryption, Invoke-InstallOrRemoveAssembly, Invoke-PackageEnd, Invoke-PackageStart, Invoke-RegisterOrUnregisterDLL, Invoke-SCCMTask, New-File, New-Folder, New-LayoutModificationXML, New-MsiTransform, New-Package, New-PackageSeal, Test-PackageSeal, New-Shortcut, Remove-AddRemovePrograms, Remove-AppLockerRule, Remove-AppLockerRuleFromJson, Remove-EnvironmentVariable, Remove-File, Remove-FirewallRule, Remove-Folder, Remove-Font, Remove-IniKey, Remove-IniSection, Remove-MSIApplications, Remove-Path, Remove-RegistryKey, Resolve-Error, Send-Keys, Set-ActiveSetup, Set-AutoAdminLogon, Set-DisableLogging, Set-EnvironmentVariable, Set-Inheritance, Set-IniValue, Set-InstallPhase, Set-Parameter, Set-PinnedApplication, Set-RegistryKey, Set-ServiceStartMode, Show-DialogBox, Show-HelpConsole, Show-BalloonTip, Show-InstallationProgress, Show-InstallationWelcome, Show-InstallationRestartPrompt, Show-InstallationPrompt, Start-IntuneWrapper, Start-MSI, Start-MSIX, Start-NSISWrapper, Start-Program, Start-ServiceAndDependencies, Start-SignPackageScript, Stop-ServiceAndDependencies, Test-DSMPackage, Test-IsGroupMember, Test-MSUpdates, Test-Package, Test-PackageName, Test-Ping, Test-RegistryKey, Test-ServiceExists, Update-Desktop, Update-FilePermission, Update-FolderPermission, Update-FrameworkInPackages, Update-Ownership, Update-PrinterPermission, Update-RegistryPermission, Update-SessionEnvironmentVariables, Write-FunctionHeaderOrFooter, Write-Log -Alias Add-PackageToLiquit, Start-AppX, Register-Assembly,Register-DLL,Unregister-Assembly,Unregister-DLL
 
 # SIG # Begin signature block
 # MIIuGwYJKoZIhvcNAQcCoIIuDDCCLggCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCRUT0IDhDkJdqU
-# Qh2USSlEV63n+Mw2UHU8M9iFDhWrQaCCJk8wggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCb6OwbVw+gRWSL
+# 4l6BvbvGNj4ynaJEEMzW/HxDnG69BqCCJk8wggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -21740,38 +22160,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQ
 # fB8UmQPHt59QV6+7UlioFDANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEM
 # MQowCKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQB
-# gjcCAQsxDjAMBgorBgEEAYI3AgEVMC8GCSqGSIb3DQEJBDEiBCCTCzQYKWkw3f6F
-# DJLC0pu/mYZtNXEB022815e9BpSYEjANBgkqhkiG9w0BAQEFAASCAgBvsc/ZhPnI
-# rVzkRrEeG8J4wCRDyCp9hA/49m2YKSscdiDaqcP9RG3RGCphcemTIJ6w0N5QtsN+
-# sbfY6f9fGLps2hlVlKqpV4NkT8tAILqEZWGzMCBY+s2OQMHUBbKKj/tcYlQC7Rkq
-# /NboPvYnEN8Lr7Stva5/GPhChL9p8D8/1If4RRDTmNof5QAqwiv4gASLKoJwcAqy
-# waxly0M7jtGztLQcsk7XybbChQKvMDdO9HRtDP1TCyu+SaBs/d/bOdc0Bs7pCeNA
-# 5sH2DdNq3cTehCr8uCMyLkAVsyPmiHUOLsYzpH4ZM9uD+hiLsoK9htKxvw2mEfJM
-# CqSO/CwvyL/RdfYyzWNHhNCcxOU/ZA1Key+7LdgEd/6TebGXXKNjx8ll2spCmjR1
-# iCPHP+gEgUuLZDrWfFLtYGE91s6KEQ7mUmm/iE2xLhAM4/qnJRes2qgJfhPbp42L
-# g1UKArcCufEJeIpSQYRhf3qjUC0/EVV2RiTv+BUctT3Jg4bhn98BBzRHBb8AQBvn
-# Bj0XalOQLK0YpmmIHo2AgiiuHfm2B836C5j7ZSk8WW4/UwNqlkHB8mvj4tN5L1+S
-# bdRvPehBk9aEL6aR5fvE0aZdN09E9Pxq2c/oBqKDEpVfYKV3EAvneOUSvoBveomN
-# y34ajrxyPbIRB3fiPAyhMOn8gWKEYi1J9aGCBAIwggP+BgkqhkiG9w0BCQYxggPv
+# gjcCAQsxDjAMBgorBgEEAYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAIiQvSzDM57mix
+# 1tz1u/qGQtWOVyB9f/T4Svr4wP5vSDANBgkqhkiG9w0BAQEFAASCAgBi1AFs8e+q
+# fCO6umkqoKhKKxQ+cw+3T+QY2CE0SsisTGiMRePA6D1EZVSXDIReL3XMdGptLv0u
+# gMw/JapZh0n1hRFbNBPs/nQVduqKJ2Q+sfNob9/kX33UvNxEFYTuusbol6P3IzXy
+# i5eQefuVG26hpLlmFmzdTlq0ZvDUtpwULJcpEr9mVjVh4j5GZjPscHbytT2uEi82
+# 1JlnR+B6T8Bid1u593ZDho3eSKCmuPUKCerfYeJCUlEwQ1FSwMry7SUAGon7KcyA
+# 9eNyCHwCjMGPwKdLOp4V2fmSuNtI6aKfeZQeaKj2tG633djTRlq3+KyBcN040LEt
+# sYpEuBKdzMh+omxJr04JfGayRE3t3+7M+Dz+Pw8Pw4vJpqN5jDfndoUwuD/olojQ
+# 4vAnhSKpSYLS2f0FMa2qcNF35/T80GHuKHqInOpdi8Kwg9QfwmFfSFLqVM27bNcd
+# +1mUjhD3shBaSXDGzDNTLP4sFZHflRBcMZiHQ5N8MumjOHIMYIREgdYAzIB5vOOl
+# KHUncDjL+nQw74QJkcai3L4qCfyJtVO7ZruLyd/OgbAIWV01riCkm7WaXV1SNPSl
+# BKDqjuMl2qAyVfhK9dWAz6qTLtx875TaxO+6b/DGFA2ISOR4y3CI1GGA81R56iUh
+# F5490ado1y4Ld/BfEnBMnt9TFZC/MmuJ9qGCBAIwggP+BgkqhkiG9w0BCQYxggPv
 # MIID6wIBATBqMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBT
 # eXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBD
 # QQIQKPB3wRw2vf5fdDJHcCcuAzANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcN
-# AQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNjA0MjMxMjE1NTZa
+# AQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNjA2MTcxNDE2MjRa
 # MDcGCyqGSIb3DQEJEAIvMSgwJjAkMCIEIIW+kOEK0kONfMkotq9IsJqyCBd87Piw
-# EmxY05EFJcQ8MD8GCSqGSIb3DQEJBDEyBDD84yV2+FTF9dDe3bz+a3rhOl5fw9xf
-# PDWvC1Zv648HrFXEDu5FUUOmjPaE/ovGWa8wgZ8GCyqGSIb3DQEJEAIMMYGPMIGM
+# EmxY05EFJcQ8MD8GCSqGSIb3DQEJBDEyBDCPdCPQUfd3GFwvxpWPzcr55ooeSLdS
+# qcz0XLF/nQtKro+AoBEPzpGpKNFFKDQdd+gwgZ8GCyqGSIb3DQEJEAIMMYGPMIGM
 # MIGJMIGGBBRXFGhBDKha80JO+RZKUTYQ9NONmDBuMFqkWDBWMQswCQYDVQQGEwJQ
 # TDEhMB8GA1UEChMYQXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtD
 # ZXJ0dW0gVGltZXN0YW1waW5nIDIwMjEgQ0ECECjwd8EcNr3+X3QyR3AnLgMwDQYJ
-# KoZIhvcNAQEBBQAEggIAA1GcLbWmJFbBffY6WJ12uZKna/oLhAESqSuQH082Y4GN
-# /oCPEdoHkoyuibRPYhIUTgKJJ+S/OEw4M7hvFg/WHXf3frrkeTYEIs4E4H6EDtKI
-# JwdGFhn+A2SCeDnpVZ3zP9xAifwTPujQPUCV9+A/CgErbh2raRFgiposfeYHxObs
-# ABW4/NdJEc+bUMh2eHP7YQQYuQObdMMiEWQX8itAsUCIsTQIY/+iZw27FfILbWSu
-# KWlpk+j8CzknPHU6OejJ9a8pC+xoDW4xXD7Xzo5qSqp2R4mSeR+2xfhW/cDC5dQm
-# 4qyzspI61Yau1YJ+ZV6HYeXzlK0tJlrIazTKsFCnD07I5y1uALbihM7LtuF2aVhD
-# 4jvgkQRQnCbuWd4ze1xcwVi6K7mLQo0Q0qiwxqSshTLE9l277CdNIEOm+joIVFNK
-# SwHFcI8V1RFOu9dXL9NLGqfTTqDbYtVJZ1MvcHEUOgnqj6ZEqLAPAx6rt3K/LAdX
-# kfgV4O1Sh/St/uf8o0vlBjyZuuF8sI+TqJ3e13hEIXVkzUHIFxCqrvnIzknR6TNf
-# jtnUn/zswlz/AmTIyqRCUGd8WtqpfUpdktWd7VDlPI6dST+ZrY94KYV/NYwHfjZB
-# x5zgPdtzuygCxLoIAHFZtfAMZjocmu6h9dGmtqRl+Su3mkQKCB6Q3+QdcrraBuk=
+# KoZIhvcNAQEBBQAEggIAOVfJ0PycZjNkx2riTaG1YVedqic5BGMtRmE4Anqn/oKO
+# QVPfgoYsZ5Z9kLG7nNRfA7W2vu247Df7KlfGzoE0fU9jnSa4KiGIY+Y5IBu3Y29n
+# MxTI4VevfvWTH5tDh2lcCtMuSLMY3WAz8ar1kW9a4kawiSKVF5knUt6AhWoCtu7w
+# rwClLCUaMrj3NBXc6CgZgaHD0v82J3EOhvdGSh77GM1fq5P0i9XjG5Xw4AF7jAMZ
+# WRmM87wp8bTuf0u+IkwXomLFVjQDCyw0CUf0P1fCvJ8o2EESdkcKtePgE2ce8V2u
+# Awypq0+1OaVJEujaFJIlzgSPpKNqawOjkr1SOjNzqQw+jNBabebD1qY9G5vdDMtV
+# L6hDBTuZhMgaWkNruds3HE1PHTnp9aQvjHuNlSD/c/xuTGA22tP+oL1DZFWMbPMU
+# eIIgzDbWwE3xkmDm46aHE/UTetcIbNwaKdSHGDmZo0mes9YNGKwfFzpurb1BPcDC
+# e7db6UYDbjHQP0QgxXoDuhLUtXOwMPW4+slgoLFfJNpH8td5IIXnzeEnMJl5uwec
+# oLGK+ojUoqLG0BIhfGmSV/RbHlednI2WXNSSh9W7E4tU5qW4qKMdDR4XbIFRRfJ6
+# xPuGRcv0QVRkxN42gpxaRmAhzLG/xNJgP//ddjYKrQd3es2ZlU/p8ZwfBKe8Yf0=
 # SIG # End signature block

@@ -526,3 +526,20 @@ Updated Cmdlets:
 - Get-Parameter               Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence.
 - Set-Parameter               Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence.
 - Add-InstallationLogEntry    Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence.
+
+
+Version 2606 (26.6.1.0)
+########################
+
+General:
+----------------
+- Added package integrity sealing. A package's Files folder can be sealed with per-file MD5 hashes and a top-level aggregate manifest hash, embedded as a collapsible #region block inside the package script. The seal is validated automatically during installation; a changed, missing, or added file aborts the package before any payload runs. Sealing removes any existing Authenticode signature so the package can be re-signed afterwards (seal, then sign).
+
+New Cmdlets:
+----------------
+New-PackageSeal             Cmdlet that seals a package: recursively MD5-hashes the Files folder, builds a v2 manifest (per-file path, hash and length plus a top-level aggregate ManifestHash), and embeds it as a #region PackagingFramework Seal block in the package script. Removes any existing seal block and Authenticode signature.
+Test-PackageSeal            Cmdlet that validates a sealed package: verifies each sealed file's existence, MD5 hash and length, the aggregate manifest hash, and that no uncovered file was added to the Files folder. A package without a seal passes; a legacy or pre-v2 seal is rejected and must be resealed.
+
+Updated Cmdlets:
+----------------
+Invoke-PackageStart         Now validates the package seal automatically on install (deploymentType 'Install'); a seal-validation failure aborts the package.
