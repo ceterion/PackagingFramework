@@ -1,0 +1,657 @@
+# ceterion Packaging Framework (cPF) - Change Log
+
+Please report issues or feature requests at
+[github.com/ceterion/PackagingFramework](https://github.com/ceterion/PackagingFramework)
+or via email at <PackagingFramework@ceterion.com>.
+
+**Releases:** [2608](#2608-26810) · [2606](#2606-26610) · [2604](#2604-26400) · [2510](#2510-251000) · [2507](#2507-25700) · [2501](#2501-25100) · [2411](#2411-241100) · [2404](#2404-24400) · [1.0.20.0](#10200-sep-15-2023) · [1.0.19.0](#10190-jul-31-2023) · [1.0.18.0](#10180-jun-9-2023) · [1.0.17.0](#10170-mar-28-2023) · [1.0.16.0](#10160-mar-16-2023) · [1.0.15.0](#10150-mar-7-2023) · [1.0.14.0](#10140-feb-9-2023) · [1.0.13.0](#10130-jan-18-2023) · [1.0.12.0](#10120-dec-6-2022) · [1.0.11.0](#10110-nov-7-2022) · [1.0.10.0](#10100-mar-9-2022) · [1.0.9.0](#1090-oct-29-2021) · [1.0.8.0](#1080-apr-20-2021) · [1.0.7.0](#1070-oct-30-2020) · [1.0.6.0](#1060-jun-25-2020) · [1.0.5.0](#1050-feb-2-2020) · [1.0.4.0](#1040-may-22-2019) · [1.0.3.0](#1030-mar-20-2019) · [1.0.2.0](#1020-mar-13-2019) · [1.0.1.0](#1010) · [1.0.0.0](#1000)
+
+---
+
+## 2608 (26.8.1.0)
+
+### Fixes
+
+| Cmdlet | Change |
+|---|---|
+| `Get-Parameter` | Fixed handling of special characters, such as German umlauts, in cDF REST API requests; the JSON request body is now UTF-8 encoded ([GitHub issue #4](https://github.com/ceterion/PackagingFramework/issues/4)) |
+| `Set-Parameter` | Fixed handling of special characters, such as German umlauts, in cDF REST API requests; the JSON request body is now UTF-8 encoded ([GitHub issue #4](https://github.com/ceterion/PackagingFramework/issues/4)) |
+| `Add-InstallationLogEntry` | Fixed handling of special characters, such as German umlauts, in cDF REST API requests; the JSON request body is now UTF-8 encoded ([GitHub issue #4](https://github.com/ceterion/PackagingFramework/issues/4)) |
+| `Add-InstallationLogEntry` | Fixed the `Command` property of the cDF REST API request, which was incorrectly populated with the value of the `Status` parameter ([GitHub issue #3](https://github.com/ceterion/PackagingFramework/issues/3)) |
+
+---
+
+## 2606 (26.6.1.0)
+
+### General
+
+- Added package integrity sealing. A package's Files folder can be sealed with per-file MD5 hashes and a top-level aggregate manifest hash, embedded as a collapsible `#region` block inside the package script. The seal is validated automatically during installation; a changed, missing, or added file aborts the package before any payload runs. Sealing removes any existing Authenticode signature so the package can be re-signed afterwards (seal, then sign).
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `New-PackageSeal` | Cmdlet that seals a package: recursively MD5-hashes the Files folder, builds a v2 manifest (per-file path, hash and length plus a top-level aggregate ManifestHash), and embeds it as a `#region` PackagingFramework Seal block in the package script. Removes any existing seal block and Authenticode signature. |
+| `Test-PackageSeal` | Cmdlet that validates a sealed package: verifies each sealed file's existence, MD5 hash and length, the aggregate manifest hash, and that no uncovered file was added to the Files folder. A package without a seal passes; a legacy or pre-v2 seal is rejected and must be resealed. |
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Invoke-PackageStart` | Now validates the package seal automatically on install (deploymentType 'Install'); a seal-validation failure aborts the package. |
+
+---
+
+## 2604 (26.4.0.0)
+
+### General
+
+- Added support for XOAP, enabling Packaging Framework packages to be integrated, deployed, and managed within XOAP environments, including full compatibility with the XOAP naming scheme and registry branding.
+- Localization extended to 25 supported languages (23 newly added)
+  - Newly added: Arabic, Chinese (Simplified), Chinese (Traditional), Czech, Danish, Finnish, French, Hebrew, Hungarian, Italian, Japanese, Korean, Norwegian (Bokmål), Dutch (Netherlands), Polish, Portuguese, Portuguese (Brazil), Russian, Slovak, Spanish, Swedish, Turkish, Ukrainian
+  - Standardized localization across all languages (installation, uninstallation, restart, deferral, disk space messages)
+  - Unified message structure and placeholders ({0}, {1}, {2}) for consistency and maintainability
+  - English (EN) and German (DE) defined as reference languages and updated
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Get-Parameter` | Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence. |
+| `Set-Parameter` | Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence. |
+| `Add-InstallationLogEntry` | Replaced registry key `WebserverURL` with `ServiceURL`; if both `InfrastructureShare` and `ServiceURL` are configured, `ServiceURL` takes precedence. |
+
+---
+
+## 2510 (25.10.0.0)
+
+### General
+
+Support for Recast Application Workspace (formerly Liquit).  
+Support for ceterion Deployment Framework (cDF) REST API.
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Add-PackageToRecastAW` | Cmdlet to automatically import Packaging Framework application packages into Recast Application Workspace (formerly Liquit), supporting creation, upload, update, tagging, action sets, shortcuts, stages, dependencies and entitlements. |
+| `Add-PackageToLiquit` | Alias of Add-PackageToRecastAW. |
+| `Export-Icon` | Cmdlet that allows you to extract/export icon files from executable files |
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Initialize-Script` | Improved error handling for ComputerParameterFile; added proper handling for missing ClientLocation registry key; now exposes the `$UILanguage` variable with the user’s UI language. |
+| `Get-Parameter` | Added cDF (ceterion Deployment Framework) REST API support; enables retrieving multiple parameters in a single call. |
+| `Set-Parameter` | Added cDF (ceterion Deployment Framework) REST API support; enables setting multiple parameters in a single call. |
+| `Add-InstallationLogEntry` | Added support for cDF (ceterion Deployment Framework) REST API. |
+
+### Fixes
+
+| Cmdlet | Change |
+|---|---|
+| `Get-Parameter` | Fixed handling of MECM collection variables when the string ends with a special character. |
+
+---
+
+## 2507 (25.7.0.0)
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Get-Parameter` | Added support for MECM collection variables (previously, only MECM task sequence variables were supported). |
+
+---
+
+## 2501 (25.1.0.0)
+
+### General
+
+Added general support for Windows Server 2025, including new variables `$IsWin2025`, `$IsAtLeastWin2025`, and `$IsAtMostWin2025`.
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Initialize-Script` | Fixed issue with install agent `$InfrastructureShare` registry key ([GitHub issue #2](https://github.com/ceterion/PackagingFramework/issues/2)) |
+| `Update-FrameworkInPackages` | Fixed issue with error handler. |
+
+---
+
+## 2411 (24.11.0.0)
+
+### General
+
+Introduced first-time support for the ceterion Deployment Framework (cDF), enabling integration with the new REST API and parameter management.  
+Added new ceterion Install Agent (cIA) detection and corresponding variables: `$InfrastructureShare`, `$ClientLocation`, `$ComputerParameterFile`, `$ComputerInstallSequenceFile`, and `$ceterionInstallAgent`.
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Get-Parameter` | Added support for retrieving parameters from JSON folder/file. |
+| `Show-BalloonTip` | Implemented service account detection for toast notifications, providing automatic fallback to balloon tips when running under service accounts. |
+| `New-Package` | Improved error handling in the global catch block of the package template to detect Packaging Framework loading errors. |
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Set-Parameter` | Cmdlet for adding and updating parameter values stored in the JSON folder/file. |
+| `Add-InstallationLogEntry` | Cmdlet to add entries to the ceterion Install Agent sequence file. |
+
+---
+
+## 2404 (24.4.0.0)
+
+### General
+
+Updated version numbering scheme to follow the Year.Month.Build.Revision format.
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Start-MSIX` | Cmdlet to install or uninstall MSIX application packages. |
+| `Start-AppX` | Cmdlet to install or uninstall AppX application packages. |
+
+---
+
+## 1.0.20.0 (Sep 15, 2023)
+
+### General
+
+Improved examples in the example package.
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `New-Package` | Added empty "AppLockerRules" section to `PackageName.json`. |
+| `Add-AppLockerRule` | Improved AppLocker variable handling; implemented internal use of splatting; added retry logic to address sporadic “in use” issues when adding multiple rules; enhanced logging. |
+| `Add-AppLockerRuleFromJson` | Improved AppLocker variable handling. |
+| `Remove-AppLockerRule` | Retry logic because of sporadic "in use" problem when removing multiple rules. |
+
+### Fixes
+
+Resolved variable scope issue affecting `$DeploymentTypeName`.
+
+---
+
+## 1.0.19.0 (Jul 31, 2023)
+
+### General
+
+Introduced first-time AppLocker support, enabling creation and management of local AppLocker rules via new cmdlets.
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Add-Font` | Improved Add-Font; it now works with font files located on network shares. |
+| `Install-DeployPackageService` | Improved Install-DeployPackageService; now supports # comment lines in .csv files. |
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Add-AppLockerRule` | Cmdlet to add local AppLocker rules. |
+| `Add-AppLockerRuleFromJson` | Cmdlet to automatically add local AppLocker rules based on entries in the `package.json` file; automatically used when the package is installed. |
+| `Remove-AppLockerRule` | Cmdlet to remove local AppLocker rules. |
+| `Remove-AppLockerRuleFromJson` | Cmdlet to automatically remove local AppLocker rules based on entries in the `package.json` file; automatically used when the package is uninstalled. |
+| `Invoke-PackageEnd` | Added support for Add/Remove-FirewallRuleFromJson; Cmdlet “Skip..” parameters can now be overridden via `$Global:Skip<ParameterName>` variables, allowing selective skipping of cmdlet functions. |
+| `Invoke-PackageStart` | Cmdlet “Skip..” parameters can now be overridden via `$Global:Skip<ParameterName>` variables, allowing selective skipping of cmdlet functions. |
+
+---
+
+## 1.0.18.0 (Jun 9, 2023)
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Test-DSMPackage` | Online help improvment, the GUID parameter musst be specified including enclosing brackets, for example: Test-DSMPackage -GUID "{a1916cf6-4a13-48fa-ad2c-4a8ed527680b}" |
+| `Add-AddRemovePrograms` | Online help improvment, correction of the examples, the correct parameter name is -Publisher and not -Vendor |
+| `Install-DeployPackageService` | The schedule task is now using the RunLevel=Highest parameter as default |
+| `Add-PermissionsFromJson` | Added PermissionSet support and default parameters can now overwritten via `$Global:DefaultPermission<ParameterName>` variables, this allows you permission rules with only the path/key parameter in the .json. |
+
+---
+
+## 1.0.17.0 (Mar 28, 2023)
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Test-DSMPackage` | The missing "NetInstall" subkey has been added |
+| `Add-FirewallRuleFromJson` | Added expand variable support for simple syntax mode |
+| `Initialize-Script` | Can now called from a PowerShell profile script without errors |
+| `Show-BalloonTip` | Toast notification improved, support for Info, Warning & Error icons similar to balloon tip mode |
+
+---
+
+## 1.0.16.0 (Mar 16, 2023)
+
+### General
+
+New variable OfficeVersion, OfficeBitness, OfficeCDNBaseURL & OfficeChannel to get details from Offlice 365 C2R installations  
+New variable OSVersionMajor, OSVersionMinor & OSVersionBuild (as a supplement to OSVersion)  
+The config value configShowBalloonNotifications has changed form data type string to boolean and from script to global scope. This allows you to overwrite this config value at package runtime when needed via `$Global:configShowBalloonNotifications=$false` or `$true`  
+Addition registry branding at `HKLM\Software\PackagingFramework` with information aboput the last package, like LastPackageName, LastPackageExitCode, LastPackageDate, LastPackageDeploymentType, LastPackageGUID
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Remove-FirewallRuleFromJson` | The default parameters can now overwritten via `$Global:DefaultFirewallRule<ParameterName>` variables like in Add-FirewallRuleFromJsoncmdlet |
+| `Show-BalloonTip` | Has now support for toast notification. Win 10 and newer only, fallback to BalloonTip on older OS versions. Behavior can be controlled via InstallationUIShowBalloonNotificationsUseToast parameter in the `package.json` file and via cmdlet -UseToast parameter. |
+| `Test-Package` | The path parameter can now be used to specify an individual package, previously only a parent folder was supported that included multiple packages. |
+
+---
+
+## 1.0.15.0 (Mar 7, 2023)
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Test-DSMPackage` | New cmdlet that is able to detect installed DSM packages via DSM package GUID or package name. |
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Add-FirewallRule` | The default parameters can now overwritten via `$Global:DefaultFirewallRule<ParameterName>` variables, this allows you firewall rules with only the program parameter when calling the cmdlet. |
+| `Add-FirewallRuleFromJson` | The default parameters can now overwritten via `$Global:DefaultFirewallRule<ParameterName>` variables, this allows you firewall rules with only the program parameter in the .json file. And improved environment variable handling. The cmdlet is now using the updated Expand-Variable cmdlet to support escaped environment variables. |
+| `Add-PermissionFromJson` | Improved environment variable handling. The cmdlet is now using the updated Expand-Variable cmdlet to support escaped environment variables. |
+| `Add-Path` | New Target parameter for Machine vs. User support. |
+| `Get-Path` | New Target parameter for Machine vs. User support. |
+| `Remove-Path` | New Target parameter for Machine vs. User support and improved folder name handling. Previously if a folder was specified without and ending \\, but the corresponding PATH had an ending \\, an unnecessary ;\\; entry remained, this is now fixed. |
+| `Expand-Variable` | Improved environment variable handling. Environment variables can now escaped by wrapping them with additional % characters, for example use `%%Username%%` if you want to keep `%Username%` unresolved. This is useful if the variable should resolved later at user runtime and not at package installation runtime. |
+| `Import-RegFile` | Improved resolve variable feature. It supports now escaping of the \\ character. |
+| `Start-Program` | New MaxWaitTime parameter to detect programs that run to long or hang. If MaxWaitTime is exceeded the exit code 258 (0x102) `WAIT_TIMEOUT` is returned. |
+| `New-Shortcut` | New hotkey parameter to add keyboard hotkeys to shortcut links. |
+| `Test-Package` | Bug regarding wrong message "Parameter PackageGUID is not defined in JSON file" is fixed. |
+
+---
+
+## 1.0.14.0 (Feb 9, 2023)
+
+### General
+
+The default value of the MSILoggingOptions parameter in the `PackagingFramework.json` file has changed from "`/L*v`" to "`/L*v+`" to allow appended to existing MSI logs
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Add-PermissionFromJson` | Bugfix regarding registry permissions via JSON object, the -Key parameter is replaced by the -Path parameter |
+| `Start-Program` | Logfile reporting improved, captured output of StdErr is handled as error only when ExitCode is not 0 (e.g. useful for `reg.exe` which reports falsely success messages to StdErr instead of StdOut) |
+| `Update-Ownership` | Improved error handling, last error is removed from error object when error is not critical |
+| `Update-FolderPermissions` | Improved error handling, last error is removed from error object when error is not critical |
+| `Update-FilePermissions` | Improved error handling, last error is removed from error object when error is not critical |
+| `Update-RegistryPermissions` | Improved error handling, last error is removed from error object when error is not critical |
+| `Update-PrinterPermission` | Improved error handling, last error is removed from error object when error is not critical |
+| `Test-IsMutexAvailable` | Improved error handling, last error is removed from error object when error is not critical |
+
+---
+
+## 1.0.13.0 (Jan 18, 2023)
+
+### General
+
+Package Naming Scheme in `PackagingFramework.json` file includes now WIN11, W2K19 & W2K22
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `New-Package` | Added "Dependencies" and "Supersedence" secion to `PackageName.json`, can be used for MECM/SCCM/etc. |
+
+---
+
+## 1.0.12.0 (Dec 6, 2022)
+
+### General
+
+Packages now have an optional "PackageGUID" parameter in the PackageName.Json file as a unique identifier.  
+When using "New-Package" an individual GUID is automatically added to the `PackageName.json` file, alternatively you can use "New-GUID" to generate one.  
+This GUID is available as `$PackageGUID` variable at package runtime, and its written to `HKLM\Software\PackagingFramework\InstalledPackages\<PackageName>\` and can be used as detection method for MECM/SCCM/etc.
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `New-Package` | Added support for the new package GUID |
+| `Initialize-Script` | Added support for the new package GUID |
+| `Invoke-PackageEnd` | Added support for the new package GUID |
+
+---
+
+## 1.0.11.0 (Nov 7, 2022)
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Start-SignPackageScript` | New cmdlet to automaticaly sign the PowerShell script and moudle files of a package |
+
+### Updated Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Start-NSISWrapper` | New optional -Sign parameter to support code signing of the PowerShell script and NSIS executable |
+| `Add-FirewallRule` | Parameter -Force default changed to `$true` and improved comma and semicolon handling for parameters with multiple values |
+| `Add-FirewallRuleFromJson` | Bugfix regarding default value of the -Force and -ContinueOnError parameter |
+| `New-Package` | Template has changed regarding the AllowRebootPassThru command line parameter |
+
+### Other Changes
+
+- All script and module files are now signed
+- New optional package command line parameter AllowRebootPassThru, this parameter allows the 3010 return code (requires restart) to be passed back to the parent process (for SCCM / MECM)
+
+---
+
+## 1.0.10.0 (Mar 9, 2022)
+
+### New Cmdlets
+
+| Cmdlet | Change |
+|---|---|
+| `Get-ParameterFromRegKey` | (Cmdlet to get multiple parameters/variables from a registry key area) |
+| `Add-FirewallRule` | (Cmdlet to add or set Windows Firwall Rules) |
+| `Remove-FirewallRule` | (Cmdlet to remove Windows Firwall Rules) |
+| `Add-FirewallRuleFromJson` | (Cmdlet to automaticaly add Windows Firewall Rules based on entries in the `package.json` file) |
+| `Remove-FirewallRuleFromJson` | (Cmdlet to automaticaly remove Windows Firwall Rules based on entries in the `package.json` file) |
+| `Add-AddRemovePrograms` | (Cmdlet to add an "Software Add/Remove Program" entry) |
+| `Remove-AddRemovePrograms` | (Cmdlet to remove an "Software Add/Remove Program" entry) |
+| `Add-PermissionFromJson` | (Cmdlet to automaticaly add NTFS permissions based on entries in the `package.json` file) |
+| `Remove-PermissionFromJson` | (Cmdlet to automaticaly remove NTFS permissions based on entries in the `package.json` file) |
+| `Invoke-PackageEnd` | (Cmdlet to automatically execute recurring things at package end (before Exit-Script), invokes things like PermissionFromJson, FirewallRuleFromJson, AppConfig, RegistryBranding, and ScriptBlockOnEnd from the extension) |
+| `Invoke-PackageStart` | (Cmdlet to automatically execute recurring things at package start (after Initalize-Script), invokes things like ScriptBlockOnStart from the extension) |
+
+### Updated Module
+
+Updated optional extension for Microsoft Endpoint Configuration Manager (MECM) with the following cmdlets:
+
+| Cmdlet | Change |
+|---|---|
+| `New-MECMApplication` | (Cmdlet to automaticaly add Applications, Collections, Deployments, Detection Methods) |
+
+### Other Changes
+
+- Bugfix regading all cmdlets with dialogs, these dialogs are now suppress when in silent mode
+- Expand-Variable error handling improved, now with warnings for unresolved variables
+- New-Package updated, the included template includes now Invoke-PackageStart and Invoke-PackageEnd
+- The helper functions Convert-RegistryPath and Get-MsiTableProperty are now exported as cmdlets and can be uses in packages
+- New InstallationPromptInstallCompleted and InstallationPromptUninstallCompleted JSON parameters as default test for the Show-InstallationPrompt cmdlet
+- Updated Example Package with examples for the new cmdlets and common changes
+- The setup executable is now signed
+
+### Breaking Change / Note about the update
+
+The package template has changed with this version regarding the new Invoke-PackageStart and Invoke-PackageEnd functionality.  
+When updating existing packages to this version, you must update the package header and footer section of your existing packages to reflect this change.  
+As a reference for the new header and footer section simply call "New-Package" to generate a new package and have a look at the resulting `<PackageName>.ps1` file.  
+The first 5 lines is the header section, and the last 5 lines is the footer section. Then copy & paste this new header and footer sections to your existing packages, to replace the existing header and footer section.
+
+---
+
+## 1.0.9.0 (Oct 29, 2021)
+
+### New
+
+- General Windows 11 and Windows Server 2022 support
+- New variable `$IsWin11`, `$IsAtLeastWin11` and `$IsAtMostWin11`
+- New variable `$IsWin2022`, `$IsAtLeastWin2022` and `$IsAtMostWin2022`
+- New variable `$IsFirmwareUEFI` and `$IsFirmwareBIOS`
+- New variable `$TPMVersion`
+
+---
+
+## 1.0.8.0 (Apr 20, 2021)
+
+### New
+
+**General Changes**
+
+- New optional extension for VMware Workspace ONE UEM support with the following cmdlets:
+  - `New-WorkspaceOneUEMPackage` (Cmdlet to import packaging framework packages to VMware Workspace ONE UEM, supports upload, app defintion, detection methods, EXE and ZIP support, etc.)
+  - `Get-WorkspaceOneUemGroup` (Cmdlet to enumerate groups and get details)
+  - `Get-WorkspaceOneUemDevice` (Cmdlet to enumerate devices and get details)
+  - `Get-WorkspaceOneUemApp` (Cmdlet to enumerate apps and get details)
+
+### Changes
+
+**`Copy-File`**
+
+- ContinueOnError parameter default changed from `$true` to `$false` to make sure an error is thrown if a copy job fails
+
+---
+
+## 1.0.7.0 (Oct 30, 2020)
+
+**General Changes**
+
+- The welcome, progress and finish dialog and the balloon tips can now show a custom and more user-friendly display package name. To use this feature, you can specify the "PackageDisplayName" JSON parameter. If this parameter is missing the "PackageDescription" JSON parameter is used, and if this is parameter is missing the "PackageName" runtime variable is used as fallback
+- The final balloon tip notification after the package is terminated shows now the correct title instead of "Microsoft.Explorer.Notification.{guid}"
+
+---
+
+## 1.0.6.0 (Jun 25, 2020)
+
+**General Changes**
+
+- The "Import Packaging Framework module" section in the package template and the example packages has now additional logic to make the package command line parameters DeploymentType, DeployMode and CustomParameter global, to avoid issues cause by different powershell hosts (for example `Powershell.exe` vs. `Powershell_ISE.exe`)
+
+**`Show-InstallationPrompt`**
+
+- Bugfix: Logo Banner Image Location parameter typo
+
+**`Set-DisableLogging`**
+
+- Bugfix: Mode parameter scope issue fixed and logging improved
+
+---
+
+## 1.0.5.0 (Feb 2, 2020)
+
+**`Remove-IniKey`**
+
+- New Remove-IniKey cmdlet to remove keys from INI files
+
+**`Remove-IniSection`**
+
+- New Remove-IniSection cmdlet to remove whole sections from INI files
+
+**`Invoke-Encryption`**
+
+- Bugfix: Unnecessary file exist check removed for GeneratKey mode
+
+---
+
+## 1.0.4.0 (May 22, 2019)
+
+**`Start-IntuneWrapper`**
+
+- New Start-IntuneWrapper cmdlet to wrap a PowerShell based Packaging Framework package into an Intune package
+
+**`Install-DeployPackageService`**
+
+- Bugfix: Scheduled Task Trigger Delay only on Win10/W2k16 and newer, because it does not work on older OS versions
+- Bugfix: Deployment stops with error if package from CSV is not found on share
+
+---
+
+## 1.0.3.0 (Mar 20, 2019)
+
+**`Update-Ownership`**
+
+- New Update-Ownership cmdlet to take ownership on files, folders or registry keys
+
+**`Update-FolderPermissions`**
+
+- The improvements are a new parameter PermissionType to handle Allow vs Deny permissions, a new parameter AppliesTo to handle InheritanceFlags und PropagationFlags.
+- Parameter "Delete", in this case the Permission parameter is no longer necessary.
+
+**`Update-FilePermissions`**
+
+- The improvements are a new parameter PermissionType to handle Allow vs Deny permissions, a new parameter AppliesTo to handle InheritanceFlags und PropagationFlags.
+- Parameter "Delete", in this case the Permission parameter is no longer necessary.
+
+**`Update-RegistryPermissions`**
+
+- The improvements are a new parameter PermissionType to handle Allow vs Deny permissions, a new parameter AppliesTo to handle InheritanceFlags und PropagationFlags.
+
+**`Install-DeployPackageService`**
+
+- Improved Install-DeployPackageService cmdlet, now with additional delay in the Schedule Tasks trigger to avoid domain logon issues after a reboot
+
+---
+
+## 1.0.2.0 (Mar 13, 2019)
+
+**`Exit-Script`**
+
+- Improved, now discards package specific variables like PackageName, LogName, AppName, etc. to avoid issues with old variable content when executing multiple packages inside a single Powershell instance
+- Improved, added `$Global:DisableLogging = $true` at the end of Exit-Script cmdlet to avoid log file issues when framework cmdlets are used  manually an existing PS session after a package was executed
+- Improved start menu publishing feature, now support environment variable expansion in the file path
+
+**`Update-FrameworkInPackages`**
+
+- Improved error handling
+
+**`Install-DeployPackageService`**
+
+- New Install-DeployPackageService cmdlet, successor of Install-MultiplePackages.
+
+The new features and changes compared to Install-MultiplePackages are:
+
+- Implemented as schedule task that is installed permanently
+- The cmdlet itself has three different modes (Install, Execute, Uninstall)
+- Has a new post install feature, new packages in existing CSV are detected an installed
+- Works without storing username & passwords in configuration files
+- New reporting feature to report installed packages on a network share
+- Improved logfile and error handling
+
+**`Start-NSISWrapper`**
+
+- Improved, has now an optional -NoCompile parameter (if you want only to wrap but not to compile)
+- Improved, works now also with space chars in package names and folders
+- Improved, has now a "Please run Initialize-Script" hint
+
+**General Changes**
+
+- New SuppressNamingSchemeErrors configuration parameter to suppress naming scheme warning at package execution
+- New SuppressPackageJsonErrors configuration parameter to suppress errors when `<PackageName>.json` dose not exists, with this feature the `<PackageName>.json` becomes optional
+- Improved OS variables, the variables `$IsWin`.., `$IsAtLeast`... and `$IsAtMost`... is now separated by Client OS vs Server OS
+- Improved Example Package with some examples for the new cmdlets
+- New variable `$OSReleaseID` to detect Windows 10 Release IDs like 1507, 1511,1607, 1703, 1709, 1803, 1809, etc.
+- Windows Server 2019 support, new variable `$IsWin2019`, `$IsAtLeastWin2019` and `$IsAtMostWin2019`
+- Improved package template, a "Remove-Module PackagingFramework" added in front of "Import-Module..." line inside the package template and all example packages to avoid issues when running multiple packages in a single PowerShell instance
+
+---
+
+## 1.0.1.0
+
+**`Show-InstallationWelcome`**
+
+- New cmdlet that shows a welcome scree with some customizable text
+
+**`Show-InstallationProgress`**
+
+- New cmdlet that shows a progress screen while the installation is in progress
+
+**`Close-InstallationProgress`**
+
+- New cmdlet that close the progress screen after a installation is finished or failed
+
+**`Show-InstallationPrompt`**
+
+- New cmdlet that shows a dialog that prompts the user to start or defer the installation
+
+**`Show-InstallationRestartPrompt`**
+
+- New cmdlet that shows a dialog to initiate or defer a required reboot
+
+**`Show-BalloonTip`**
+
+- New cmdlet that shows a balloon tip
+
+**`Install-MultipelPackages`**
+
+- Improved, package execution changed from Start-Process with wait to a separate Wait-Process. This change solves the issue with some 3. party setups like Paint.NET, VSCode, etc.
+- Improved, parameter username & domain is now optional, if not specified `$env:userdomain` and `$env:username` is used as default
+
+**`New-Package`**
+
+- Improved, the included template package was changed to support command line parameters. Header of the template package and all example packages where changed to support the new optional command line parameter
+
+**`Start-NSISWrapper`**
+
+- Improved, now supports packages with empty files folder, supports relative path, improved error handling and support for command line parameters inside the wrapped package
+
+**`Test-IsGroupMember`**
+
+- New Test-IsGroupMember cmdlet to check group membership
+
+**`Set-AutoAdminLogon`**
+
+- Improved, works now with the more secure LsaStorePrivateData encrypted password instead of a cleartext password
+
+**`Update-FolderPermissions`**
+
+- Improved, has now a new ReplaceAll parameter
+- Improved, has now a new PermissionSet parameter
+
+**`Update-FilePermissions`**
+
+- Improved, has now a new ReplaceAll parameter
+- Improved, has now a new PermissionSet parameter
+- Improved, has now wildcard support in -filename parameter
+
+**`Update-RegistryPermissions`**
+
+- Improved, has now a new ReplaceAll parameter
+- Improved, has now a new PermissionSet parameter
+
+**`Set-DisableLogging`**
+
+- New Set-DisableLogging cmdlt to toggle the logfile on and off, e.g. to hide passwords in logs
+
+**`Test-Package`**
+
+- Improved, has now a "Check Files Exists" feature
+- Improved, has now patterns to detect errors from the optional NSIS, DSM and Wise converter
+- Improved, the CSV delimiter also supports semicolon, added package folder link column
+
+**`New-Package`**
+
+- Improved, has now the new options -SkipNameCheck and -Overwrite parameter
+
+**`Copy-File`**
+
+- Improved, has now a version check feature via the optional parameter -VersionCheck
+
+**`Invoke-InstallOrRemoveAssembly`**
+
+- New Invoke-InstallOrRemoveAssembly cmdlet to install or uninstall assemblies
+
+**`Set-IniValue`**
+
+- Improved, ini file is now automatically created if file not exists
+
+**General Changes**
+
+- New runtime variables for shell folders like My Music, My Pictures, My Video, etc....
+- The frameworks manifest file now enforces the usage of PowerShell 5.1
+- Set variables `$PackageName` & `$PackageFileName` only if not already set. This change was necessary for the XenDesktop package and it s invoke script block to let the package run in SCCM with a different user than SYSTEM
+- Added support for optional package command line parameter. The cmdlet Initialize-Script was extended to get the command line parameters, the cmdlet Get-Parameter has a new -force option control overwrite and inheritance of parameters
+
+---
+
+## 1.0.0.0
+
+Initial Release

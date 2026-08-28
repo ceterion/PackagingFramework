@@ -1498,10 +1498,11 @@ Function Add-InstallationLogEntry {
                 if ($Status) {$body | Add-Member -MemberType NoteProperty -Name Status -Value $Status}
                 if ($Returncode) {$body | Add-Member -MemberType NoteProperty -Name Returncode -Value $Returncode}
                 if ($Action) {$body | Add-Member -MemberType NoteProperty -Name Action -Value $Action}
-                if ($Command) {$body | Add-Member -MemberType NoteProperty -Name Command -Value $Status}
+                if ($Command) {$body | Add-Member -MemberType NoteProperty -Name Command -Value $Command}
                 if ($Start) {$body | Add-Member -MemberType NoteProperty -Name Start -Value $Start}
                 if ($End) {$body | Add-Member -MemberType NoteProperty -Name End -Value $End}
                 $body = $body| ConvertTo-Json -Compress
+                $body = [System.Text.Encoding]::UTF8.GetBytes($body)
                 Write-log "Invoke-WebRequest -Uri `"$ServiceURL/api/edit-installsequence`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} # -DebugMessage
                 $Response = Invoke-WebRequest -Uri "$ServiceURL/api/edit-installsequence" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
                 Write-log "Response: $($Response.content)" -Source ${CmdletName} # -DebugMessage
@@ -5272,6 +5273,7 @@ public class CollectionVariableDecoder
                     if (-not $Script:cDFWebServiceResponse) {
                         Write-log "Get parameters from cDF Webservice at [$ServiceURL] for [$Computer]" -Source ${CmdletName}
                         $body = @{ Name = "$Computer" ; Inherited = $true } | ConvertTo-Json
+                        $body = [System.Text.Encoding]::UTF8.GetBytes($body)
                         Write-log "Invoke-WebRequest -Uri `"$ServiceURL/api/get-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
                         $Script:cDFWebServiceResponse = Invoke-WebRequest -Uri "$ServiceURL/api/get-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
                         Write-log "cDFWebServiceResponse: $($Script:cDFWebServiceResponse.content)" -Source ${CmdletName} -DebugMessage
@@ -13954,6 +13956,7 @@ Function Set-Parameter {
                             Write-log "Set parameter [$parameter] in section [$section] to value [$Value] for [$Computer] via cDF Webservice at [$ServiceURL]" -Source ${CmdletName}
                         }
                         $body = @{ Name = "$Computer" ; Parameters = $editparameters ; force = $true} | ConvertTo-Json -Depth 10 -Compress
+                        $body = [System.Text.Encoding]::UTF8.GetBytes($body)
                         Write-log "Invoke-WebRequest -Uri `"$ServiceURL/api/edit-object`" -Method Post -Body $body -ContentType `"application/json`" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60" -Source ${CmdletName} -DebugMessage
                         $Response = Invoke-WebRequest -Uri "$ServiceURL/api/edit-object" -Method Post -Body $body -ContentType "application/json" -UseDefaultCredentials -UseBasicParsing -TimeoutSec 60
                         Write-log "Response: $($Response.content)" -Source ${CmdletName} -DebugMessage
@@ -21950,8 +21953,8 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # SIG # Begin signature block
 # MIIuGwYJKoZIhvcNAQcCoIIuDDCCLggCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCb6OwbVw+gRWSL
-# 4l6BvbvGNj4ynaJEEMzW/HxDnG69BqCCJk8wggXJMIIEsaADAgECAhAbtY8lKt8j
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAb8f9Mznhi0Hhl
+# p2/bE5ThJMf5mhfgCn9uRTZBc062qKCCJk8wggXJMIIEsaADAgECAhAbtY8lKt8j
 # AEkoya49fu0nMA0GCSqGSIb3DQEBDAUAMH4xCzAJBgNVBAYTAlBMMSIwIAYDVQQK
 # ExlVbml6ZXRvIFRlY2hub2xvZ2llcyBTLkEuMScwJQYDVQQLEx5DZXJ0dW0gQ2Vy
 # dGlmaWNhdGlvbiBBdXRob3JpdHkxIjAgBgNVBAMTGUNlcnR1bSBUcnVzdGVkIE5l
@@ -22160,38 +22163,38 @@ Export-ModuleMember -Function Add-AddRemovePrograms, Add-FirewallRule, Add-AppLo
 # ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQ
 # fB8UmQPHt59QV6+7UlioFDANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEM
 # MQowCKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQB
-# gjcCAQsxDjAMBgorBgEEAYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAIiQvSzDM57mix
-# 1tz1u/qGQtWOVyB9f/T4Svr4wP5vSDANBgkqhkiG9w0BAQEFAASCAgBi1AFs8e+q
-# fCO6umkqoKhKKxQ+cw+3T+QY2CE0SsisTGiMRePA6D1EZVSXDIReL3XMdGptLv0u
-# gMw/JapZh0n1hRFbNBPs/nQVduqKJ2Q+sfNob9/kX33UvNxEFYTuusbol6P3IzXy
-# i5eQefuVG26hpLlmFmzdTlq0ZvDUtpwULJcpEr9mVjVh4j5GZjPscHbytT2uEi82
-# 1JlnR+B6T8Bid1u593ZDho3eSKCmuPUKCerfYeJCUlEwQ1FSwMry7SUAGon7KcyA
-# 9eNyCHwCjMGPwKdLOp4V2fmSuNtI6aKfeZQeaKj2tG633djTRlq3+KyBcN040LEt
-# sYpEuBKdzMh+omxJr04JfGayRE3t3+7M+Dz+Pw8Pw4vJpqN5jDfndoUwuD/olojQ
-# 4vAnhSKpSYLS2f0FMa2qcNF35/T80GHuKHqInOpdi8Kwg9QfwmFfSFLqVM27bNcd
-# +1mUjhD3shBaSXDGzDNTLP4sFZHflRBcMZiHQ5N8MumjOHIMYIREgdYAzIB5vOOl
-# KHUncDjL+nQw74QJkcai3L4qCfyJtVO7ZruLyd/OgbAIWV01riCkm7WaXV1SNPSl
-# BKDqjuMl2qAyVfhK9dWAz6qTLtx875TaxO+6b/DGFA2ISOR4y3CI1GGA81R56iUh
-# F5490ado1y4Ld/BfEnBMnt9TFZC/MmuJ9qGCBAIwggP+BgkqhkiG9w0BCQYxggPv
+# gjcCAQsxDjAMBgorBgEEAYI3AgEVMC8GCSqGSIb3DQEJBDEiBCDURes3lJ84/66w
+# 2UtBPp7YWKywpp9WOGC6FA7ObkdaTDANBgkqhkiG9w0BAQEFAASCAgBvvlplsbOg
+# 7nAqeI8CwUwUUjvYE2c+JMkxj4CyHzyZ2FUK8qNPjQaetpsjygOiIO/KAWUpkbDy
+# 59ZM2unmH0/w6G2gyPV/oWsN8wbBQrbrwS/qHkF9hNwqvOtdsHxINRP5dWgT6Xh9
+# VFveSd8ZJ6CjDbQDDbvuhmj4EE6w9TwUgLBv+aXqhW3NUJmRcxk4QDq7L6iJth/B
+# 0LetdbwDOg/gb7J8le/U1ew2PwD2IDkXUha2IsVe9r8u0IVUL+VFFbmyn6lEj+mJ
+# lrW40u28TzliwXesJxmEryX4Xg3Am6Wf6rmFVtCqV7J8+HRdbVIvvubIQOD0fOuJ
+# IxxD9t+wFPsRGH6yBOVLDMVYcS0II/Ut2gAhlHyqSShrg4cMAuwJ5mbs/xJwIwXh
+# vRI2uuLOQGlM9pEmIp0M6mu1d3JmANuZnmRhGKK40H17UgPxcL8vOJFJVp2fyFJX
+# MZEXgTc9h7WBKyPat7/e3fYwQr8jzjZgf6KSyIaOsb3+ZYutkdlG7/OCHfuek8c/
+# jHlR0Um61C2hzKYT6I5fjGh9BDS7DofThBMAR5gFo9XzI22S7Cfg0Zj6Dmz68nof
+# YzgAFeF6M3SsK4BVq0u9NazkaK/99zhXTJzJeMi754nlB0vJsq33hqRDRC7GA7qJ
+# k9FCmJG3LKkP60orXzTUFPo4ty6GAsq7t6GCBAIwggP+BgkqhkiG9w0BCQYxggPv
 # MIID6wIBATBqMFYxCzAJBgNVBAYTAlBMMSEwHwYDVQQKExhBc3NlY28gRGF0YSBT
 # eXN0ZW1zIFMuQS4xJDAiBgNVBAMTG0NlcnR1bSBUaW1lc3RhbXBpbmcgMjAyMSBD
 # QQIQKPB3wRw2vf5fdDJHcCcuAzANBglghkgBZQMEAgIFAKCCAVYwGgYJKoZIhvcN
-# AQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNjA2MTcxNDE2MjRa
+# AQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNjA4MjgwOTU3MDJa
 # MDcGCyqGSIb3DQEJEAIvMSgwJjAkMCIEIIW+kOEK0kONfMkotq9IsJqyCBd87Piw
-# EmxY05EFJcQ8MD8GCSqGSIb3DQEJBDEyBDCPdCPQUfd3GFwvxpWPzcr55ooeSLdS
-# qcz0XLF/nQtKro+AoBEPzpGpKNFFKDQdd+gwgZ8GCyqGSIb3DQEJEAIMMYGPMIGM
+# EmxY05EFJcQ8MD8GCSqGSIb3DQEJBDEyBDD/7USRf4DKVWcxqCw4iQVtfGlaNpIG
+# kaF5KrlyvhF14CHiin8xQnhSzHgAfnVa7skwgZ8GCyqGSIb3DQEJEAIMMYGPMIGM
 # MIGJMIGGBBRXFGhBDKha80JO+RZKUTYQ9NONmDBuMFqkWDBWMQswCQYDVQQGEwJQ
 # TDEhMB8GA1UEChMYQXNzZWNvIERhdGEgU3lzdGVtcyBTLkEuMSQwIgYDVQQDExtD
 # ZXJ0dW0gVGltZXN0YW1waW5nIDIwMjEgQ0ECECjwd8EcNr3+X3QyR3AnLgMwDQYJ
-# KoZIhvcNAQEBBQAEggIAOVfJ0PycZjNkx2riTaG1YVedqic5BGMtRmE4Anqn/oKO
-# QVPfgoYsZ5Z9kLG7nNRfA7W2vu247Df7KlfGzoE0fU9jnSa4KiGIY+Y5IBu3Y29n
-# MxTI4VevfvWTH5tDh2lcCtMuSLMY3WAz8ar1kW9a4kawiSKVF5knUt6AhWoCtu7w
-# rwClLCUaMrj3NBXc6CgZgaHD0v82J3EOhvdGSh77GM1fq5P0i9XjG5Xw4AF7jAMZ
-# WRmM87wp8bTuf0u+IkwXomLFVjQDCyw0CUf0P1fCvJ8o2EESdkcKtePgE2ce8V2u
-# Awypq0+1OaVJEujaFJIlzgSPpKNqawOjkr1SOjNzqQw+jNBabebD1qY9G5vdDMtV
-# L6hDBTuZhMgaWkNruds3HE1PHTnp9aQvjHuNlSD/c/xuTGA22tP+oL1DZFWMbPMU
-# eIIgzDbWwE3xkmDm46aHE/UTetcIbNwaKdSHGDmZo0mes9YNGKwfFzpurb1BPcDC
-# e7db6UYDbjHQP0QgxXoDuhLUtXOwMPW4+slgoLFfJNpH8td5IIXnzeEnMJl5uwec
-# oLGK+ojUoqLG0BIhfGmSV/RbHlednI2WXNSSh9W7E4tU5qW4qKMdDR4XbIFRRfJ6
-# xPuGRcv0QVRkxN42gpxaRmAhzLG/xNJgP//ddjYKrQd3es2ZlU/p8ZwfBKe8Yf0=
+# KoZIhvcNAQEBBQAEggIAp+0RH/IhaVT8LPogbOT6RRH+veyAVYH6mJZYK9QZ67XH
+# QiOzC1qs0xDJH9+h8jQOg1+0Zc6KyAAk7rJ+iQSb9Bbs/016S/FCQaW0xMTuMJnj
+# sGpIiiAqJIE1+MomMpTi8UCbjkSP9OwjMKPxjHyfa/a9odpj+TNOAGlmFqAGceN5
+# 5TwrSOkQK9WWB15Ip2nn52eXWQao5hJhrAGJR2y6CzqLIqeZHNhufeBsK37Mk8qH
+# dSBbwRW/ATwOcbp+4RnwYaBbxhYmsQhBhlVkNLyAEvl3G1oWUnkGK0/wsU7lS5gI
+# ANaVB4nMBsBtGNSmfeevvOXEnSX3KJ94iFPBndyL1UJMygaESSEfjqf/dbf1GJtr
+# Z/sS1gHKEd2K/CEqpiaL14x+EHEr+JLRXAhEHY9iMtEhGJXytGhytEvPrsPSmkej
+# 3+PDJa6+FtPFDy2V/+XhDJu2wqLo0strH2SGoofHJ6DS3WzmNRBoGdxntHxtk3gI
+# KXQvyArkPnpCh9MwGVxtkyerN6+R0lFkZXa5+HUgoUXdYfJHDMuwSk2LSwrQg+NA
+# IQelSswWvsfIq5GRvpILjZ959hutOA7A0hQDIbhNLCRguvrH6654RbbN0AZUnXLy
+# vaw2Xn6mI8mF612I8sWCLn+S5rvYP9DGw/ahwdcZv/3KbwofD7vXXSd5XHxTZGE=
 # SIG # End signature block
